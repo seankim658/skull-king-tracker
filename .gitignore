@@ -1,0 +1,7 @@
+.env
+.env.production
+.env.development
+postgres_data/
+other/
+logs/
+.DS_Store
