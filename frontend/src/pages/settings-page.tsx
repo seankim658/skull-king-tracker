@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { userAPI } from "@/lib/api/service/user";
 import type {
   UpdateUserProfilePayload,
@@ -36,6 +36,11 @@ import { API_BASE_URL } from "@/lib/api/client";
 import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
 
 type StatsPrivacy = User["stats_privacy"];
+const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
+  { value: "public", label: "Public" },
+  { value: "friends_only", label: "Friends Only" },
+  { value: "private", label: "Private" },
+];
 
 export function SettingsPage() {
   const { user, checkAuthStatus, isLoadingAuth } = useAuth();
@@ -166,13 +171,6 @@ export function SettingsPage() {
     );
   }
 
-  // TODO : should this be memoized?
-  const statsPrivacyOptions: { value: StatsPrivacy; label: string }[] = [
-    { value: "public", label: "Public" },
-    { value: "friends_only", label: "Friends Only" },
-    { value: "private", label: "Private" },
-  ];
-
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4 py-8 md:p-6 lg:py-12">
       <h1 className="text-3xl font-bold tracking-tight mb-2">Settings</h1>
@@ -268,7 +266,7 @@ export function SettingsPage() {
                   </SelectTrigger>
                   <SelectContent align="end">
                     <SelectGroup>
-                      {statsPrivacyOptions.map((option) => (
+                      {STATS_PRIVACY_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
@@ -291,7 +289,7 @@ export function SettingsPage() {
       </section>
 
       <Separator />
-      {/* TODO : Linked Accounts Section */}
+
       <section className="space-y-6">
         <h2 id="linked-accounts-heading" className="text-xl font-semibold">
           Linked Accounts
@@ -321,7 +319,7 @@ export function SettingsPage() {
                     className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg gap-3 sm:gap-2"
                   >
                     <div className="flex items-center gap-3">
-                      {availableProvider.icon}
+                      <div className="w-8 h-8">{availableProvider.icon}</div>
                       <div>
                         <span className="font-medium">
                           {availableProvider.name}

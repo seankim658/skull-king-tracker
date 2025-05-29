@@ -48,8 +48,10 @@ CREATE TABLE game_sessions (
   session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_name VARCHAR(255),
   created_by_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned')),
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMPTZ
 );
 
 -- Guest Players Table
@@ -79,6 +81,7 @@ CREATE TABLE games (
   game_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   session_id UUID REFERENCES game_sessions(session_id) ON DELETE SET NULL,
   created_by_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
+  current_scorekeeper_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
   status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'active', 'completed', 'abandoned')),
   starting_dealer_game_player_id UUID REFERENCES game_players(game_player_id) ON DELETE SET NULL,
   player_seating_order_randomized BOOLEAN NOT NULL DEFAULT TRUE,

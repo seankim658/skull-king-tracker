@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Databse user model
+// Maps to the `users` table
 type User struct {
 	UserID       string         `db:"user_id"`
 	Username     string         `db:"username"`

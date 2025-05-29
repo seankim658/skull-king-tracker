@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// A linked OAuth identity for a user from the `user_provider_identities` table
+// Maps to the `user_provider_identities` table
 type UserProviderIdentity struct {
 	ProviderIdentityID  string         `db:"provider_identity_id"`
 	UserID              string         `db:"user_id"`
