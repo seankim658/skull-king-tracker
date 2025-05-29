@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/sessions"
 	"github.com/markbates/goth/gothic"
 	"github.com/rs/zerolog"
 
@@ -18,6 +19,7 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
 
 const utilComponent = "handlers-utils"
@@ -155,12 +157,21 @@ func StartTx(ctx context.Context, w http.ResponseWriter, r *http.Request, logger
 	return tx, true
 }
 
-// Extracts the user ID from the session
-func GetAuthenticatedUserIDFromSession(w http.ResponseWriter, r *http.Request, logger zerolog.Logger) (string, bool) {
+// Get the session cookie
+func GetSessionStore(w http.ResponseWriter, r *http.Request, failureMessage string, httpStatus int, logger zerolog.Logger) (*sessions.Session, error) {
 	session, err := gothic.Store.Get(r, a.SessionCookieName)
 	if err != nil {
-		logger.Warn().Err(err).Msg("Failed to get session store")
-		ErrorResponse(w, r, http.StatusUnauthorized, "Not authenticated: session error")
+		logger.Warn().Err(err).Str("failure_message", failureMessage).Msg("Failed to get session store")
+		ErrorResponse(w, r, httpStatus, failureMessage)
+		return nil, err
+	}
+	return session, nil
+}
+
+// Extracts the user ID from the session
+func GetAuthenticatedUserIDFromSession(w http.ResponseWriter, r *http.Request, logger zerolog.Logger) (string, bool) {
+	session, err := GetSessionStore(w, r, "Not authenticated: session error", http.StatusUnauthorized, logger)
+	if err != nil {
 		return "", false
 	}
 
@@ -203,4 +214,39 @@ func FetchUserAndRespond(w http.ResponseWriter, r *http.Request, tx *sql.Tx, use
 	}
 
 	Respond(w, r, successStatus, apiModels.AuthenticatedUserResponse{User: *apiUser}, successMessage)
+}
+
+// Verifies a game exists and if the authenticated user is the current scorekeeper
+func CheckGameAccessAndScorekeeper(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	gameID string,
+	userID string,
+	logger zerolog.Logger,
+) (*dbModels.Game, bool) {
+	game, err := db.GetGameByID(ctx, nil, gameID)
+	if err != nil {
+		if errors.Is(err, db.ErrGameNotFound) {
+			logger.Warn().Err(err).Str(l.GameIDKey, gameID).Msg("Game not found for authentication check")
+			ErrorResponse(w, r, http.StatusNotFound, "Game not found")
+		} else {
+			logger.Error().Err(err).Str(l.GameIDKey, gameID).Msg("Failed to fetch game for authorization check")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to verfiy game access")
+		}
+		return nil, false
+	}
+
+	if !game.CurrentScorekeeperUserID.Valid || game.CurrentScorekeeperUserID.String != userID {
+		logger.Warn().
+			Str(l.GameIDKey, gameID).
+			Str(l.UserIDKey, userID).
+			Str(l.ScorekeeperIDKey, game.CurrentScorekeeperUserID.String).
+			Msg("User is not the scorekeeper of the game")
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to modify this game")
+		return nil, false
+	}
+
+	logger.Debug().Str(l.GameIDKey, gameID).Str(l.UserIDKey, userID).Msg("User confirmed as scorekeeper")
+	return game, true
 }

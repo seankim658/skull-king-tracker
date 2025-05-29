@@ -92,10 +92,9 @@ func (ah *AuthHandler) HandleInitiateLink(w http.ResponseWriter, r *http.Request
 	logger = logger.With().Str(l.ProviderKey, providerName).Logger()
 
 	// Step 3: Set session flags for linking
-	session, err := gothic.Store.Get(r, a.SessionCookieName)
+	session, err := GetSessionStore(w, r, "Failed to initiate account linking: session error", http.StatusInternalServerError, logger)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to get session store for linking")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to initiate account linking: session error")
 		return
 	}
 
@@ -621,9 +620,28 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 func (ah *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), authComponent, "HandleLogout")
-	gothic.Logout(w, r)
-	logger.Info().Msg("User logged out")
-	return
+
+	session, err := gothic.Store.Get(r, a.SessionCookieName)
+	if err != nil {
+		logger.Warn().Err(err).Msg("Could not get session during logout")
+	} else {
+		// Clear all session values
+		session.Values = make(map[any]any)
+		// Set MaxAge to -1 to delete the cookie
+		session.Options.MaxAge = -1
+		if saveErr := session.Save(r, w); saveErr != nil {
+			logger.Error().Err(saveErr).Msg("Failed to save cleared session during logout")
+		}
+	}
+
+	err = gothic.Logout(w, r)
+	if err != nil {
+		logger.Error().Err(err).Msg("Error during logout process")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Logout failed: "+err.Error())
+		return
+	}
+	logger.Info().Msg("User logged out successfully")
+	Respond(w, r, http.StatusOK, apiModels.LogoutResponse{Message: "Successfully logged out"}, "Successfully logged out")
 }
 
 // Retrieves the currently authenticated user's details

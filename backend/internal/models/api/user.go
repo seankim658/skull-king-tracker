@@ -40,3 +40,7 @@ type UpdateUserProfileRequest struct {
 	AvatarURL    *string `json:"avatar_url"`
 	StatsPrivacy *string `json:"stats_privacy"`
 }
+
+type LogoutResponse struct {
+	Message string `json:"message"`
+}

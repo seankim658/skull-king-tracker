@@ -25,6 +25,7 @@ const (
 	PostgresConstraintKey   = "pg_constraint"
 	PosgresErrorDetailKey   = "pg_detail"
 	PostgresErrorMessageKey = "pg_error_messsage"
+	StatusKey               = "status"
 
 	// User
 	UserIDKey     = "user_id"
@@ -40,4 +41,21 @@ const (
 	CallbackUrlKey        = "callback_url"
 	GothUsernameKey       = "goth_username"
 	GothNickNameKey       = "goth_nickname"
+
+	// Game
+	GameIDKey        = "game_id"
+	ScorekeeperIDKey = "scorekeeper_id"
+
+	// Session
+	SessionIDKey   = "session_id"
+	SessionNameKey = "session_name"
+
+	// Guest player
+	GuestPlayerIDKey   = "guest_player_id"
+	GuestPlayerNameKey = "guest_player_display_name"
+
+	// Game player
+	GamePlayerIDKey = "game_player_id"
+	SeatingOrderKey = "seating_order"
+	GameStatusKey   = "game_status"
 )

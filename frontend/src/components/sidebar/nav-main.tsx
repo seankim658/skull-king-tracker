@@ -27,9 +27,9 @@ export function NavMain({ items, uploadButton = false }: NavMainProps) {
           <SidebarMenu>
             <SidebarMenuItem className={cn("flex items-center gap-2")}>
               <SidebarMenuButton
-                tooltip="Upload Statement"
+                tooltip="Start Session"
                 className={cn(
-                  "min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground",
+                  "text-white bg-gradient-to-br from-green-400 to-blue-600 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-green-200 dark:focus:ring-green-800",
                 )}
                 asChild
               >
@@ -41,7 +41,7 @@ export function NavMain({ items, uploadButton = false }: NavMainProps) {
             </SidebarMenuItem>
             <SidebarMenuItem className={cn("flex items-center gap-2")}>
               <SidebarMenuButton
-                tooltip="Upload Statement"
+                tooltip="Start Game"
                 className={cn(
                   "min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground",
                 )}

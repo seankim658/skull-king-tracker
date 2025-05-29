@@ -50,5 +50,17 @@ func New(cfg *cf.Config) http.Handler {
 	settingsSubRouter.HandleFunc("/linked-accounts", settingsHandler.HandleGetLinkedAccounts).Methods(http.MethodGet)
 	settingsSubRouter.HandleFunc("linked-accounts/{provider}", settingsHandler.HandleUnlinkAccount).Methods(http.MethodDelete)
 
+	// Game routes
+	gameHandler := h.NewGameHandler(cfg)
+	gameSubRouter := apiRouter.PathPrefix("/games").Subrouter()
+	gameSubRouter.HandleFunc("", gameHandler.HandleCreateGame).Methods(http.MethodPost)
+	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleAddPlayerToGame).Methods(http.MethodPost)
+
+	// Session routes
+	sessionHandler := h.NewSessionHandler(cfg)
+	sessionSubRouter := apiRouter.PathPrefix("/sessions").Subrouter()
+	sessionSubRouter.HandleFunc("/active", sessionHandler.HandleGetActiveSessionsForUser).Methods(http.MethodGet)
+	sessionSubRouter.HandleFunc("/{session_id}/complete", sessionHandler.HandleCompleteSession).Methods(http.MethodPut)
+
 	return mainRouter
 }

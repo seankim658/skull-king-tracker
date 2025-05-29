@@ -20,8 +20,9 @@ import { MainLayout } from "./layouts/main-layout";
 
 // Pages
 import { LoginPage } from "./pages/login-page";
-import { DashboardPage } from "./auth/dashboard-page";
+import { DashboardPage } from "./pages/dashboard-page";
 import { SettingsPage } from "./pages/settings-page";
+import { StartSessionPage } from "./pages/start-session-page";
 
 function AppContent() {
   const { isLoadingAuth } = useAuth();
@@ -43,6 +44,7 @@ function AppContent() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/start-session" element={<StartSessionPage />} />
         </Route>
       </Route>
 

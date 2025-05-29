@@ -17,16 +17,6 @@ import (
 
 const userComponent = "database-user"
 
-var (
-	ErrUserNotFound                 = errors.New("user not found")
-	ErrUserProviderIdentityNotFound = errors.New("user provider identity not found")
-	ErrUsernameTaken                = errors.New("username is already taken")
-	ErrEmailTaken                   = errors.New("email is already registered")
-	ErrProviderIdentityConflict     = errors.New("provider identity conflict (e.g., already linked or user has different link with provider)")
-	ErrInvalidStatsPrivacy          = errors.New("invalid value for stats_privacy field")
-	ErrDeleteLastProviderIdentity   = errors.New("cannot delete the last linked authentication method")
-)
-
 // Inserts a new user into the database
 func CreateUser(ctx context.Context, tx *sql.Tx, user *dbModels.User) (string, error) {
 	querier := GetQuerier(tx)
