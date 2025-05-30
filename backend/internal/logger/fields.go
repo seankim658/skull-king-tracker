@@ -11,6 +11,7 @@ const (
 	PanicKey      = "panic"
 	StackTraceKey = "stack_trace"
 	PathKey       = "path"
+	SizeBytesKey  = "size_bytes"
 
 	// General network fields
 	InternalServerError  = "internal-server-error"
@@ -18,9 +19,10 @@ const (
 	RequestIDKey         = "request_id"
 	StatusCodeKey        = "status_code"
 	ContentTypeKey       = "content_type"
-
-	// Image fields
-	ImageURLKey = "image_url"
+	SchemeKey            = "scheme"
+	ImageURLKey          = "image_url"
+	HostnameKey          = "hostname"
+	IPKey                = "ip"
 
 	// --- Database Logging Fields ---
 	QueryKey                = "query"
