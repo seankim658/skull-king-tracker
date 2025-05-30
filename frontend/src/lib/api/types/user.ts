@@ -9,6 +9,7 @@ export interface User {
   email: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  avatar_source: string | null;
   stats_privacy: "private" | "friends_only" | "public";
   ui_theme: UITheme | null;
   color_theme: ColorTheme | null;

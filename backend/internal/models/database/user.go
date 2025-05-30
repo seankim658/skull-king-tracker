@@ -12,6 +12,7 @@ type User struct {
 	Email        sql.NullString `db:"email"`
 	DisplayName  sql.NullString `db:"display_name"`
 	AvatarURL    sql.NullString `db:"avatar_url"`
+	AvatarSource sql.NullString `db:"avatar_source"`
 	StatsPrivacy string         `db:"stats_privacy"`
 	UITheme      sql.NullString `db:"ui_theme"`
 	ColorTheme   sql.NullString `db:"color_theme"`

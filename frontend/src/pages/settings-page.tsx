@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import type {
   LinkedAccount,
 } from "@/lib/api/types";
 import { toast } from "sonner";
-import { errorExtract } from "@/lib/utils";
+import { errorExtract, getFullAvatarURL } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api/client";
 import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
 
@@ -47,7 +47,10 @@ export function SettingsPage() {
   const [displayName, setDisplayName] = useState(
     user?.display_name || user?.username || "",
   );
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || "");
+
+  const [avatarInputDisplayUrl, setAvatarInputDisplayUrl] = useState("");
+  const [initialAvatarInputValue, setInitialAvatarInputValue] = useState("");
+
   const [statsPrivacy, setStatsPrivacy] = useState<StatsPrivacy>(
     user?.stats_privacy || "public",
   );
@@ -59,12 +62,7 @@ export function SettingsPage() {
   const [isLoadingLinkedAccounts, setIsLoadingLinkedAccounts] = useState(true);
 
   useEffect(() => {
-    if (user) {
-      setDisplayName(user.display_name || user.username || "");
-      setAvatarUrl(user.avatar_url || "");
-      setStatsPrivacy(user.stats_privacy || "public");
-
-      // Fetch linked accounts
+    if (user && !linkedAccounts && isLoadingLinkedAccounts) {
       const fetchAccounts = async () => {
         setIsLoadingLinkedAccounts(true);
         try {
@@ -84,24 +82,62 @@ export function SettingsPage() {
       };
       fetchAccounts();
     }
-  }, [user]);
+  }, [user, linkedAccounts, isLoadingLinkedAccounts]);
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.display_name || user.username || "");
+      setStatsPrivacy(user.stats_privacy || "public");
+
+      let determinedInputUrl = "";
+      if (
+        user.avatar_source &&
+        user.avatar_source !== "manual" &&
+        linkedAccounts
+      ) {
+        // Avatar is from a provider
+        const providerAccount = linkedAccounts.find(
+          (acc) => acc.provider_name === user.avatar_source,
+        );
+        if (providerAccount && providerAccount.provider_avatar_url) {
+          determinedInputUrl = providerAccount.provider_avatar_url;
+        }
+      } else if (user.avatar_source === "manual") {
+        // Avatar was manually uploaded and localized
+        determinedInputUrl = "";
+      }
+
+      setAvatarInputDisplayUrl(determinedInputUrl);
+      setInitialAvatarInputValue(determinedInputUrl);
+    }
+  }, [user, linkedAccounts]);
 
   const handleProfileSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!user) return;
     setIsSavingProfile(true);
+
     const payload: UpdateUserProfilePayload = {};
+    let changesMade = false;
 
-    if (displayName !== (user?.display_name || user?.username)) {
-      payload.display_name = displayName;
+    const currentDisplayName = user.display_name || user.username || "";
+    if (displayName.trim() !== currentDisplayName) {
+      payload.display_name = displayName.trim();
+      changesMade = true;
     }
-    if (avatarUrl !== (user?.avatar_url || "")) {
-      payload.avatar_url = avatarUrl;
+
+    if (avatarInputDisplayUrl !== initialAvatarInputValue) {
+      payload.avatar_url = avatarInputDisplayUrl;
+      changesMade = true;
     }
-    if (statsPrivacy !== (user?.stats_privacy || "public")) {
+
+    const currentStatsPrivacy = user.stats_privacy || "public";
+    if (statsPrivacy !== currentStatsPrivacy) {
       payload.stats_privacy = statsPrivacy;
+      changesMade = true;
     }
 
-    if (Object.keys(payload).length === 0) {
+    if (!changesMade) {
       toast.info("No changes to save");
       setIsSavingProfile(false);
       return;
@@ -116,11 +152,17 @@ export function SettingsPage() {
         throw new Error(response.error || "Failed to update profile");
       }
     } catch (e) {
-      toast.error(errorExtract(e, "Could not update profile"));
+      toast.error(
+        errorExtract(e, "An error occurred while updating your profile"),
+      );
     } finally {
       setIsSavingProfile(false);
     }
   };
+
+  const currentDisplayableAvatar = useMemo(() => {
+    return user ? getFullAvatarURL(user.avatar_url) : "";
+  }, [user]);
 
   const handleConnectProvider = (providerId: string) => {
     window.location.href = `${API_BASE_URL}/auth/initiate-link/${providerId}`;
@@ -231,7 +273,10 @@ export function SettingsPage() {
                 <Label htmlFor="avatarUrl">Avatar URL</Label>
                 <div className="flex items-center gap-4">
                   <Avatar className="h-16 w-16">
-                    <AvatarImage src={avatarUrl} alt={displayName} />
+                    <AvatarImage
+                      src={currentDisplayableAvatar}
+                      alt={displayName}
+                    />
                     <AvatarFallback>
                       {displayName
                         ? displayName.substring(0, 2).toUpperCase()
@@ -241,8 +286,8 @@ export function SettingsPage() {
                   <Input
                     id="avatarUrl"
                     type="url"
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
+                    value={avatarInputDisplayUrl}
+                    onChange={(e) => setAvatarInputDisplayUrl(e.target.value)}
                     placeholder="https://example.com/avatar.png"
                     className="flex-1"
                   />

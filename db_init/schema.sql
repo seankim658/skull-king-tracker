@@ -5,6 +5,7 @@ CREATE TABLE users (
   email VARCHAR(255) UNIQUE,
   display_name VARCHAR(255),
   avatar_url TEXT,
+  avatar_source VARCHAR(50) DEFAULT NULL,
   stats_privacy VARCHAR(50) NOT NULL DEFAULT 'public' CHECK (stats_privacy IN ('private', 'friends_only', 'public')),
   ui_theme VARCHAR(50) DEFAULT 'system',
   color_theme VARCHAR(50) DEFAULT 'blue',

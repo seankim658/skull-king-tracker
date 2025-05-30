@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -9,11 +10,13 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 
 	a "github.com/seankim658/skullking/internal/auth"
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
+	i "github.com/seankim658/skullking/internal/images"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
@@ -447,10 +450,11 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 
 				// Create the new user model to be inserted into the database
 				newUser := &dbModels.User{
-					Username:    generatedUsername,
-					Email:       db.NullString(gothUser.Email),
-					DisplayName: db.NullString(gothUser.Name),
-					AvatarURL:   db.NullString(gothUser.AvatarURL),
+					Username:     generatedUsername,
+					Email:        db.NullString(gothUser.Email),
+					DisplayName:  db.NullString(gothUser.Name),
+					AvatarURL:    db.NullString(gothUser.AvatarURL),
+					AvatarSource: db.NullString(gothUser.Provider),
 				}
 
 				// Save the new user to the database
@@ -528,7 +532,7 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		}
 	} // End of `isLinkingFlow` vs. Normal Login/Registration Flow
 
-	// Step 4.X: Sanity Check - Ensure `dbUserForSession` is populated
+	// Sanity Check - Ensure `dbUserForSession` is populated
 	if dbUserForSession == nil {
 		if handleErr == nil {
 			handleErr = errors.New("CRITICAL: dbUserForSession is nil, but no preceeding error was recorded")
@@ -539,6 +543,18 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 			responseSent = true
 		}
 		return
+	}
+
+	// Handle avatar processing if applicable
+	var lastKnownOriginalProviderURL string
+	if idErr == nil && existingIdentity != nil && existingIdentity.ProviderAvatarURL.Valid {
+		lastKnownOriginalProviderURL = existingIdentity.ProviderAvatarURL.String
+	}
+	providerOriginalAvatarURLChanged := (gothUser.AvatarURL != "" && gothUser.AvatarURL != lastKnownOriginalProviderURL)
+	var avatarHelperErr error
+	dbUserForSession, avatarHelperErr = ah.processPrimaryAvatarUpdate(ctx, tx, dbUserForSession, gothUser, providerOriginalAvatarURLChanged)
+	if avatarHelperErr != nil {
+		logger.Warn().Err(avatarHelperErr).Msg("Error occurred during primary avatar update processing, continuing login...")
 	}
 
 	// --- Step 5 ---
@@ -703,4 +719,75 @@ func (ah *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Reque
 	}
 
 	Respond(w, r, http.StatusOK, meResponse, "Successfully retrieved user details")
+}
+
+func (ah *AuthHandler) processPrimaryAvatarUpdate(
+	ctx context.Context,
+	tx *sql.Tx,
+	dbUser *dbModels.User,
+	gothUser goth.User,
+	providerOriginalAvatarURLChanged bool,
+) (*dbModels.User, error) {
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		authComponent,
+		"processPrimaryAvatarUpdate",
+	)
+	currentProviderName := gothUser.Provider
+	gothProviderAvatarURL := gothUser.AvatarURL
+	logger.With().
+		Str(l.UserIDKey, dbUser.UserID).
+		Str(l.ProviderKey, currentProviderName).
+		Str(l.AvatarURLKey, gothProviderAvatarURL).
+		Logger()
+
+	if gothProviderAvatarURL != "" {
+		// Decide if the main user avatar should be updated
+		// Update if:
+		//   a) User has no avatar source yet
+		//   b) User's current avatar was sourced from this provider and the provider's
+		//      has changed
+		shouldConsiderUpdatingMainAvatar := !dbUser.AvatarSource.Valid ||
+			(dbUser.AvatarSource.Valid && dbUser.AvatarSource.String == currentProviderName)
+
+		if shouldConsiderUpdatingMainAvatar && providerOriginalAvatarURLChanged {
+			logger.Info().Msg("Provider's avatar changed and is eligible to update main user avatar, processing...")
+			newLocalPath, processErr := i.ProcessAndStoreAvatar(
+				ctx, gothProviderAvatarURL, dbUser.UserID, ah.Cfg.AvatarStoragePath, i.AvatarWebPrefixPath, i.AvatarImgSize,
+			)
+			if processErr == nil {
+				updates := map[string]any{
+					"avatar_url":    newLocalPath,
+					"avatar_source": currentProviderName,
+				}
+				if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, updates); dbErr != nil {
+					logger.Warn().Err(dbErr).Msg("Failed to update users table with new avatar path/source from provider, continuing login...")
+					return dbUser, fmt.Errorf("failed to update user profile for avatar: %w", dbErr)
+				}
+				dbUser.AvatarURL = db.NullString(newLocalPath)
+				dbUser.AvatarSource = db.NullString(currentProviderName)
+				logger.Info().Str(l.PathKey, newLocalPath).Msg("Main user avatar updated from provider")
+			} else {
+				logger.Warn().Err(processErr).Msg("Failed to process image from provider for main user avatar, continuing login...")
+				return dbUser, fmt.Errorf("failed ot process avatar image: %w", processErr)
+			}
+		}
+	} else {
+		logger.Debug().Msg("Provider did not return an avatar URL")
+		if dbUser.AvatarSource.Valid && dbUser.AvatarSource.String == currentProviderName && dbUser.AvatarURL.Valid {
+			logger.Info().Msg("Current avatar source matches this provider, but provider returned no avatar, clearing user's main avatar...")
+			updates := map[string]any{
+				"avatar_url":    "",
+				"avatar_source": "",
+			}
+			if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, updates); dbErr != nil {
+				logger.Warn().Err(dbErr).Msg("Failed to clear user avatar after provider removed theirs")
+				return dbUser, fmt.Errorf("failed to clear user avatar: %w", dbErr)
+			}
+			dbUser.AvatarURL = db.NullString("")
+			dbUser.AvatarSource = db.NullString("")
+			logger.Info().Msg("User's main avatar cleared as provider removed theirs and was the source")
+		}
+	}
+	return dbUser, nil
 }

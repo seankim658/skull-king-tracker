@@ -12,7 +12,7 @@ func DBUserToAPIUser(dbUser *dbModels.User) (*apiModels.User, error) {
 	if dbUser == nil {
 		return nil, errors.New("cannot convert nil db user to api user")
 	}
-	var email, displayName, avatarURL, uiTheme, colorTheme, lastLoginAt *string
+	var email, displayName, avatarURL, avatarSource, uiTheme, colorTheme, lastLoginAt *string
 	if dbUser.Email.Valid {
 		email = &dbUser.Email.String
 	}
@@ -21,6 +21,9 @@ func DBUserToAPIUser(dbUser *dbModels.User) (*apiModels.User, error) {
 	}
 	if dbUser.AvatarURL.Valid {
 		avatarURL = &dbUser.AvatarURL.String
+	}
+	if dbUser.AvatarSource.Valid {
+		avatarSource = &dbUser.AvatarSource.String
 	}
 	if dbUser.UITheme.Valid {
 		uiTheme = &dbUser.UITheme.String
@@ -39,6 +42,7 @@ func DBUserToAPIUser(dbUser *dbModels.User) (*apiModels.User, error) {
 		Email:        email,
 		DisplayName:  displayName,
 		AvatarURL:    avatarURL,
+		AvatarSource: avatarSource,
 		StatsPrivacy: dbUser.StatsPrivacy,
 		UITheme:      uiTheme,
 		ColorTheme:   colorTheme,

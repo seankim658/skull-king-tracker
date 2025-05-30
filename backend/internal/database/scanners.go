@@ -22,6 +22,7 @@ func scanUser(row RowScanner) (*dbModels.User, error) {
 		&user.Email,
 		&user.DisplayName,
 		&user.AvatarURL,
+    &user.AvatarSource,
 		&user.StatsPrivacy,
 		&user.UITheme,
 		&user.ColorTheme,
