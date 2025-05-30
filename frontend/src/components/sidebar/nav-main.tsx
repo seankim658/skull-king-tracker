@@ -29,7 +29,7 @@ export function NavMain({ items, uploadButton = false }: NavMainProps) {
               <SidebarMenuButton
                 tooltip="Start Session"
                 className={cn(
-                  "text-white bg-gradient-to-br from-green-400 to-blue-600 hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-green-200 dark:focus:ring-green-800",
+                  "text-white bg-gradient-to-br from-green-400 to-blue-600 hover:bg-gradient-to-bl",
                 )}
                 asChild
               >

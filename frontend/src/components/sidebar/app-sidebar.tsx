@@ -37,7 +37,7 @@ const navItems = [
     icon: Gamepad,
   },
   {
-    title: "My Stats",
+    title: "My Profile & Stats",
     url: "/my-stats",
     icon: NotebookTabs,
   },
