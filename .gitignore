@@ -5,3 +5,4 @@ postgres_data/
 other/
 logs/
 .DS_Store
+static/
