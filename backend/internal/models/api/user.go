@@ -12,6 +12,7 @@ type User struct {
 	DisplayName  *string   `json:"display_name,omitempty"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
 	StatsPrivacy string    `json:"stats_privacy"`
+	AvatarSource *string   `json:"avatar_source,omitempty"`
 	UITheme      *string   `json:"ui_theme,omitempty"`
 	ColorTheme   *string   `json:"color_theme,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`

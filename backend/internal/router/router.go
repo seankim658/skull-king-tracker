@@ -23,6 +23,13 @@ func New(cfg *cf.Config) http.Handler {
 	mainRouter.Use(mw.CorsMiddleware(cfg))
 	mainRouter.Use(mw.RateLimit(rate.Limit(5), 10))
 
+	// --- Static Files ---
+	avatarWebPrefix := "/static/avatars/"
+	avatarDiskPath := cfg.AvatarStoragePath
+	fileServer := http.FileServer(http.Dir(avatarDiskPath))
+
+	mainRouter.PathPrefix(avatarWebPrefix).Handler(http.StripPrefix(avatarWebPrefix, fileServer))
+
 	// --- API Subrouter ---
 	apiRouter := mainRouter.PathPrefix("/api").Subrouter()
 

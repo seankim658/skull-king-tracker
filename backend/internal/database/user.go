@@ -31,10 +31,10 @@ func CreateUser(ctx context.Context, tx *sql.Tx, user *dbModels.User) (string, e
 
 	query := `
   INSERT INTO users (
-    user_id, username, email, display_name, avatar_url,
+    user_id, username, email, display_name, avatar_url, avatar_source,
     stats_privacy, created_at, updated_at, last_login_at
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
   RETURNING user_id;
   `
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to create user")
@@ -53,6 +53,7 @@ func CreateUser(ctx context.Context, tx *sql.Tx, user *dbModels.User) (string, e
 		user.Email,
 		user.DisplayName,
 		user.AvatarURL,
+    user.AvatarSource,
 		user.StatsPrivacy,
 		currentTime,
 		currentTime,
@@ -87,8 +88,8 @@ func GetUserByID(ctx context.Context, tx *sql.Tx, userID string) (*dbModels.User
 
 	query := `
   SELECT 
-    user_id, username, email, display_name, avatar_url, stats_privacy, 
-    ui_theme, color_theme, created_at, updated_at, last_login_at
+    user_id, username, email, display_name, avatar_url, avatar_source, 
+    stats_privacy, ui_theme, color_theme, created_at, updated_at, last_login_at
   FROM users
   WHERE user_id = $1;
   `
@@ -118,8 +119,8 @@ func GetUserByEmail(ctx context.Context, tx *sql.Tx, email string) (*dbModels.Us
 
 	query := `
   SELECT
-    user_id, username, email, display_name, avatar_url, stats_privacy,
-    ui_theme, color_theme, created_at, updated_at, last_login_at
+    user_id, username, email, display_name, avatar_url, avatar_source, 
+    stats_privacy, ui_theme, color_theme, created_at, updated_at, last_login_at
   FROM users
   WHERE email = $1;
   `
@@ -343,6 +344,10 @@ func UpdateUserProfile(ctx context.Context, tx *sql.Tx, userID string, updates m
 			querySetParts = append(querySetParts, fmt.Sprintf("avatar_url = $%d", argCounter))
 			queryArgs = append(queryArgs, value)
 			argCounter++
+		case "avatar_source":
+			querySetParts = append(querySetParts, fmt.Sprintf("avatar_source = $%d", argCounter))
+			queryArgs = append(queryArgs, value)
+			argCounter++
 		case "stats_privacy":
 			strVal, ok := value.(string)
 			if !ok || !IsValidStatsPrivacy(strVal) {
@@ -528,21 +533,21 @@ func UpdateUserProviderIdentityDetails(ctx context.Context, tx *sql.Tx, provider
 		NullString(gothUser.AvatarURL),
 		providerIdentityID,
 	)
-  if err != nil {
-    logger.Error().Err(err).Msg("Failed to execute update for user provider identity details")
-    return fmt.Errorf("error updating provider identity details for ID %s: %w", providerIdentityID, err)
-  }
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute update for user provider identity details")
+		return fmt.Errorf("error updating provider identity details for ID %s: %w", providerIdentityID, err)
+	}
 
-  rowsAffected, err := result.RowsAffected()
-  if err != nil {
-    logger.Error().Err(err).Msg("Failed to get rows affected after updating provider identity details")
-    return fmt.Errorf("error checking rows affected for provider identity ID %s update: %w", providerIdentityID, err)
-  }
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get rows affected after updating provider identity details")
+		return fmt.Errorf("error checking rows affected for provider identity ID %s update: %w", providerIdentityID, err)
+	}
 
-  if rowsAffected == 0 {
-    return ErrUserProviderIdentityNotFound
-  }
+	if rowsAffected == 0 {
+		return ErrUserProviderIdentityNotFound
+	}
 
-  logger.Info().Msg("User provider identity details updated successfully")
-  return nil
+	logger.Info().Msg("User provider identity details updated successfully")
+	return nil
 }

@@ -10,11 +10,17 @@ const (
 	AppEnvKey     = "APP_ENV"
 	PanicKey      = "panic"
 	StackTraceKey = "stack_trace"
+	PathKey       = "path"
 
 	// General network fields
 	InternalServerError  = "internal-server-error"
 	TooManyRequestsError = "too-many-requests"
 	RequestIDKey         = "request_id"
+	StatusCodeKey        = "status_code"
+	ContentTypeKey       = "content_type"
+
+	// Image fields
+	ImageURLKey = "image_url"
 
 	// --- Database Logging Fields ---
 	QueryKey                = "query"
@@ -33,6 +39,7 @@ const (
 	EmailKey      = "email"
 	UIThemeKey    = "ui_theme"
 	ColorThemeKey = "color_theme"
+	AvatarURLKey  = "avatar_url"
 
 	// Auth
 	ProviderKey           = "provider"

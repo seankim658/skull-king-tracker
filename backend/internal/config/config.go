@@ -17,6 +17,7 @@ type Config struct {
 	APIPort              string
 	AppBaseURL           string
 	FrontendBaseURL      string
+	AvatarStoragePath    string
 	DBHost               string
 	DBPort               string
 	DBUser               string
@@ -116,6 +117,7 @@ func Load() (*Config, error) {
 		APIPort:              apiPort,
 		AppBaseURL:           appBaseURL,
 		FrontendBaseURL:      frontendBaseURL,
+		AvatarStoragePath:    getEnv("AVATAR_STORAGE_PATH", "/app/static/avatars"),
 		DBHost:               getEnv("DB_HOST", "db"),
 		DBPort:               getEnv("DB_PORT", "5432"),
 		DBUser:               dbUser,

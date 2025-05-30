@@ -11,6 +11,7 @@ import (
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
+	i "github.com/seankim658/skullking/internal/images"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
@@ -138,11 +139,50 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 		}
 		updates["display_name"] = trimmedDisplayName
 	}
-	if payload.AvatarURL != nil {
-		updates["avatar_url"] = *payload.AvatarURL
-	}
 	if payload.StatsPrivacy != nil {
 		updates["stats_privacy"] = *payload.StatsPrivacy
+	}
+
+	if payload.AvatarURL != nil {
+		originalReqAvatarURL := *payload.AvatarURL
+		if strings.HasPrefix(originalReqAvatarURL, "http://") || strings.HasPrefix(originalReqAvatarURL, "https://") {
+			// User provided a new external URL for manual avatar update
+			logger.Info().Msg("User provided an external avatar URL for manual update")
+			localPath, processErr := i.ProcessAndStoreAvatar(
+				ctx,
+				originalReqAvatarURL,
+				userID,
+				sh.Cfg.AvatarStoragePath,
+				i.AvatarWebPrefixPath,
+				i.AvatarImgSize,
+			)
+			if processErr == nil {
+				updates["avatar_url"] = localPath
+				updates["avatar_source"] = i.AvatarManualKey
+				logger.Info().
+					Str(l.PathKey, localPath).
+					Msg("Successfully localized and set manually provided avatar")
+			} else {
+				ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("Failed to process the provided avatar URL: %v", processErr))
+				return
+			}
+		} else if originalReqAvatarURL == "" {
+      // User wants to remove their avatar
+      updates["avatar_url"] = ""
+      updates["avatar_source"] = ""
+      logger.Info().Msg("User reqeusted to remove avatar")
+    } else {
+      // User might be re-submitting an existing local path or providing non-URL data,
+      // for simplicity, if it's not HTTP and not empty, don't change the avatar_url
+      if strings.HasPrefix(originalReqAvatarURL, i.AvatarWebPrefixPath) {
+        updates["avatar_url"] = originalReqAvatarURL
+        updates["avatar_source"] = i.AvatarManualKey
+      } else {
+        logger.Warn().
+          Str("avatar_url_payload", originalReqAvatarURL).
+          Msg("Received non-HTTP avatar URL in profile update, not an expected local path. Ignoring avatar update.")
+      }
+    }
 	}
 
 	if len(updates) == 0 {
