@@ -9,7 +9,6 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 
@@ -49,14 +48,10 @@ func (ah *AuthHandler) HandleOAuthLogin(w http.ResponseWriter, r *http.Request) 
 		"HandleOAuthLogin",
 	)
 
-	vars := mux.Vars(r)
-	providerName, ok := vars["provider"]
-	if !ok || providerName == "" {
-		logger.Error().Msg("Provider name missing from URL path")
-		ErrorResponse(w, r, http.StatusBadRequest, "Authentication proivder name is required")
+	providerName, ok := PathVar(w, r, "provider")
+	if !ok {
 		return
 	}
-
 	logger.Info().Str(l.ProviderKey, providerName).Msg("Attempting OAuth login")
 
 	// Add provider name to the request context for gothic
@@ -85,11 +80,8 @@ func (ah *AuthHandler) HandleInitiateLink(w http.ResponseWriter, r *http.Request
 	logger = logger.With().Str(l.UserIDKey, sessionUserID).Logger()
 
 	// Step 2: Get provider from URL
-	vars := mux.Vars(r)
-	providerName, foundProvider := vars["provider"]
-	if !foundProvider || providerName == "" {
-		logger.Error().Msg("Provider name missing from URL path for linking")
-		ErrorResponse(w, r, http.StatusBadRequest, "Provider name is required for linking")
+	providerName, ok := PathVar(w, r, "provider")
+	if !ok {
 		return
 	}
 	logger = logger.With().Str(l.ProviderKey, providerName).Logger()
@@ -140,9 +132,10 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		"HandleOAuthCallback",
 	)
 
-	vars := mux.Vars(r)
-	providerName := vars["provider"]
-
+	providerName, ok := PathVar(w, r, "provider")
+	if !ok {
+		return
+	}
 	logger.Info().Str(l.ProviderKey, providerName).Msg("Received OAuth callback")
 
 	// --- Step 1 ---

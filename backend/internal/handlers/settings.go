@@ -7,8 +7,6 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/gorilla/mux"
-
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	i "github.com/seankim658/skullking/internal/images"
@@ -287,12 +285,10 @@ func (sh *SettingsHandler) HandleUnlinkAccount(w http.ResponseWriter, r *http.Re
 		"HandleUnlinkAccount",
 	)
 
-	vars := mux.Vars(r)
-	providerName, ok := vars["provider"]
-	if !ok || providerName == "" {
-		ErrorResponse(w, r, http.StatusBadRequest, "Provider name is required in the URL path")
-		return
-	}
+  providerName, ok := PathVar(w, r, "provider")
+  if !ok {
+    return
+  }
 	logger = logger.With().Str(l.ProviderKey, providerName).Logger()
 
 	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth/gothic"
 	"github.com/rs/zerolog"
@@ -74,6 +75,17 @@ func RequireFields(w http.ResponseWriter, r *http.Request, fields map[string]str
 		}
 	}
 	return true
+}
+
+// Get a path var
+func PathVar(w http.ResponseWriter, r *http.Request, varName string) (string, bool) {
+	vars := mux.Vars(r)
+	value, ok := vars[varName]
+	if !ok || value == "" {
+		ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("%s is required", varName))
+		return "", false
+	}
+	return value, true
 }
 
 // Gets a query paramter value from the request URL

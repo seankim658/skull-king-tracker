@@ -18,6 +18,9 @@ var (
 	ErrInvalidStatsPrivacy          = errors.New("invalid value for stats_privacy field")
 	ErrDeleteLastProviderIdentity   = errors.New("cannot delete the last linked authentication method")
 
+  // Friendship
+  ErrFriendshipSelf = errors.New("cannot friend self")
+
 	// Game
 	ErrGameNotFound = errors.New("game not found")
 

@@ -53,7 +53,7 @@ func CreateUser(ctx context.Context, tx *sql.Tx, user *dbModels.User) (string, e
 		user.Email,
 		user.DisplayName,
 		user.AvatarURL,
-    user.AvatarSource,
+		user.AvatarSource,
 		user.StatsPrivacy,
 		currentTime,
 		currentTime,

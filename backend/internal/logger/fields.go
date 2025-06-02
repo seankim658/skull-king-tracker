@@ -36,12 +36,14 @@ const (
 	StatusKey               = "status"
 
 	// User
-	UserIDKey     = "user_id"
-	UsernameKey   = "username"
-	EmailKey      = "email"
-	UIThemeKey    = "ui_theme"
-	ColorThemeKey = "color_theme"
-	AvatarURLKey  = "avatar_url"
+	UserIDKey           = "user_id"
+	UsernameKey         = "username"
+	EmailKey            = "email"
+	UIThemeKey          = "ui_theme"
+	ColorThemeKey       = "color_theme"
+	AvatarURLKey        = "avatar_url"
+	FriendshipStatusKey = "friendship_status"
+	StatsPrivacyKey     = "stats_privacy"
 
 	// Auth
 	ProviderKey           = "provider"

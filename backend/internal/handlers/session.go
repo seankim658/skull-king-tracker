@@ -8,8 +8,6 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/gorilla/mux"
-
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
@@ -78,12 +76,10 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 		"HandleCompleteSession",
 	)
 
-	vars := mux.Vars(r)
-	sessionID, found := vars["session_id"]
-	if !found || sessionID == "" {
-		ErrorResponse(w, r, http.StatusBadRequest, "Session ID is required in the URL path")
-		return
-	}
+  sessionID, ok := PathVar(w, r, "session_id")
+  if !ok {
+    return
+  }
 	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
 
 	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)

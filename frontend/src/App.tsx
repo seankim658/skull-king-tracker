@@ -23,6 +23,7 @@ import { LoginPage } from "./pages/login-page";
 import { DashboardPage } from "./pages/dashboard-page";
 import { SettingsPage } from "./pages/settings-page";
 import { StartSessionPage } from "./pages/start-session-page";
+import { ProfilePage } from "./pages/profile-page";
 
 function AppContent() {
   const { isLoadingAuth } = useAuth();
@@ -45,6 +46,7 @@ function AppContent() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/start-session" element={<StartSessionPage />} />
+          <Route path="/users/:userId" element={<ProfilePage />} />
         </Route>
       </Route>
 
