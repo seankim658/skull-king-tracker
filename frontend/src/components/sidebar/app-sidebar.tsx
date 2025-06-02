@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Home,
   ListIcon,
@@ -19,34 +20,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "../ui/sidebar";
-
-const navItems = [
-  {
-    title: "Home",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Sessions",
-    url: "/sessions",
-    icon: ListIcon,
-  },
-  {
-    title: "Games",
-    url: "/games",
-    icon: Gamepad,
-  },
-  {
-    title: "My Profile & Stats",
-    url: "/my-stats",
-    icon: NotebookTabs,
-  },
-  {
-    title: "Explore",
-    url: "/explore",
-    icon: ChartLine,
-  },
-];
+import { Link } from "react-router-dom";
 
 const secondaryItems = [
   {
@@ -55,13 +29,14 @@ const secondaryItems = [
     icon: Settings,
   },
   {
-    title: "Get Help",
-    url: "#",
+    title: "Report Bug",
+    url: "/bug",
     icon: HelpCircle,
   },
 ];
 
 interface NavUserProps {
+  user_id: string;
   name: string;
   email: string;
   avatar: string;
@@ -72,6 +47,37 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
+  const navItems = useMemo(
+    () => [
+      {
+        title: "Home",
+        url: "/",
+        icon: Home,
+      },
+      {
+        title: "Sessions",
+        url: "/sessions",
+        icon: ListIcon,
+      },
+      {
+        title: "Games",
+        url: "/games",
+        icon: Gamepad,
+      },
+      {
+        title: "My Profile",
+        url: user.user_id ? `/users/${user.user_id}` : "/login",
+        icon: NotebookTabs,
+      },
+      {
+        title: "Explore",
+        url: "/explore",
+        icon: ChartLine,
+      },
+    ],
+    [user.user_id],
+  );
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -81,11 +87,11 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/">
+              <Link to="/">
                 <span className="text-base font-semibold">
                   Skull King Tracker
                 </span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

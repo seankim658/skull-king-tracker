@@ -45,3 +45,19 @@ type UpdateUserProfileRequest struct {
 type LogoutResponse struct {
 	Message string `json:"message"`
 }
+
+type UserProfile struct {
+	UserID           string           `json:"user_id"`
+	Username         string           `json:"username"`
+	DisplayName      *string          `json:"display_name,omitempty"`
+	AvatarURL        *string          `json:"avatar_url,omitempty"`
+	StatsPrivacy     string           `json:"stats_privacy"`
+	CreatedAt        time.Time        `json:"created_at"`
+	FriendCount      int              `json:"friend_count"`
+	FriendshipStatus FriendshipStatus `json:"friendship_status_with_viewer"`
+}
+
+type UserProfileResponse struct {
+	Profile UserProfile `json:"profile"`
+	Stats   *UserStats  `json:"stats,omitempty"`
+}

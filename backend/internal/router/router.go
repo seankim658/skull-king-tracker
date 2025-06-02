@@ -69,5 +69,10 @@ func New(cfg *cf.Config) http.Handler {
 	sessionSubRouter.HandleFunc("/active", sessionHandler.HandleGetActiveSessionsForUser).Methods(http.MethodGet)
 	sessionSubRouter.HandleFunc("/{session_id}/complete", sessionHandler.HandleCompleteSession).Methods(http.MethodPut)
 
+	// User prfile routes
+	userProfileHandler := h.NewUserProfileHandler(cfg)
+	userProfileSubRouter := apiRouter.PathPrefix("/users").Subrouter()
+	userProfileSubRouter.HandleFunc("/{user_id}/profile", userProfileHandler.HandleGetUserProfile).Methods(http.MethodGet)
+
 	return mainRouter
 }

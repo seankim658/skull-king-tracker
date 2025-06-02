@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Outlet } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -8,13 +9,18 @@ import { getFullAvatarURL } from "@/lib/utils";
 export function MainLayout() {
   const { user } = useAuth();
 
-  const sidebarUserData = user
-    ? {
-        name: user.display_name || user.username,
-        email: user.email ? user.email : "",
-        avatar: getFullAvatarURL(user.avatar_url),
-      }
-    : { name: "Loading...", email: "...", avatar: "" };
+  const sidebarUserData = useMemo(
+    () =>
+      user
+        ? {
+            user_id: user.user_id,
+            name: user.display_name || user.username,
+            email: user.email ? user.email : "",
+            avatar: getFullAvatarURL(user.avatar_url),
+          }
+        : { user_id: "", name: "Loading...", email: "...", avatar: "" },
+    [user],
+  );
 
   return (
     <SidebarProvider>

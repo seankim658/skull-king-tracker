@@ -5,6 +5,7 @@ import type {
   UpdateUserThemePayload,
   UpdateUserProfilePayload,
   LinkedAccount,
+  UserProfileResponse,
 } from "../types";
 
 export const userAPI = {
@@ -57,5 +58,15 @@ export const userAPI = {
   unlinkAccount: (providerName: string): Promise<ApiResponse<null>> =>
     client<ApiResponse<null>>(`/settings/linked-accounts/${providerName}`, {
       method: "DELETE",
+    }),
+
+  /**
+   * Retrieves a user's public profile information.
+   * @param userId - The ID of the user whose profile to fetch
+   * @returns Promise resolving to the user's profile data
+   */
+  getUserProfile: (userId: string): Promise<ApiResponse<UserProfileResponse>> =>
+    client<ApiResponse<UserProfileResponse>>(`/users/${userId}/profile`, {
+      method: "GET",
     }),
 };

@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/gorilla/mux"
-
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
@@ -138,10 +136,8 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 		"HandleAddPlayerToGame",
 	)
 
-	vars := mux.Vars(r)
-	gameID, ok := vars["game_id"]
-	if !ok || gameID == "" {
-		ErrorResponse(w, r, http.StatusBadRequest, "Game ID is required")
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
 		return
 	}
 	logger = logger.With().Str(l.GameIDKey, gameID).Logger()
