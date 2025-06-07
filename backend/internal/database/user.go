@@ -551,3 +551,75 @@ func UpdateUserProviderIdentityDetails(ctx context.Context, tx *sql.Tx, provider
 	logger.Info().Msg("User provider identity details updated successfully")
 	return nil
 }
+
+// Searches for users by username or display name
+func SearchUsers(ctx context.Context, tx *sql.Tx, searchQuery string, limit int) ([]dbModels.UserSearchResult, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		userComponent,
+		"SearchUsers",
+	).With().Str(l.SearchQueryKey, searchQuery).Int(l.LimitKey, limit).Logger()
+
+	if limit <= 0 {
+		limit = 10
+	}
+	if searchQuery == "" {
+		return []dbModels.UserSearchResult{}, nil
+	}
+
+	searchTerm := "%" + strings.ToLower(searchQuery) + "%"
+
+	query := `
+  SELECT user_id, username, display_name, avatar_url
+  FROM users
+  WHERE (LOWER(username) ILIKE $1 OR LOWER(display_name) ILIKE $1)
+  ORDER BY
+    CASE
+      WHEN LOWER(username) = LOWER($2) THEN 1     -- Exact username match first
+			WHEN LOWER(display_name) = LOWER($2) THEN 2 -- Exact display name match second
+			WHEN LOWER(username) LIKE $3 THEN 3         -- Starts with username
+			WHEN LOWER(display_name) LIKE $3 THEN 4     -- Starts with display name
+			ELSE 5 -- Contains match
+		END,
+		username ASC
+	LIMIT $4;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to search users")
+
+	rows, err := querier.QueryContext(ctx,
+		query,
+		searchTerm,
+		strings.ToLower(searchQuery),
+		strings.ToLower(searchQuery)+"%",
+		limit,
+	)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to search users")
+		return nil, fmt.Errorf("error searching users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []dbModels.UserSearchResult
+	for rows.Next() {
+		var u dbModels.UserSearchResult
+		if err := rows.Scan(
+			&u.UserID,
+			&u.Username,
+			&u.DisplayName,
+			&u.AvatarURL,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan user search result row")
+			return nil, fmt.Errorf("error scanning user search result: %w", err)
+		}
+		users = append(users, u)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over user search result rows")
+		return nil, fmt.Errorf("error iterating user search results: %w", err)
+	}
+
+	logger.Info().Int(l.CountKey, len(users)).Msg("User search completed")
+	return users, nil
+}

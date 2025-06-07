@@ -61,3 +61,12 @@ type UserProfileResponse struct {
 	Profile UserProfile `json:"profile"`
 	Stats   *UserStats  `json:"stats,omitempty"`
 }
+
+type UserSearchItem struct {
+	UserID      string  `json:"user_id"`
+	Username    string  `json:"username"`
+	DisplayName *string `json:"display_name,omitempty"`
+	AvatarURL   *string `json:"avatar_url,omitempty"`
+}
+
+type UserSearchResponse []UserSearchItem

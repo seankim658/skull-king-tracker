@@ -20,3 +20,10 @@ type User struct {
 	UpdatedAt    time.Time      `db:"updated_at"`
 	LastLoginAt  sql.NullTime   `db:"last_login_at"`
 }
+
+type UserSearchResult struct {
+	UserID      string         `db:"user_id"`
+	Username    string         `db:"username"`
+	DisplayName sql.NullString `db:"display_name"`
+	AvatarURL   sql.NullString `db:"avatar_url"`
+}

@@ -74,3 +74,23 @@ func DBProviderIdentityToLinkedAccount(userProviderIdentity *dbModels.UserProvid
 		ProviderEmail:       email,
 	}, nil
 }
+
+func DBUserSearchResultToAPISearchItem(dbUser *dbModels.UserSearchResult) (*apiModels.UserSearchItem, error) {
+	if dbUser == nil {
+		return nil, errors.New("cannot convert nil db user search result to api user search item")
+	}
+	var displayName, avatarURL *string
+	if dbUser.DisplayName.Valid {
+		displayName = &dbUser.DisplayName.String
+	}
+	if dbUser.AvatarURL.Valid {
+		avatarURL = &dbUser.AvatarURL.String
+	}
+
+	return &apiModels.UserSearchItem{
+		UserID:      dbUser.UserID,
+		Username:    dbUser.Username,
+		DisplayName: displayName,
+		AvatarURL:   avatarURL,
+	}, nil
+}

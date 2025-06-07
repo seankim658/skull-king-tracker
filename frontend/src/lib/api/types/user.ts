@@ -80,3 +80,12 @@ export interface UserProfileResponse {
   profile: UserProfile;
   stats?: UserStats;
 }
+
+export interface UserSearchItem {
+  user_id: string;
+  username: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}
+
+export type UserSearchResponse = UserSearchItem[];
