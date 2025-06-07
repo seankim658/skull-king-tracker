@@ -46,6 +46,7 @@ func New(cfg *cf.Config) http.Handler {
 	authSubRouter := apiRouter.PathPrefix("/auth").Subrouter()
 	authSubRouter.HandleFunc("/{provider}/login", authHandler.HandleOAuthLogin).Methods(http.MethodGet)
 	authSubRouter.HandleFunc("/{provider}/callback", authHandler.HandleOAuthCallback).Methods(http.MethodGet)
+	authSubRouter.HandleFunc("/initiate-link/{provider}", authHandler.HandleInitiateLink).Methods(http.MethodGet)
 	authSubRouter.HandleFunc("/logout", authHandler.HandleLogout).Methods(http.MethodGet, http.MethodPost)
 	authSubRouter.HandleFunc("/me", authHandler.HandleGetCurrentUser).Methods(http.MethodGet)
 
@@ -69,10 +70,16 @@ func New(cfg *cf.Config) http.Handler {
 	sessionSubRouter.HandleFunc("/active", sessionHandler.HandleGetActiveSessionsForUser).Methods(http.MethodGet)
 	sessionSubRouter.HandleFunc("/{session_id}/complete", sessionHandler.HandleCompleteSession).Methods(http.MethodPut)
 
-	// User prfile routes
-	userProfileHandler := h.NewUserProfileHandler(cfg)
-	userProfileSubRouter := apiRouter.PathPrefix("/users").Subrouter()
-	userProfileSubRouter.HandleFunc("/{user_id}/profile", userProfileHandler.HandleGetUserProfile).Methods(http.MethodGet)
+	// User profile routes
+	userHandler := h.NewUserProfileHandler(cfg)
+	userSubRouter := apiRouter.PathPrefix("/users").Subrouter()
+	userSubRouter.HandleFunc("/{user_id}/profile", userHandler.HandleGetUserProfile).Methods(http.MethodGet)
+	userSubRouter.HandleFunc("/search", userHandler.HandleSearchUsers).Methods(http.MethodGet)
+
+	// Stats routes
+	statsHandler := h.NewStatsHandler(cfg)
+	statsSubRouter := apiRouter.PathPrefix("/stats").Subrouter()
+	statsSubRouter.HandleFunc("/summary", statsHandler.HandleGetSiteSummaryStats).Methods(http.MethodGet)
 
 	return mainRouter
 }

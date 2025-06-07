@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	l "github.com/seankim658/skullking/internal/logger"
 )
 
-const profileComponent = "database-stats"
+const statsComponent = "database-stats"
 
 type ProfileStats struct {
 	TotalGamesPlayed int
@@ -20,7 +21,7 @@ func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*Profile
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		profileComponent,
+		statsComponent,
 		"GetUserBasicStats",
 	).With().Str(l.UserIDKey, userID).Logger()
 
@@ -54,4 +55,80 @@ func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*Profile
 
 	logger.Info().Interface("base_profile_stats", profStats).Msg("User basic stats retrieved successfully")
 	return profStats, nil
+}
+
+type SiteWideSummaryStats struct {
+	TotalPlayers      int
+	SessionsThisMonth int
+	GamesThisMonth    int
+	NewUsersThisMonth int
+}
+
+// Retrieves the basic site wide summary statistics
+func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*SiteWideSummaryStats, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		statsComponent,
+		"GetSiteWideSummaryStats",
+	)
+
+	stats := &SiteWideSummaryStats{}
+	now := time.Now()
+	oneMonthAgo := now.AddDate(0, -1, 0)
+
+	queryTotalPlayers := "SELECT COUNT(*) FROM users;"
+	logger.Debug().Str(l.QueryKey, queryTotalPlayers).Msg("Attempting to get total players")
+	if err := querier.QueryRowContext(ctx, queryTotalPlayers).Scan(&stats.TotalPlayers); err != nil {
+		logger.Error().Err(err).Msg("Failed to get total players")
+		return nil, fmt.Errorf("error getting total players: %w", err)
+	}
+
+	querySessionsLastMonth := `
+  SELECT COUNT(*) FROM game_sessions
+  WHERE created_at >= $1 AND created_at <= $2;
+  `
+	logger.Debug().Str(l.QueryKey, querySessionsLastMonth).Msg("Attempting to get sessions this month")
+	if err := querier.QueryRowContext(
+		ctx,
+		querySessionsLastMonth,
+		oneMonthAgo,
+		now,
+	).Scan(&stats.SessionsThisMonth); err != nil {
+		logger.Error().Err(err).Msg("Failed to get sessions this month")
+		return nil, fmt.Errorf("error getting sessions this mont: %w", err)
+	}
+
+	queryGamesLastMonth := `
+  SELECT COUNT(*) FROM games
+  WHERE created_at >= $1 AND created_at <= $2;
+  `
+	logger.Debug().Str(l.QueryKey, queryGamesLastMonth).Msg("Attempting to get games this month")
+	if err := querier.QueryRowContext(
+		ctx,
+		queryGamesLastMonth,
+		oneMonthAgo,
+		now,
+	).Scan(&stats.GamesThisMonth); err != nil {
+		logger.Error().Err(err).Msg("Failed to get games this month")
+		return nil, fmt.Errorf("error getting games this month: %w", err)
+	}
+
+	queryNewUsersThisMonth := `
+  SELECT COUNT(*) FROM users
+  WHERE created_at >= $1 AND created_at <= $2;
+  `
+	logger.Debug().Str(l.QueryKey, queryNewUsersThisMonth).Msg("Attempting to get new users this month")
+	if err := querier.QueryRowContext(
+		ctx,
+		queryNewUsersThisMonth,
+		oneMonthAgo,
+		now,
+	).Scan(&stats.NewUsersThisMonth); err != nil {
+		logger.Error().Err(err).Msg("Failed to get new users this month")
+		return nil, fmt.Errorf("error getting new users this month: %w", err)
+	}
+
+	logger.Info().Interface("site_summary_stats", stats).Msg("Site wide summary stats retrieved successfully")
+	return stats, nil
 }

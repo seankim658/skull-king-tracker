@@ -145,3 +145,46 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 
 	Respond(w, r, http.StatusOK, finalResponse, "User profile retrieved successfully")
 }
+
+// Handles requests to search for users
+// Path: /users/search
+// Method: GET
+func (uph *UserProfileHandler) HandleSearchUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		userComponent,
+		"HandleSearchUsers",
+	)
+
+	searchQuery := QueryParam(r, "q")
+	if searchQuery == "" {
+		ErrorResponse(w, r, http.StatusBadRequest, "Search query 'q' is required")
+		return
+	}
+
+	limit, ok := QueryParamInt(r, "limit")
+	if !ok {
+		limit = 10
+	}
+	logger = logger.With().Str(l.SearchQueryKey, searchQuery).Int(l.LimitKey, limit).Logger()
+
+	dbUsers, err := db.SearchUsers(ctx, nil, searchQuery, limit)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to search users in database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to search for users")
+		return
+	}
+
+	apiUsers := make(apiModels.UserSearchResponse, 0, len(dbUsers))
+	for _, dbUser := range dbUsers {
+		apiUser, convErr := modelConverters.DBUserSearchResultToAPISearchItem(&dbUser)
+		if convErr != nil {
+			logger.Error().Err(convErr).Msg("Failed to convert DB user search result to API model")
+			continue
+		}
+		apiUsers = append(apiUsers, *apiUser)
+	}
+
+	Respond(w, r, http.StatusOK, apiUsers, "User search completed successfully")
+}

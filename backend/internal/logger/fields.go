@@ -26,6 +26,7 @@ const (
 
 	// --- Database Logging Fields ---
 	QueryKey                = "query"
+	SearchQueryKey          = "search_query"
 	ArgsKey                 = "args"
 	UpdatesKey              = "updates"
 	CountKey                = "count"
@@ -34,6 +35,7 @@ const (
 	PosgresErrorDetailKey   = "pg_detail"
 	PostgresErrorMessageKey = "pg_error_messsage"
 	StatusKey               = "status"
+	LimitKey                = "limit"
 
 	// User
 	UserIDKey           = "user_id"

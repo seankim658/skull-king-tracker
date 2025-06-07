@@ -6,6 +6,7 @@ import type {
   UpdateUserProfilePayload,
   LinkedAccount,
   UserProfileResponse,
+  UserSearchResponse,
 } from "../types";
 
 export const userAPI = {
@@ -69,4 +70,24 @@ export const userAPI = {
     client<ApiResponse<UserProfileResponse>>(`/users/${userId}/profile`, {
       method: "GET",
     }),
+
+  /**
+   * Searches for users by username or display name.
+   * @param query - The search query string
+   * @param limit - Optional limit for the number of results
+   */
+  searchUsers: (
+    query: string,
+    limit: number = 10,
+  ): Promise<ApiResponse<UserSearchResponse>> => {
+    const params = new URLSearchParams();
+    params.append("q", query);
+    params.append("limit", limit.toString());
+    return client<ApiResponse<UserSearchResponse>>(
+      `/users/search?${params.toString()}`,
+      {
+        method: "GET",
+      },
+    );
+  },
 };
