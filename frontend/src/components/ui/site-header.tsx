@@ -1,6 +1,7 @@
 import { Separator } from "./separator";
 import { SidebarTrigger } from "./sidebar";
 import { ModeToggle } from "../theme/mode-toggle";
+import { NotificationBell } from "./notification-bell";
 
 export function SiteHeader() {
   return (
@@ -12,7 +13,8 @@ export function SiteHeader() {
           className="mx-2 data-[orientation=vertical]:h-4"
         />
         <h1 className="text-base font-medium">Skull King Tracker</h1>
-        <div className="ml-auto">
+        <div className="flex flex-1 items-center justify-end space-x-2">
+          <NotificationBell />
           <ModeToggle />
         </div>
       </div>

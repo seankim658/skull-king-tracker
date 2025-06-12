@@ -29,6 +29,11 @@ const defaultPageSize = 25
 
 // Writes a JSON response with the given status code and data
 func Respond(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
+	if status == http.StatusNoContent {
+		w.WriteHeader(status)
+		return
+	}
+
 	requestLogger := l.GetLoggerFromContext(r.Context())
 	response := apiModels.APIResponse{
 		Success: status >= 200 && status < 300,

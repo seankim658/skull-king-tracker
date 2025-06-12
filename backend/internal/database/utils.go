@@ -36,7 +36,7 @@ func IsValidStatsPrivacy(value string) bool {
 func HandlePgError(dbErr error, logger zerolog.Logger, constraintMappings map[string]error) (handled bool, appError error) {
 	var pgErr *pgconn.PgError
 	if errors.As(dbErr, &pgErr) {
-		logger.Warn().
+		logger.Error().
 			Str(l.PostgresErrorCodeKey, pgErr.Code).
 			Str(l.PostgresConstraintKey, pgErr.ConstraintName).
 			Str(l.PosgresErrorDetailKey, pgErr.Detail).

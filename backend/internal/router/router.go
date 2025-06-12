@@ -76,6 +76,19 @@ func New(cfg *cf.Config) http.Handler {
 	userSubRouter.HandleFunc("/{user_id}/profile", userHandler.HandleGetUserProfile).Methods(http.MethodGet)
 	userSubRouter.HandleFunc("/search", userHandler.HandleSearchUsers).Methods(http.MethodGet)
 
+	// Friendship routes
+	friendshipHandler := h.NewFriendshipHandler(cfg)
+	friendshipSubRouter := apiRouter.PathPrefix("/friends").Subrouter()
+	friendshipSubRouter.HandleFunc("/request", friendshipHandler.HandleSendFriendRequest).Methods(http.MethodPost)
+	friendshipSubRouter.HandleFunc("/request/{friendship_id}", friendshipHandler.HandleRespondToFriendRequest).Methods(http.MethodPut)
+
+	// Notification routes
+	notificationHandler := h.NewNotificationHandler(cfg)
+	notificationSubRouter := apiRouter.PathPrefix("/notifications").Subrouter()
+	notificationSubRouter.HandleFunc("", notificationHandler.HandleGetNotifications).Methods(http.MethodGet)
+	notificationSubRouter.HandleFunc("/{notification_id}/read", notificationHandler.HandleMarkNotificationRead).Methods(http.MethodPut)
+	notificationSubRouter.HandleFunc("/{notification_id}/read", notificationHandler.HandleMarkNotificationUnread).Methods(http.MethodDelete)
+
 	// Stats routes
 	statsHandler := h.NewStatsHandler(cfg)
 	statsSubRouter := apiRouter.PathPrefix("/stats").Subrouter()

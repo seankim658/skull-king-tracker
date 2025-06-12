@@ -1,2 +1,268 @@
-import { Bell } from "lucide-react";
+import React from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
+import { Bell, MailOpen, Mail } from "lucide-react";
 import { Button } from "./button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
+import { Badge } from "./badge";
+import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
+import { notificationAPI } from "@/lib/api/service/notification";
+import { friendshipAPI } from "@/lib/api/service/friendship";
+import type { Notification } from "@/lib/api/types";
+import {
+  getFullAvatarURL,
+  getAvatarFallback,
+  errorExtract,
+  cn,
+} from "@/lib/utils";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
+import { Skeleton } from "./skeleton";
+
+export function NotificationBell() {
+  const { isAuthenticated } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!isAuthenticated) return;
+    if (notifications.length === 0) {
+      setIsLoading(true);
+    }
+    try {
+      const response = await notificationAPI.getNotifications();
+      if (response.success && response.data) {
+        setNotifications(response.data);
+      }
+    } catch (e) {
+      const errMsg = `Failed to fetch notifications: ${e}`;
+      console.error(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, notifications.length]);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  const handleResponse = async (
+    notification: Notification,
+    response: "accept" | "decline",
+  ) => {
+    if (!notification.friendship_id) {
+      console.log(notification); // TODO
+      const errMsg = "Cannot respond: friendship ID is missing";
+      toast.error(errMsg);
+      console.error(errMsg);
+      return;
+    }
+
+    const originalNotifications = [...notifications];
+    setNotifications(
+      notifications.filter(
+        (n) => n.notification_id !== notification.notification_id,
+      ),
+    );
+
+    const toastId = toast.loading(`Responding to friend request...`);
+    try {
+      await friendshipAPI.respondToRequest(
+        notification.friendship_id,
+        response,
+      );
+      await notificationAPI.markAsRead(notification.notification_id);
+      toast.success(`Friend request ${response}`, { id: toastId });
+    } catch (e) {
+      toast.error(errorExtract(e, "Failed to respond to request"), {
+        id: toastId,
+      });
+      setNotifications(originalNotifications);
+    }
+  };
+
+  const handleUpdateReadStatus = async (notification: Notification) => {
+    const isCurrentlyRead = notification.is_read;
+    const originalNotifications = [...notifications];
+
+    setNotifications(
+      notifications.map((n) =>
+        n.notification_id === notification.notification_id
+          ? { ...n, is_read: !isCurrentlyRead }
+          : n,
+      ),
+    );
+
+    try {
+      if (isCurrentlyRead) {
+        await notificationAPI.markAsUnread(notification.notification_id);
+      } else {
+        await notificationAPI.markAsRead(notification.notification_id);
+      }
+    } catch (e) {
+      const errMsg = errorExtract(e, "Failed to update notification status");
+      toast.error(errMsg);
+      console.error(errMsg);
+      setNotifications(originalNotifications);
+    }
+  };
+
+  if (!isAuthenticated) return null;
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative cursor-pointer"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <Badge
+                variant="destructive"
+                className="absolute -top-1 -right-1 h-4 w-4 justify-center rounded-full p00 text-xs"
+              >
+                {unreadCount}
+              </Badge>
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-96">
+          <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {isLoading ? (
+            <div className="p-2 space-y-2">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="flex items-center space-x-3 p-2">
+                  <Skeleton className="h-9 w-9 rounded-full" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-4/5" />
+                    <Skeleton className="h-3 w-2/5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : notifications.length === 0 ? (
+            <p className="p-4 text-sm text-center text-muted-foreground">
+              You have no new notifications.
+            </p>
+          ) : (
+            <div className="max-h-[60vh] overflow-y-auto">
+              {notifications.map((notif, index) => (
+                <React.Fragment key={notif.notification_id}>
+                  <DropdownMenuItem
+                    key={notif.notification_id}
+                    className={cn(
+                      "flex flex-col items-start gap-2 p-3 cursor-default data-[highlighted]:bg-accent/50",
+                      !notif.is_read && "bg-accent/40",
+                    )}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <div className="flex flex-row items-start justify-between w-full gap-3">
+                      <div className="flex-shrink-0 pt-2">
+                        {!notif.is_read && (
+                          <span className="block h-2 w-2 rounded-full bg-primary" />
+                        )}
+                      </div>
+
+                      <Link
+                        to={`/users/${notif.actor.user_id}`}
+                        className="flex-grow flex items-center gap-3"
+                      >
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage
+                            src={getFullAvatarURL(notif.actor.avatar_url)}
+                            alt={notif.actor.username}
+                          />
+                          <AvatarFallback>
+                            {getAvatarFallback(
+                              notif.actor.display_name || notif.actor.username,
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="text-sm">{notif.message}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(notif.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </Link>
+
+                      <div className="flex-shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 cursor-pointer"
+                              onClick={() => handleUpdateReadStatus(notif)}
+                            >
+                              {notif.is_read ? (
+                                <Mail className="h-4 w-4" />
+                              ) : (
+                                <MailOpen className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {notif.is_read
+                                ? "Mark as unread"
+                                : "Mark as read"}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                    {notif.type === "friend_request" && (
+                      <div className="flex w-full justify-end gap-2 mt-1">
+                        <Button
+                          size="sm"
+                          className="cursor-pointer"
+                          onClick={() => handleResponse(notif, "accept")}
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="cursor-pointer"
+                          onClick={() => handleResponse(notif, "decline")}
+                        >
+                          Decline
+                        </Button>
+                      </div>
+                    )}
+                  </DropdownMenuItem>
+                  {index < notifications.length - 1 && (
+                    <DropdownMenuSeparator />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </TooltipProvider>
+  );
+}

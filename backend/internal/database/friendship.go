@@ -80,7 +80,7 @@ func GetFriendshipStatus(
 		if errors.Is(err, sql.ErrNoRows) {
 			return dbModels.DBFriendshipStatusNotFriends, nil
 		}
-    logger.Error().Err(err).Msg("Failed to query friendship status")
+		logger.Error().Err(err).Msg("Failed to query friendship status")
 		return "", fmt.Errorf(
 			"error querying friendship status between %s and %s: %w",
 			firstUserID,
@@ -125,4 +125,152 @@ func GetFriendshipStatus(
 			secondUserID,
 		)
 	}
+}
+
+// Creates a new pending friendship or re-activates a declined one
+func CreateFriendship(ctx context.Context, tx *sql.Tx, requesterID, addresseeID string) (string, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"CreateFriendship",
+	).With().
+		Str(l.RequesterIDKey, requesterID).
+		Str(l.AddresseeIDKey, addresseeID).
+		Logger()
+
+	var existingID, existingStatus string
+	checkQuery := `
+  SELECT friendship_id, status 
+  FROM user_friendships 
+  WHERE 
+    (requester_id = $1 AND addressee_id = $2) OR
+    (requester_id = $2 AND addressee_id = $1);
+  `
+	err := querier.QueryRowContext(
+		ctx, checkQuery,
+		requesterID, addresseeID,
+	).Scan(&existingID, &existingStatus)
+
+	if err == nil {
+		switch existingStatus {
+		case "pending", "accepted":
+			return "", ErrFriendshipAlreadyExists
+		case "blocked":
+			return "", ErrFriendshipBlocked
+		case "declined":
+			updateQuery := `
+      UPDATE user_friendships 
+      SET requester_id = $1, addressee_id = $2, status = 'pending', updated_at = NOW()
+      WHERE friendship_id = $3
+      RETURNING friendship_id;
+      `
+			_, updateErr := querier.ExecContext(ctx, updateQuery, requesterID, addresseeID, existingID)
+			if updateErr != nil {
+        logger.Error().Err(updateErr).Msg("Error re-initiating friendship request")
+				return "", fmt.Errorf("error re-initiating friendship: %w", updateErr)
+			}
+			logger.Info().Msg("Re-initiated a friend request over a previously declined one.")
+			return existingID, nil
+		}
+	}
+
+	if !errors.Is(err, sql.ErrNoRows) {
+    logger.Error().Err(err).Msg("Error checking for existing friendship")
+		return "", fmt.Errorf("error checking for existing friendship: %w", err)
+	}
+
+	insertQuery := `
+  INSERT INTO user_friendships (
+    requester_id, addressee_id, status
+  ) 
+  VALUES ($1, $2, 'pending') 
+  RETURNING friendship_id;
+  `
+	var newFriendshipID string
+	if err := querier.QueryRowContext(
+		ctx,
+		insertQuery,
+		requesterID,
+		addresseeID,
+	).Scan(&newFriendshipID); err != nil {
+		constraintMappings := map[string]error{"uq_requester_addressee": ErrFriendshipAlreadyExists}
+		handled, appErr := HandlePgError(err, logger, constraintMappings)
+		if handled {
+			return "", appErr
+		}
+		return "", fmt.Errorf("error creating friendship: %w", err)
+	}
+	return newFriendshipID, nil
+}
+
+// Updates the status of a friendship request
+func UpdateFriendshipStatus(ctx context.Context, tx *sql.Tx, friendshipID, status string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"UpdateFriendshipStatus",
+	).With().
+		Str(l.FriendshipIDKey, friendshipID).
+		Str(l.FriendshipStatusKey, status).
+		Logger()
+
+	query := `
+  UPDATE user_friendships
+  SET status = $1, updated_at = NOW()
+  WHERE friendship_id = $2;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update friendship status")
+
+	result, err := querier.ExecContext(ctx, query, status, friendshipID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute friendship status update")
+		return fmt.Errorf("error updating friendship status for %s: %w", friendshipID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+    logger.Error().Err(err).Msg("Error checking rows affected for friendship status update")
+		return fmt.Errorf(
+			"error checking rows affected for friendship %s status update: %w", friendshipID, err,
+		)
+	}
+	if rowsAffected == 0 {
+		return ErrFriendhipNotFound
+	}
+
+	logger.Info().Msg("Friendship status updated successfully")
+	return nil
+}
+
+// Retrieves a single friendship record by its ID
+func GetFriendshipByID(ctx context.Context, tx *sql.Tx, friendshipID string) (*dbModels.Friendship, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"GetFriendshipByID",
+	).With().Str(l.FriendshipIDKey, friendshipID).Logger()
+
+	query := `
+  SELECT friendship_id, requester_id, addressee_id, status
+  FROM user_friendships WHERE friendship_id = $1;
+  `
+
+	var f dbModels.Friendship
+	err := querier.QueryRowContext(
+		ctx,
+		query,
+		friendshipID,
+	).Scan(&f.FriendshipID, &f.RequesterID, &f.AddresseeID, &f.Status)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrFriendhipNotFound
+		}
+		logger.Error().Err(err).Msg("Failed to get friendship by ID")
+		return nil, fmt.Errorf("error getting friendship by ID %s: %w", friendshipID, err)
+	}
+
+	return &f, nil
 }

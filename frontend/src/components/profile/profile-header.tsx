@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import type { UserProfile } from "@/lib/api/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Button } from "../ui/button";
@@ -6,9 +7,19 @@ import {
   getFullAvatarURL,
   getAvatarFallback,
   formatFriendshipStatus,
+  errorExtract,
 } from "@/lib/utils";
 import { Badge } from "../ui/badge";
-import { CalendarDays, Users, Edit3 } from "lucide-react";
+import {
+  CalendarDays,
+  Users,
+  Edit3,
+  UserPlus,
+  UserCheck,
+  UserX,
+} from "lucide-react";
+import { friendshipAPI } from "@/lib/api/service/friendship";
+import { toast } from "sonner";
 
 interface ProfileHeaderProps {
   profile: UserProfile;
@@ -16,6 +27,15 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
+  const [friendshipStatus, setFriendshipStatus] = useState(
+    profile.friendship_status_with_viewer,
+  );
+  const [isFriendActionLoading, setIsFriendActionLoading] = useState(false);
+
+  useEffect(() => {
+    setFriendshipStatus(profile.friendship_status_with_viewer);
+  }, [profile.friendship_status_with_viewer]);
+
   const avatarUrl = getFullAvatarURL(profile.avatar_url);
   const displayName = profile.display_name || profile.username;
   const joinDate = new Date(profile.created_at).toLocaleDateString(undefined, {
@@ -24,9 +44,68 @@ export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
     day: "numeric",
   });
 
-  const friendShipStatusText = formatFriendshipStatus(
-    profile.friendship_status_with_viewer,
-  );
+  const handleSendFriendRequest = async () => {
+    if (!profile || !profile.user_id) {
+      toast.error("Cannot send request: User ID is missing");
+      return;
+    }
+
+    setIsFriendActionLoading(true);
+    const toastId = toast.loading("Sending friend request...");
+    try {
+      const response = await friendshipAPI.sendRequest(profile.user_id);
+      if (response.success) {
+        toast.success("Friend request sent", { id: toastId });
+        setFriendshipStatus("pending_sent_to_profile");
+      } else {
+        const errMsg = "Failed to send friend request";
+        toast.error(errMsg);
+        console.error(`${errMsg}: ${response.message}`);
+      }
+    } catch (e) {
+      const errMsg = errorExtract(e, "Failed to send friend request");
+      toast.error(errMsg, { id: toastId });
+      console.error(errMsg);
+    } finally {
+      setIsFriendActionLoading(false);
+    }
+  };
+
+  const friendButton = () => {
+    switch (friendshipStatus) {
+      case "not_friends":
+        return (
+          <Button
+            onClick={handleSendFriendRequest}
+            disabled={isFriendActionLoading}
+            className="cursor-pointer"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add Friend
+          </Button>
+        );
+      case "pending_sent_to_profile":
+        return <Button disabled>Request Sent</Button>;
+      case "pending_sent_to_viewer":
+        return <Button disabled>Respond to Request</Button>;
+      case "friends":
+        return (
+          <Button variant="secondary" disabled>
+            <UserCheck className="mr-2 h-4 w-4" />
+            Friends
+          </Button>
+        );
+      case "blocked_by_viewer":
+        return (
+          <Button variant="destructive" disabled>
+            <UserX className="mr-2 h-4 w-4" />
+            Blocked
+          </Button>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="bg-card p-6 rounded-lg shadow-md">
@@ -47,21 +126,25 @@ export function ProfileHeader({ profile, isOwnProfile }: ProfileHeaderProps) {
               Friends
             </span>
           </div>
-          {friendShipStatusText && (
-            <Badge variant="secondary" className="mt-2">
-              {friendShipStatusText}
-            </Badge>
+          {friendshipStatus !== "self" &&
+            friendshipStatus !== "viewer_not_authenticated" && (
+              <Badge variant="secondary" className="mt-3">
+                {formatFriendshipStatus(friendshipStatus)}
+              </Badge>
+            )}
+        </div>
+        <div className="flex-shrink-0">
+          {isOwnProfile ? (
+            <Button asChild variant="outline" className="cursor-pointer">
+              <Link to="/settings">
+                <Edit3 className="mr-2 h-4 w-4" />
+                Edit Profile
+              </Link>
+            </Button>
+          ) : (
+            friendButton()
           )}
         </div>
-        {isOwnProfile && (
-          <Button asChild variant="outline">
-            <Link to="/settings">
-              <Edit3 className="mr-2 h-4 w-4" />
-              Edit Profile
-            </Link>
-          </Button>
-        )}
-        {/* TODO : Friend button */}
       </div>
     </div>
   );
