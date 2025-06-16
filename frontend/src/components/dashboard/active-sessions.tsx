@@ -15,9 +15,11 @@ import { sessionAPI } from "@/lib/api/service/session";
 import { gameAPI } from "@/lib/api/service/game";
 import type { ActiveSessionResponse } from "@/lib/api/types";
 import { errorExtract } from "@/lib/utils";
+import { useConfirm } from "@/hooks/use-confirm";
 
 export function ActiveSessions() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [activeSessions, setActiveSessions] = useState<ActiveSessionResponse[]>(
     [],
   );
@@ -75,12 +77,12 @@ export function ActiveSessions() {
     sessionId: string,
     sessionName?: string,
   ) => {
-    // TODO : make pretty complete dialog later
-    if (
-      !confirm(
-        `Are you sure you want to mark the session "${sessionName || sessionId}" as completed? This action cannot be undone.`,
-      )
-    ) {
+    const isConfirmed = await confirm({
+      title: "Are you sure?",
+      description: `Do you want to makr the session "${sessionName || sessionId}" as completed? This action cannot be undone.`,
+      confirmText: "Complete Session",
+    });
+    if (!isConfirmed) {
       return;
     }
     const toastId = toast.loading(

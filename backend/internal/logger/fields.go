@@ -38,14 +38,23 @@ const (
 	LimitKey                = "limit"
 
 	// User
-	UserIDKey           = "user_id"
-	UsernameKey         = "username"
-	EmailKey            = "email"
-	UIThemeKey          = "ui_theme"
-	ColorThemeKey       = "color_theme"
-	AvatarURLKey        = "avatar_url"
+	UserIDKey       = "user_id"
+	UserIDOneKey    = "user_id_1"
+	UserIDTwoKey    = "user_id_2"
+	UsernameKey     = "username"
+	EmailKey        = "email"
+	UIThemeKey      = "ui_theme"
+	ColorThemeKey   = "color_theme"
+	AvatarURLKey    = "avatar_url"
+	StatsPrivacyKey = "stats_privacy"
+
+	// Friendship
+	FriendshipIDKey     = "friendship_id"
 	FriendshipStatusKey = "friendship_status"
-	StatsPrivacyKey     = "stats_privacy"
+	BlockerIDKey        = "blocker_id"
+	BlockedIDKey        = "blocked_id"
+	UnblockerIDKey      = "unblocker_id"
+	UnblockedIDKey      = "unblocked_id"
 
 	// Auth
 	ProviderKey           = "provider"
@@ -71,4 +80,13 @@ const (
 	GamePlayerIDKey = "game_player_id"
 	SeatingOrderKey = "seating_order"
 	GameStatusKey   = "game_status"
+
+	// Notification
+	NotificationIDKey   = "notification_id"
+	RecipientIDKey      = "recipient_id"
+	ActorIDKey          = "actor_id"
+	NotificationTypeKey = "notification_type"
+	RequesterIDKey      = "requester_id"
+	AddresseeIDKey      = "addressee_id"
+	NotificationReadKey = "notification_read_status"
 )

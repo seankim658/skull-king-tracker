@@ -11,6 +11,7 @@ import { ProtectedRoute } from "./auth/protected-route";
 // Providers
 import { AuthProvider } from "./providers/auth-provider";
 import { ThemeProvider } from "./providers/theme-provider";
+import { ConfirmProvider } from "./providers/confirm-provider";
 
 // Hooks
 import { useAuth } from "./hooks/use-auth";
@@ -64,8 +65,10 @@ function App() {
     <Router>
       <AuthProvider>
         <ThemeProvider>
-          <AppContent />
-          <Toaster richColors closeButton />
+          <ConfirmProvider>
+            <AppContent />
+            <Toaster richColors closeButton />
+          </ConfirmProvider>
         </ThemeProvider>
       </AuthProvider>
     </Router>

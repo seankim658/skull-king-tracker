@@ -40,6 +40,7 @@ CREATE TABLE user_friendships (
   addressee_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
   status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'blocked')),
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT chk_different_users_friendship CHECK (requester_id <> addressee_id),
   CONSTRAINT uq_requester_addressee UNIQUE (requester_id, addressee_id)
 );
@@ -143,6 +144,7 @@ CREATE TABLE user_notifications (
   message TEXT NOT NULL,
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
   link TEXT,
+  friendship_id UUID REFERENCES user_friendships(friendship_id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -9,11 +9,10 @@ import { errorExtract } from "@/lib/utils";
 
 const outerDivStyle = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
 const summaryStatStyle = "text-2xl font-bold";
-const summaryStatDescStyle = "text-xs text-muted-foreground";
-const iconStyle = "h-6 w-6 text-muted-foreground";
+const iconStyle = "h-5 w-5 text-muted-foreground";
 const cardHeaderStyle =
   "flex flex-row items-center justify-between space-y-0 pb-2";
-const cardTitleStyle = "text-sm font-medium";
+const cardTitleStyle = "text-sm font-medium min-h-[50px]";
 
 export function SiteSummaryStats() {
   const [summaryStats, setSummaryStats] =
@@ -75,18 +74,17 @@ export function SiteSummaryStats() {
     <div className={outerDivStyle}>
       <Card>
         <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>Total Players</CardTitle>
+          <CardTitle className={cardTitleStyle}>Total Skull King Players</CardTitle>
           <Users className={iconStyle} />
         </CardHeader>
         <CardContent>
           <div className={summaryStatStyle}>{summaryStats.total_players}</div>
-          <p className={summaryStatDescStyle}>total players</p>
         </CardContent>
       </Card>
       <Card>
         <CardHeader className={cardHeaderStyle}>
           <CardTitle className={cardTitleStyle}>
-            Sessions Played In the Last Month
+            Sessions Played Last Month
           </CardTitle>
           <CalendarDays className={iconStyle} />
         </CardHeader>
@@ -99,7 +97,7 @@ export function SiteSummaryStats() {
       <Card>
         <CardHeader className={cardHeaderStyle}>
           <CardTitle className={cardTitleStyle}>
-            Games Played In the Last Month
+            Games Played Last Month
           </CardTitle>
           <Swords className={iconStyle} />
         </CardHeader>
@@ -112,7 +110,7 @@ export function SiteSummaryStats() {
       <Card>
         <CardHeader className={cardHeaderStyle}>
           <CardTitle className={cardTitleStyle}>
-            New Players Joined The Last Month
+            New Players Last Month
           </CardTitle>
           <UserPlus className={iconStyle} />
         </CardHeader>

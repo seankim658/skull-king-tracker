@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Card,
   CardContent,
@@ -43,6 +44,7 @@ const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
 ];
 
 export function SettingsPage() {
+  const confirm = useConfirm();
   const { user, checkAuthStatus, isLoadingAuth } = useAuth();
   const [displayName, setDisplayName] = useState(
     user?.display_name || user?.username || "",
@@ -172,14 +174,15 @@ export function SettingsPage() {
     providerId: string,
     providerName: string,
   ) => {
-    if (
-      // TODO : Create a pretty confirm later
-      !confirm(
-        `Are you sure you want to disconnect your ${providerName} account?`,
-      )
-    ) {
+    const isConfirmed = await confirm({
+      title: `Disconnect ${providerName}?`,
+      description: `Are you sure you want to disconnect your ${providerName} account?`,
+      confirmText: "Disconnect",
+    });
+    if (!isConfirmed) {
       return;
     }
+
     try {
       const response = await userAPI.unlinkAccount(providerId);
       if (response.success) {
