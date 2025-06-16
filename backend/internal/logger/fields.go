@@ -39,6 +39,8 @@ const (
 
 	// User
 	UserIDKey       = "user_id"
+	UserIDOneKey    = "user_id_1"
+	UserIDTwoKey    = "user_id_2"
 	UsernameKey     = "username"
 	EmailKey        = "email"
 	UIThemeKey      = "ui_theme"
@@ -49,6 +51,10 @@ const (
 	// Friendship
 	FriendshipIDKey     = "friendship_id"
 	FriendshipStatusKey = "friendship_status"
+	BlockerIDKey        = "blocker_id"
+	BlockedIDKey        = "blocked_id"
+	UnblockerIDKey      = "unblocker_id"
+	UnblockedIDKey      = "unblocked_id"
 
 	// Auth
 	ProviderKey           = "provider"

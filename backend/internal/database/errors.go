@@ -21,7 +21,7 @@ var (
 	// Friendship
 	ErrFriendshipSelf          = errors.New("cannot friend self")
 	ErrFriendshipAlreadyExists = errors.New("friendship already exists")
-	ErrFriendhipNotFound       = errors.New("friendship not found")
+	ErrFriendshipNotFound       = errors.New("friendship not found")
 	ErrFriendshipBlocked       = errors.New("friendship blocked")
 
 	// Game

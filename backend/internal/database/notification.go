@@ -148,3 +148,45 @@ func UpdateNotificationReadStatus(
 	}
 	return nil
 }
+
+// Deletes a notification by its associated friendship ID and type
+func DeleteNotificationByFriendshipID(ctx context.Context, tx *sql.Tx, friendshipID, notificationType string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"DeleteNotificationByFriendshipID",
+	).With().Str(l.FriendshipIDKey, friendshipID).Str(l.NotificationTypeKey, notificationType).Logger()
+
+	query := `DELETE FROM user_notifications WHERE friendship_id = $1 AND type = $2;`
+	_, err := querier.ExecContext(ctx, query, friendshipID, notificationType)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to delete notification by friendship ID")
+		return fmt.Errorf("error deleting notification for friendship %s: %w", friendshipID, err)
+	}
+	return nil
+}
+
+// Removes a friend request notifiaction
+func DeleteFriendRequestNotification(ctx context.Context, tx *sql.Tx, recipientID, actorID string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"DeleteFriendRequestNotification",
+	).With().
+		Str(l.RecipientIDKey, recipientID).
+		Str(l.ActorIDKey, actorID).
+		Logger()
+
+	query := `DELETE FROM user_notifications WHERE recipient_user_id = $1 AND actor_user_id = $2 AND type = $3;`
+
+	_, err := querier.ExecContext(ctx, query, recipientID, actorID, "friend_request")
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to delete friend_request notification")
+		return fmt.Errorf("error deleting friend_request notification from %s to %s: %w", actorID, recipientID, err)
+	}
+
+	logger.Info().Msg("Friend request notification cleaned up successfully.")
+	return nil
+}

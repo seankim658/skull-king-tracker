@@ -167,7 +167,7 @@ func CreateFriendship(ctx context.Context, tx *sql.Tx, requesterID, addresseeID 
       `
 			_, updateErr := querier.ExecContext(ctx, updateQuery, requesterID, addresseeID, existingID)
 			if updateErr != nil {
-        logger.Error().Err(updateErr).Msg("Error re-initiating friendship request")
+				logger.Error().Err(updateErr).Msg("Error re-initiating friendship request")
 				return "", fmt.Errorf("error re-initiating friendship: %w", updateErr)
 			}
 			logger.Info().Msg("Re-initiated a friend request over a previously declined one.")
@@ -176,7 +176,7 @@ func CreateFriendship(ctx context.Context, tx *sql.Tx, requesterID, addresseeID 
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-    logger.Error().Err(err).Msg("Error checking for existing friendship")
+		logger.Error().Err(err).Msg("Error checking for existing friendship")
 		return "", fmt.Errorf("error checking for existing friendship: %w", err)
 	}
 
@@ -231,13 +231,13 @@ func UpdateFriendshipStatus(ctx context.Context, tx *sql.Tx, friendshipID, statu
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-    logger.Error().Err(err).Msg("Error checking rows affected for friendship status update")
+		logger.Error().Err(err).Msg("Error checking rows affected for friendship status update")
 		return fmt.Errorf(
 			"error checking rows affected for friendship %s status update: %w", friendshipID, err,
 		)
 	}
 	if rowsAffected == 0 {
-		return ErrFriendhipNotFound
+		return ErrFriendshipNotFound
 	}
 
 	logger.Info().Msg("Friendship status updated successfully")
@@ -266,11 +266,181 @@ func GetFriendshipByID(ctx context.Context, tx *sql.Tx, friendshipID string) (*d
 	).Scan(&f.FriendshipID, &f.RequesterID, &f.AddresseeID, &f.Status)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrFriendhipNotFound
+			return nil, ErrFriendshipNotFound
 		}
 		logger.Error().Err(err).Msg("Failed to get friendship by ID")
 		return nil, fmt.Errorf("error getting friendship by ID %s: %w", friendshipID, err)
 	}
 
 	return &f, nil
+}
+
+// Deletes an accepted friendship by user IDs
+func DeleteFriendship(ctx context.Context, tx *sql.Tx, userIDOne, userIDTwo string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"DeleteFriendship",
+	).With().
+		Str(l.UserIDOneKey, userIDOne).
+		Str(l.UserIDTwoKey, userIDTwo).
+		Logger()
+
+	query := `
+  DELETE FROM user_friendships
+  WHERE status = 'accepted' AND (
+    (requester_id = $1 AND addressee_id = $2) OR
+    (requester_id = $2 AND addressee_id = $1)
+  );
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to delete friendship")
+
+	result, err := querier.ExecContext(ctx, query, userIDOne, userIDTwo)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute friendship deletion")
+		return fmt.Errorf("error deleting friendship between %s and %s: %w", userIDOne, userIDTwo, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.Error().Err(err).Msg("Error checking rows affected for friendship deletion")
+		return fmt.Errorf("error checking rows affected for friendship deletion: %w", err)
+	}
+	if rowsAffected == 0 {
+		return ErrFriendshipNotFound
+	}
+
+	logger.Info().Msg("Friendship deleted successfully")
+	return nil
+}
+
+// Deletes a friendship by ID
+func DeleteFriendshipByID(ctx context.Context, tx *sql.Tx, friendshipID string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"DeleteFriendshipByID",
+	).With().Str(l.FriendshipIDKey, friendshipID).Logger()
+
+	query := `
+  DELETE FROM user_friendships
+  WHERE friendship_id = $1;
+  `
+	result, err := querier.ExecContext(ctx, query, friendshipID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Error deleting friendship")
+		return fmt.Errorf("error deleting friendship by ID %s: %w", friendshipID, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrFriendshipNotFound
+	}
+	return nil
+}
+
+// Retrieves a pending friendship initiated by the requester
+func GetPendingFriendshipByUsers(ctx context.Context, tx *sql.Tx, requesterID, addresseeID string) (*dbModels.Friendship, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"GetPendingFriendshipByUsers",
+	).With().Str(l.RequesterIDKey, requesterID).Str(l.AddresseeIDKey, addresseeID).Logger()
+
+	query := `
+  SELECT friendship_id, requester_id, addressee_id, status
+  FROM user_friendships
+  WHERE requester_id = $1 AND addressee_id = $2 AND status = 'pending';
+  `
+
+	var f dbModels.Friendship
+	err := querier.QueryRowContext(
+		ctx,
+		query,
+		requesterID,
+		addresseeID,
+	).Scan(
+		&f.FriendshipID,
+		&f.RequesterID,
+		&f.AddresseeID,
+		&f.Status,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrFriendshipNotFound
+		}
+		logger.Error().Err(err).Msg("Failed to get pending friendship by users")
+		return nil, fmt.Errorf("error getting pending friendship: %w", err)
+	}
+	return &f, nil
+}
+
+// Block another user
+func BlockUser(ctx context.Context, tx *sql.Tx, blockerID, blockedID string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"BlockUser",
+	).With().Str(l.BlockerIDKey, blockerID).Str(l.BlockedIDKey, blockedID).Logger()
+
+	deleteQuery := `
+  DELETE FROM user_friendships
+  WHERE
+    (requester_id = $1 AND addressee_id = $2) OR
+    (requester_id = $2 AND addressee_id = $1);
+  `
+	if _, err := querier.ExecContext(ctx, deleteQuery, blockerID, blockedID); err != nil {
+		logger.Error().Err(err).Msg("Failed to clear existing friendship before blocking")
+		return fmt.Errorf("error clearing previous friendship state: %w", err)
+	}
+
+	insertQuery := `
+  INSERT INTO user_friendships (requester_id, addressee_id, status)
+  VALUES ($1, $2, 'blocked');
+  `
+	if _, err := querier.ExecContext(ctx, insertQuery, blockerID, blockedID); err != nil {
+		logger.Error().Err(err).Msg("Failed to insert new blocked friendship record")
+		return fmt.Errorf("error inserting block record: %w", err)
+	}
+	logger.Info().Msg("User blocked successfully")
+	return nil
+}
+
+// Removes a block status for a user
+func UnblockUser(ctx context.Context, tx *sql.Tx, unblockerID, unblockedID string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"UnblockUser",
+	).With().
+		Str(l.UnblockerIDKey, unblockerID).
+		Str(l.UnblockedIDKey, unblockedID).
+		Logger()
+
+  query := `
+  DELETE FROM user_friendships
+  WHERE requester_id = $1 AND addressee_id = $2 AND status = 'blocked';
+  `
+  result, err := querier.ExecContext(ctx, query, unblockerID, unblockedID)
+  if err != nil {
+    logger.Error().Err(err).Msg("Failed to execute unblock query")
+    return fmt.Errorf("error unblocking user: %s: %w", unblockedID, err)
+  }
+
+  rowsAffected, err := result.RowsAffected()
+  if err != nil {
+    return fmt.Errorf("error checking rows affected for unblock: %w", err)
+  }
+
+  if rowsAffected == 0 {
+    return ErrFriendshipNotFound
+  }
+
+  logger.Info().Msg("User unblocked successfully")
+  return nil
 }

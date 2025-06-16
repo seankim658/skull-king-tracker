@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { userAPI } from "@/lib/api/service/user";
@@ -8,6 +8,7 @@ import { ProfileStatsSummary } from "@/components/profile/profile-stats-summary"
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
+import { errorExtract } from "@/lib/utils";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -18,32 +19,34 @@ export function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchProfile = useCallback(async () => {
     if (!userId) {
-      setError("User ID is missing.");
+      setError("User ID is missing");
       setIsLoading(false);
       return;
     }
 
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await userAPI.getUserProfile(userId);
-        if (response.success && response.data) {
-          setProfileData(response.data);
-        } else {
-          setError(response.message || "Failed to load profile.");
-        }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "An unknown error occurred.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    setIsLoading(true);
+    setError(null);
 
-    fetchProfile();
+    try {
+      const response = await userAPI.getUserProfile(userId);
+      if (response.success && response.data) {
+        setProfileData(response.data);
+      } else {
+        setError(response.message || "Failed to load profile");
+        setProfileData(null);
+      }
+    } catch (e) {
+      setError(errorExtract(e, "An error occurred fetching the user profile"));
+    } finally {
+      setIsLoading(false);
+    }
   }, [userId]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   if (isLoading || isLoadingAuth) {
     return (
@@ -92,6 +95,7 @@ export function ProfilePage() {
       <ProfileHeader
         profile={profileData.profile}
         isOwnProfile={isOwnProfile}
+        onActionSuccess={fetchProfile}
       />
       <ProfileStatsSummary
         stats={profileData.stats}

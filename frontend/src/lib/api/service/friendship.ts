@@ -25,4 +25,40 @@ export const friendshipAPI = {
       method: "PUT",
       body: JSON.stringify({ response }),
     }),
+
+  /**
+   * Removes a friendship with another user.
+   * @param friendId - The user_id of the user to unfriend
+   */
+  unfriend: (friendId: string): Promise<ApiResponse<null>> =>
+    client<ApiResponse<null>>(`/friends/${friendId}`, {
+      method: "DELETE",
+    }),
+
+  /**
+   * Cancels a friend request sent to another user.
+   * @param addresseeId - The user_id of the user the request was sent to
+   */
+  cancelRequest: (addresseeId: string): Promise<ApiResponse<null>> =>
+    client<ApiResponse<null>>(`/friends/request/cancel/${addresseeId}`, {
+      method: "DELETE",
+    }),
+
+  /**
+   * Blocks another user.
+   * @param userIdToBlock - The user_id of the user to block
+   */
+  blockUser: (userIdToBlock: string): Promise<ApiResponse<null>> =>
+    client<ApiResponse<null>>(`/friends/block/${userIdToBlock}`, {
+      method: "POST",
+    }),
+
+  /**
+   * Unblocks another user.
+   * @param userIdToUnblock - The user_id of the user to unblock
+   */
+  unblockUser: (userIdToUnblock: string): Promise<ApiResponse<null>> =>
+    client<ApiResponse<null>>(`/friends/block/${userIdToUnblock}`, {
+      method: "DELETE",
+    }),
 };
