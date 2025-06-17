@@ -39,7 +39,7 @@ export function StartSessionPage() {
           `Session "${sessionName}" created and first game started`,
           { id: toastId },
         );
-        // TODO : Navigate to add players page
+        navigate(`/game/${response.data.game_id}/add-players`);
       } else {
         toast.error(response.message || "Failed to start session", {
           id: toastId,

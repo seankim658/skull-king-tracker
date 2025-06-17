@@ -60,7 +60,7 @@ export function ActiveSessions() {
       const response = await gameAPI.createGame({ session_id: sessionId });
       if (response.success && response.data?.game_id) {
         toast.success("New game started", { id: toastId });
-        // TODO : navigate to add players page
+        navigate(`/game/${response.data.game_id}/add-players`);
       } else {
         toast.error(response.message || "Failed to start new game in session", {
           id: toastId,

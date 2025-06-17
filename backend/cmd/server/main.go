@@ -39,7 +39,10 @@ func main() {
 
 	r := router.New(cfg)
 
-	log.Info().Str("port", cfg.APIPort).Str("app_base_url", cfg.AppBaseURL).Msgf("Starting server on port %s", cfg.APIPort)
+	log.Info().
+    Str("port", cfg.APIPort).
+    Str("app_base_url", cfg.AppBaseURL).
+    Msgf("Starting server on port %s", cfg.APIPort)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.APIPort,
@@ -47,7 +50,7 @@ func main() {
 		// TODO
 		// ReadTimeout
 		// WriteTimeout
-		//IdleTimeout
+		// IdleTimeout
 	}
 
 	go func() {

@@ -1,5 +1,5 @@
 import { client } from "../client";
-import type { ApiResponse } from "../types";
+import type { UserSearchItem, ApiResponse } from "../types";
 
 export const friendshipAPI = {
   /**
@@ -60,5 +60,13 @@ export const friendshipAPI = {
   unblockUser: (userIdToUnblock: string): Promise<ApiResponse<null>> =>
     client<ApiResponse<null>>(`/friends/block/${userIdToUnblock}`, {
       method: "DELETE",
+    }),
+
+  /**
+   * Fetches the current user's list of accepted friends.
+   */
+  getFriends: (): Promise<ApiResponse<UserSearchItem[]>> =>
+    client<ApiResponse<UserSearchItem[]>>("/friends", {
+      method: "GET",
     }),
 };

@@ -10,6 +10,7 @@ import (
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
+	modelConverters "github.com/seankim658/skullking/internal/models/convert"
 )
 
 const friendshipComponent = "handlers-friendship"
@@ -443,4 +444,39 @@ func (fh *FriendshipHandler) HandleUnblockUser(w http.ResponseWriter, r *http.Re
 	}
 
 	Respond(w, r, http.StatusOK, nil, "User unblocked successfully")
+}
+
+// Handles fetching the authenticated user's list of friends
+func (fh *FriendshipHandler) HandleGetFriends(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"HandleGetFriends",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.UserIDKey, userID).Logger()
+
+	dbFriends, err := db.GetFriendsByUserID(ctx, nil, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get friends from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve your friends list")
+		return
+	}
+
+	apiFriends := make(apiModels.UserSearchResponse, 0, len(dbFriends))
+	for _, dbFriend := range dbFriends {
+		apiFriend, convErr := modelConverters.DBUserSearchResultToAPISearchItem(&dbFriend)
+		if convErr != nil {
+			logger.Error().Err(convErr).Msg("Failed to convert DB friend to API model")
+			continue
+		}
+		apiFriends = append(apiFriends, *apiFriend)
+	}
+
+	Respond(w, r, http.StatusOK, apiFriends, "Friends list retrived successfully")
 }

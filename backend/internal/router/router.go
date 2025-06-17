@@ -79,6 +79,7 @@ func New(cfg *cf.Config) http.Handler {
 	// Friendship routes
 	friendshipHandler := h.NewFriendshipHandler(cfg)
 	friendshipSubRouter := apiRouter.PathPrefix("/friends").Subrouter()
+	friendshipSubRouter.HandleFunc("", friendshipHandler.HandleGetFriends).Methods(http.MethodGet)
 	friendshipSubRouter.HandleFunc("/request", friendshipHandler.HandleSendFriendRequest).Methods(http.MethodPost)
 	friendshipSubRouter.HandleFunc("/request/{friendship_id}", friendshipHandler.HandleRespondToFriendRequest).Methods(http.MethodPut)
 	friendshipSubRouter.HandleFunc("/{user_id}", friendshipHandler.HandleUnfriend).Methods(http.MethodDelete)

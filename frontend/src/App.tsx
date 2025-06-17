@@ -50,6 +50,11 @@ function AppContent() {
           <Route path="/start-session" element={<StartSessionPage />} />
           <Route path="/users/:userId" element={<ProfilePage />} />
           <Route path="/explore" element={<ExplorePage />} />
+
+          <Route
+            path="/game/:gameId/add-players"
+            element={<AddPlayersPage />}
+          />
         </Route>
       </Route>
 
