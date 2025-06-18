@@ -19,15 +19,21 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getFullAvatarURL, getAvatarFallback, errorExtract } from "@/lib/utils";
 import { PlusCircle, UserPlus, X } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useApi } from "@/hooks/use-api";
+import { useSubmit } from "@/hooks/use-submit";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
 
   const [players, setPlayers] = useState<GamePlayerResponse[]>([]);
-  const [friends, setFriends] = useState<UserSearchItem[]>([]);
   const [guestName, setGuestName] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+
+  const {
+    data: friends,
+    isLoading: isLoadingFriends,
+    request: fetchFriends,
+  } = useApi(friendshipAPI.getFriends);
 
   useEffect(() => {
     if (!gameId) {
@@ -35,73 +41,44 @@ export function AddPlayersPage() {
       navigate("/");
       return;
     }
-
-    const fetchFriends = async () => {
-      try {
-        const response = await friendshipAPI.getFriends();
-        if (response.success && response.data) {
-          setFriends(response.data);
-        } else {
-          toast.error("Could not load your friends lise");
-          console.error(response.message);
-        }
-      } catch (e) {
-        const errMsg = errorExtract(e, "Failed to fetch friends");
-        toast.error(errMsg);
-        console.error(errMsg);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchFriends();
-  }, [gameId, navigate]);
+  }, [gameId, navigate, fetchFriends]);
+
+  const { submit: addPlayer, isLoading: isAddingPlayer } = useSubmit(
+    gameAPI.addPlayerToGame,
+    {
+      actionVerb: "Adding player",
+      onSuccess: (newPlayer) => {
+        if (newPlayer) setPlayers((prev) => [...prev, newPlayer]);
+      },
+    },
+  );
+
+  const { submit: addGuest, isLoading: isAddingGuest } = useSubmit(
+    gameAPI.addPlayerToGame,
+    {
+      actionVerb: "Adding guest",
+      onSuccess: (newPlayer) => {
+        if (newPlayer) {
+          setPlayers((prev) => [...prev, newPlayer]);
+          setGuestName("");
+        }
+      },
+    },
+  );
 
   const handleAddPlayer = async (userId: string) => {
     if (!gameId) return;
-    const toastId = toast.loading("Adding player...");
-    try {
-      const response = await gameAPI.addPlayerToGame(gameId, {
-        user_id: userId,
-        seating_order: players.length + 1,
-      });
-      if (response.success && response.data) {
-        setPlayers((prev) => [...prev, response.data!]);
-        toast.success("Player added", { id: toastId });
-      } else {
-        toast.error(response.message || "Failed to add player", {
-          id: toastId,
-        });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not add player");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    }
+    addPlayer(gameId, { user_id: userId, seating_order: players.length + 1 });
   };
 
   const handleAddGuest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gameId || !guestName.trim()) return;
-    const toastId = toast.loading("Adding guest...");
-    try {
-      const response = await gameAPI.addPlayerToGame(gameId, {
-        guest_name: guestName.trim(),
-        seating_order: players.length + 1,
-      });
-      if (response.success && response.data) {
-        setPlayers((prev) => [...prev, response.data!]);
-        toast.success(`Guest "${guestName.trim()}" added`, { id: toastId });
-        setGuestName("");
-      } else {
-        const errMsg = response.message || "Failed to add guest";
-        toast.error(errMsg, { id: toastId });
-        console.error(errMsg);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not add guest");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    }
+    addGuest(gameId, {
+      guest_name: guestName.trim(),
+      seating_order: players.length + 1,
+    });
   };
 
   // TODO Implement remove player logic
@@ -163,10 +140,10 @@ export function AddPlayersPage() {
             <div>
               <h3 className="text-lg font-semibold mb-2">Add a Friend</h3>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                {isLoading ? (
+                {isLoadingFriends ? (
                   <p>Loading friends...</p>
                 ) : (
-                  friends.map((friend) => (
+                  friends?.map((friend) => (
                     <div
                       key={friend.user_id}
                       className="flex items-center gap-3"

@@ -34,7 +34,7 @@ export interface GamePlayerResponse {
   game_id: string;
   user_id?: string;
   guest_player_id?: string;
-  display_naem: string;
+  display_name: string;
   seating_order: number;
   final_score: number;
 }

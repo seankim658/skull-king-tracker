@@ -16,7 +16,7 @@ export const gameAPI = {
   createGame: (
     payload: CreateGamePayload,
   ): Promise<ApiResponse<GameResponse>> =>
-    client<ApiResponse<GameResponse>>("/games", {
+    client<GameResponse>("/games", {
       method: "POST",
       body: JSON.stringify(payload),
       headers: {
@@ -34,7 +34,7 @@ export const gameAPI = {
     gameId: string,
     payload: AddPlayerToGamePayload,
   ): Promise<ApiResponse<GamePlayerResponse>> =>
-    client<ApiResponse<GamePlayerResponse>>(`/games/${gameId}/players`, {
+    client<GamePlayerResponse>(`/games/${gameId}/players`, {
       method: "POST",
       body: JSON.stringify(payload),
       headers: {

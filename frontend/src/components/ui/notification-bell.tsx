@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Bell, MailOpen, Mail } from "lucide-react";
 import { Button } from "./button";
@@ -31,101 +31,91 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "./skeleton";
+import { useApi } from "@/hooks/use-api";
+import { useSubmit } from "@/hooks/use-submit";
 
 export function NotificationBell() {
   const { isAuthenticated } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchNotifications = useCallback(async () => {
-    if (!isAuthenticated) return;
-    if (notifications.length === 0) {
-      setIsLoading(true);
-    }
-    try {
-      const response = await notificationAPI.getNotifications();
-      if (response.success && response.data) {
-        setNotifications(response.data);
-      }
-    } catch (e) {
-      const errMsg = `Failed to fetch notifications: ${e}`;
-      console.error(errMsg);
-      toast.error(errMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated, notifications.length]);
+  const handleFetchError = useCallback((e: Error) => {
+    console.error(`Failed to fetch notifications: ${errorExtract(e, "")}`);
+  }, []);
+
+  const apiOptions = useMemo(
+    () => ({
+      onError: handleFetchError,
+    }),
+    [handleFetchError],
+  );
+
+  const {
+    data: notifications,
+    isLoading,
+    request: fetchNotifications,
+  } = useApi(notificationAPI.getNotifications, apiOptions);
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
-
-  const handleResponse = async (
-    notification: Notification,
-    response: "accept" | "decline",
-  ) => {
-    if (!notification.friendship_id) {
-      console.log(notification); // TODO
-      const errMsg = "Cannot respond: friendship ID is missing";
-      toast.error(errMsg);
-      console.error(errMsg);
-      return;
+    if (isAuthenticated) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 60000);
+      return () => clearInterval(interval);
     }
+  }, [isAuthenticated, fetchNotifications]);
 
-    const originalNotifications = [...notifications];
-    setNotifications(
-      notifications.filter(
-        (n) => n.notification_id !== notification.notification_id,
-      ),
-    );
+  const { submit: markAsRead, isLoading: isMarkingRead } = useSubmit(
+    notificationAPI.markAsRead,
+    {
+      actionVerb: "Marking as read",
+      onSuccess: () => fetchNotifications(),
+    },
+  );
+  const { submit: markAsUnread, isLoading: isMarkingUnread } = useSubmit(
+    notificationAPI.markAsUnread,
+    {
+      actionVerb: "Marking as unread",
+      onSuccess: () => fetchNotifications(),
+    },
+  );
 
-    const toastId = toast.loading(`Responding to friend request...`);
-    try {
+  const handleUpdateReadStatus = (notification: Notification) => {
+    if (notification.is_read) {
+      markAsUnread(notification.notification_id);
+    } else {
+      markAsRead(notification.notification_id);
+    }
+  };
+
+  const respondAndMarkRead = useCallback(
+    async (notification: Notification, response: "accept" | "decline") => {
+      if (!notification.friendship_id) {
+        throw new Error("Cannot respond: friendship ID is missing");
+      }
       await friendshipAPI.respondToRequest(
         notification.friendship_id,
         response,
       );
       await notificationAPI.markAsRead(notification.notification_id);
-      toast.success(`Friend request ${response}`, { id: toastId });
-    } catch (e) {
-      toast.error(errorExtract(e, "Failed to respond to request"), {
-        id: toastId,
-      });
-      setNotifications(originalNotifications);
-    }
-  };
+      return { success: true };
+    },
+    [],
+  );
 
-  const handleUpdateReadStatus = async (notification: Notification) => {
-    const isCurrentlyRead = notification.is_read;
-    const originalNotifications = [...notifications];
-
-    setNotifications(
-      notifications.map((n) =>
-        n.notification_id === notification.notification_id
-          ? { ...n, is_read: !isCurrentlyRead }
-          : n,
-      ),
-    );
-
-    try {
-      if (isCurrentlyRead) {
-        await notificationAPI.markAsUnread(notification.notification_id);
-      } else {
-        await notificationAPI.markAsRead(notification.notification_id);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to update notification status");
-      toast.error(errMsg);
-      console.error(errMsg);
-      setNotifications(originalNotifications);
-    }
-  };
+  const { submit: handleResponse, isLoading: isResponding } = useSubmit(
+    respondAndMarkRead,
+    {
+      actionVerb: "Responding to friend request",
+      onSuccess: (_data, _notification, response) => {
+        toast.success(`Friend request ${response}`);
+        fetchNotifications();
+      },
+    },
+  );
 
   if (!isAuthenticated) return null;
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
+
+  const isActionLoading = isMarkingRead || isMarkingUnread || isResponding;
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -162,13 +152,13 @@ export function NotificationBell() {
                 </div>
               ))}
             </div>
-          ) : notifications.length === 0 ? (
+          ) : notifications?.length === 0 ? (
             <p className="p-4 text-sm text-center text-muted-foreground">
               You have no new notifications.
             </p>
           ) : (
             <div className="max-h-[60vh] overflow-y-auto">
-              {notifications.map((notif, index) => (
+              {notifications?.map((notif, index) => (
                 <React.Fragment key={notif.notification_id}>
                   <DropdownMenuItem
                     key={notif.notification_id}

@@ -4,9 +4,8 @@ import type { User } from "@/lib/api/types";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { AuthContext } from "@/contexts/auth-context";
 import { authAPI } from "@/lib/api/service/auth";
-import { errorExtract } from "@/lib/utils";
-import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useSubmit } from "@/hooks/use-submit";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -28,11 +27,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.success && response.data?.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
-        // TODO : temp logging
-        console.log(
-          "Auth status check: User authenticated",
-          response.data.user,
-        );
       } else {
         setUser(null);
         setIsAuthenticated(false);
@@ -50,36 +44,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   useEffect(() => {
-    // TODO : temp logging
-    console.log("AuthProvider mounted, checking auth status...");
     checkAuthStatus();
   }, [checkAuthStatus]);
 
-  const performLogout = useCallback(async () => {
-    setIsLoadingAuth(true);
-    try {
-      await authAPI.logout();
-      toast.success("Successfully logged out");
-    } catch (e) {
-      console.error("Logout failed:", e);
-      toast.error(errorExtract(e, "Logout failed"));
-    } finally {
-      setUser(null);
-      setIsAuthenticated(false);
-      setIsLoadingAuth(false);
-      navigate("/login", { replace: true });
-    }
+  const handleLogoutCompletion = useCallback(() => {
+    setUser(null);
+    setIsAuthenticated(false);
+    navigate("/login", { replace: true });
   }, [navigate]);
+
+  const { submit: logoutAction, isLoading: isLoggingOut } = useSubmit(
+    authAPI.logout,
+    {
+      actionVerb: "Logging out",
+      successMessage: "Successfully logged out",
+      onSuccess: handleLogoutCompletion,
+      onError: handleLogoutCompletion,
+    },
+  );
+
+  const performLogout = useCallback(async () => {
+    await logoutAction();
+  }, [logoutAction]);
 
   const contextValue = useMemo<AuthContextType>(
     () => ({
       user,
       isAuthenticated,
-      isLoadingAuth,
+      isLoadingAuth: isLoadingAuth || isLoggingOut,
       checkAuthStatus,
       performLogout,
     }),
-    [user, isAuthenticated, isLoadingAuth, checkAuthStatus, performLogout],
+    [
+      user,
+      isAuthenticated,
+      isLoadingAuth,
+      isLoggingOut,
+      checkAuthStatus,
+      performLogout,
+    ],
   );
 
   return (

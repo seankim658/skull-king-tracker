@@ -18,7 +18,7 @@ export const userAPI = {
   updateThemeSettings: (
     payload: UpdateUserThemePayload,
   ): Promise<ApiResponse<AuthenticatedUserResponse>> =>
-    client<ApiResponse<AuthenticatedUserResponse>>("/settings/theme", {
+    client<AuthenticatedUserResponse>("/settings/theme", {
       method: "PUT",
       body: JSON.stringify(payload),
       headers: {
@@ -34,7 +34,7 @@ export const userAPI = {
   updateUserProfile: (
     payload: UpdateUserProfilePayload,
   ): Promise<ApiResponse<AuthenticatedUserResponse>> =>
-    client<ApiResponse<AuthenticatedUserResponse>>("/settings/profile", {
+    client<AuthenticatedUserResponse>("/settings/profile", {
       method: "PUT",
       body: JSON.stringify(payload),
       headers: {
@@ -47,7 +47,7 @@ export const userAPI = {
    * @returns Promise resolving to the list of linked accounts
    */
   getLinkedAccounts: (): Promise<ApiResponse<LinkedAccount[]>> =>
-    client<ApiResponse<LinkedAccount[]>>("/settings/linked-accounts", {
+    client<LinkedAccount[]>("/settings/linked-accounts", {
       method: "GET",
     }),
 
@@ -57,7 +57,7 @@ export const userAPI = {
    * @returns Promise resolving to an API response
    */
   unlinkAccount: (providerName: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/settings/linked-accounts/${providerName}`, {
+    client<null>(`/settings/linked-accounts/${providerName}`, {
       method: "DELETE",
     }),
 
@@ -67,7 +67,7 @@ export const userAPI = {
    * @returns Promise resolving to the user's profile data
    */
   getUserProfile: (userId: string): Promise<ApiResponse<UserProfileResponse>> =>
-    client<ApiResponse<UserProfileResponse>>(`/users/${userId}/profile`, {
+    client<UserProfileResponse>(`/users/${userId}/profile`, {
       method: "GET",
     }),
 
@@ -83,11 +83,8 @@ export const userAPI = {
     const params = new URLSearchParams();
     params.append("q", query);
     params.append("limit", limit.toString());
-    return client<ApiResponse<UserSearchResponse>>(
-      `/users/search?${params.toString()}`,
-      {
-        method: "GET",
-      },
-    );
+    return client<UserSearchResponse>(`/users/search?${params.toString()}`, {
+      method: "GET",
+    });
   },
 };

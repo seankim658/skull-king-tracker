@@ -6,6 +6,7 @@ import { statsAPI } from "@/lib/api/service/stat";
 import type { SiteSummaryStatsResponse } from "@/lib/api/types";
 import { toast } from "sonner";
 import { errorExtract } from "@/lib/utils";
+import { useApi } from "@/hooks/use-api";
 
 const outerDivStyle = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
 const summaryStatStyle = "text-2xl font-bold";
@@ -15,29 +16,16 @@ const cardHeaderStyle =
 const cardTitleStyle = "text-sm font-medium min-h-[50px]";
 
 export function SiteSummaryStats() {
-  const [summaryStats, setSummaryStats] =
-    useState<SiteSummaryStatsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    data: summaryStats,
+    isLoading,
+    error,
+    request: fetchSummary,
+  } = useApi(statsAPI.getSiteSummaryStats);
 
   useEffect(() => {
-    const fetchSummary = async () => {
-      setIsLoading(true);
-      try {
-        const response = await statsAPI.getSiteSummaryStats();
-        if (response.success && response.data) {
-          setSummaryStats(response.data);
-        } else {
-          toast.error(response.message || "Failed to load site summary stats");
-        }
-      } catch (e) {
-        toast.error(errorExtract(e, "Could not load site summary stats"));
-        console.error(e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchSummary();
-  }, []);
+    fetchSummary()
+  }, [fetchSummary]);
 
   if (isLoading) {
     return (
@@ -58,7 +46,7 @@ export function SiteSummaryStats() {
     );
   }
 
-  if (!summaryStats) {
+  if (error || !summaryStats) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -74,7 +62,9 @@ export function SiteSummaryStats() {
     <div className={outerDivStyle}>
       <Card>
         <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>Total Skull King Players</CardTitle>
+          <CardTitle className={cardTitleStyle}>
+            Total Skull King Players
+          </CardTitle>
           <Users className={iconStyle} />
         </CardHeader>
         <CardContent>

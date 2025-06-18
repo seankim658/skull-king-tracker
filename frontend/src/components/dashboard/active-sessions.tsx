@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import {
@@ -10,67 +10,56 @@ import {
   CardFooter,
 } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
-import { toast } from "sonner";
 import { sessionAPI } from "@/lib/api/service/session";
 import { gameAPI } from "@/lib/api/service/game";
-import type { ActiveSessionResponse } from "@/lib/api/types";
-import { errorExtract } from "@/lib/utils";
 import { useConfirm } from "@/hooks/use-confirm";
+import { useApi } from "@/hooks/use-api";
+import { useSubmit } from "@/hooks/use-submit";
+import type { ActiveSessionResponse, GameResponse } from "@/lib/api/types";
 
 export function ActiveSessions() {
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const [activeSessions, setActiveSessions] = useState<ActiveSessionResponse[]>(
-    [],
-  );
-  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
 
-  const fetchActiveSessions = async () => {
-    setIsLoadingSessions(true);
-    try {
-      const response = await sessionAPI.getActiveSessionsForUser();
-      if (response.success && response.data) {
-        setActiveSessions(response.data);
-      } else {
-        toast.error(response.message || "Failed to load active sessions");
-        setActiveSessions([]);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not fetch active sessions");
-      toast.error(errMsg);
-      console.error(errMsg);
-      setActiveSessions([]);
-    } finally {
-      setIsLoadingSessions(false);
-    }
-  };
+  const {
+    data: activeSessions,
+    isLoading: isLoadingSessions,
+    request: fetchActiveSessions,
+    setData: setActiveSessions,
+  } = useApi(sessionAPI.getActiveSessionsForUser);
 
   useEffect(() => {
     fetchActiveSessions();
-  }, []);
+  }, [fetchActiveSessions]);
 
-  const handleStartGameFromSession = async (
-    sessionId: string,
-    sessionName?: string,
-  ) => {
-    const toastId = toast.loading(
-      `Starting new game in session "${sessionName || sessionId}"...`,
-    );
-    try {
-      const response = await gameAPI.createGame({ session_id: sessionId });
-      if (response.success && response.data?.game_id) {
-        toast.success("New game started", { id: toastId });
-        navigate(`/game/${response.data.game_id}/add-players`);
-      } else {
-        toast.error(response.message || "Failed to start new game in session", {
-          id: toastId,
-        });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to start new game in session");
-      toast.error(errMsg);
-      console.error(errMsg);
-    }
+  const { submit: startGame, isLoading: isStartingGame } = useSubmit(
+    gameAPI.createGame,
+    {
+      actionVerb: "Starting game",
+      successMessage: "New game started",
+      onSuccess: (data: GameResponse | undefined) => {
+        if (data?.game_id) {
+          navigate(`/game${data.game_id}/add-players`);
+        }
+      },
+    },
+  );
+
+  const { submit: completeSession, isLoading: isCompletingSession } = useSubmit(
+    sessionAPI.completeSession,
+    {
+      actionVerb: "Completing session",
+      onSuccess: (_data, sessionId: string) => {
+        setActiveSessions(
+          (prev: ActiveSessionResponse[] | null) =>
+            prev?.filter((s) => s.session_id !== sessionId) || [],
+        );
+      },
+    },
+  );
+
+  const handleStartGameFromSession = async (sessionId: string) => {
+    startGame({ session_id: sessionId });
   };
 
   const handleCompleteSession = async (
@@ -82,31 +71,8 @@ export function ActiveSessions() {
       description: `Do you want to makr the session "${sessionName || sessionId}" as completed? This action cannot be undone.`,
       confirmText: "Complete Session",
     });
-    if (!isConfirmed) {
-      return;
-    }
-    const toastId = toast.loading(
-      `Completing session "${sessionName || sessionId}"...`,
-    );
-    try {
-      const response = await sessionAPI.completeSession(sessionId);
-      if (response.success) {
-        toast.success(
-          `Session "${sessionName || sessionId}" marked as completed`,
-          { id: toastId },
-        );
-        setActiveSessions((prevSessions) =>
-          prevSessions.filter((s) => s.session_id !== sessionId),
-        );
-      } else {
-        toast.error(response.message || "Failed to complete session", {
-          id: toastId,
-        });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not complete session");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
+    if (isConfirmed) {
+      completeSession(sessionId);
     }
   };
 
@@ -136,7 +102,7 @@ export function ActiveSessions() {
     );
   }
 
-  if (activeSessions.length === 0) {
+  if (!activeSessions || activeSessions.length === 0) {
     return (
       <section>
         <h2 className="text-2xl font-semibold mb-4">Your Active Sessions</h2>
@@ -183,13 +149,12 @@ export function ActiveSessions() {
             </CardContent>
             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t mt-auto">
               <Button
-                onClick={() =>
-                  handleStartGameFromSession(
-                    session.session_id,
-                    session.session_name,
-                  )
+                onClick={() => handleStartGameFromSession(session.session_id)}
+                disabled={
+                  session.has_active_game ||
+                  isStartingGame ||
+                  isCompletingSession
                 }
-                disabled={session.has_active_game}
                 className="w-full sm:flex-1"
                 variant="default"
               >
@@ -203,6 +168,7 @@ export function ActiveSessions() {
                     session.session_name,
                   )
                 }
+                disabled={isStartingGame || isCompletingSession}
                 className="w-full sm:flex-1"
               >
                 Complete Session

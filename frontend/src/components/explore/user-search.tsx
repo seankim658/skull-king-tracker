@@ -8,48 +8,30 @@ import type { UserSearchItem } from "@/lib/api/types";
 import { errorExtract, getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
 import { Search } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useApi } from "@/hooks/use-api";
 
 const MIN_QUERY_LENGTH = 2;
 
 export function UserSearch() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<UserSearchItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const debouncedQuery = useDebounce(query, 300);
   const navigate = useNavigate();
 
-  const fetchUsers = useCallback(async (searchQuery: string) => {
-    if (searchQuery.trim().length < MIN_QUERY_LENGTH) {
-      setResults([]);
-      setIsLoading(false);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const response = await userAPI.searchUsers(searchQuery, 5);
-      if (response.success && response.data) {
-        setResults(response.data);
-      } else {
-        console.error(response.message || "Failed to search users");
-        setResults([]);
-      }
-    } catch (e) {
-      console.error(errorExtract(e, "Could not fetch users"));
-      setResults([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const {
+    data: results,
+    isLoading,
+    request: fetchUsers,
+    setData: setResults,
+  } = useApi(userAPI.searchUsers);
 
   useEffect(() => {
     if (debouncedQuery.trim().length >= MIN_QUERY_LENGTH) {
       fetchUsers(debouncedQuery);
     } else {
       setResults([]);
-      setIsLoading(false);
     }
-  }, [debouncedQuery, fetchUsers]);
+  }, [debouncedQuery, fetchUsers, setResults]);
 
   const handleUserSelect = (userId: string) => {
     setQuery("");
@@ -73,7 +55,7 @@ export function UserSearch() {
         />
       </div>
 
-      {isFocused && (query.length > 0 || isLoading || results.length > 0) && (
+      {isFocused && (query.length > 0 || isLoading || results?.length) && (
         <div className="absolute z-10 mt-1 w-full bg-card border rounded-md shadow-lg max-h-80 overflow-y-auto">
           {isLoading && query.length > 0 && (
             <div className="p-2">
@@ -88,12 +70,12 @@ export function UserSearch() {
               ))}
             </div>
           )}
-          {!isLoading && debouncedQuery.length > 0 && results.length === 0 && (
+          {!isLoading && debouncedQuery.length > 0 && results?.length === 0 && (
             <div className="p-4 text-center text-sm text-muted-foreground">
               No users found matching "{debouncedQuery}"
             </div>
           )}
-          {!isLoading && results.length > 0 && (
+          {!isLoading && results && results.length > 0 && (
             <ul>
               {results.map((user) => (
                 <li

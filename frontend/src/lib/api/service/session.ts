@@ -6,7 +6,7 @@ export const sessionAPI = {
    * Fetches active game sessions for the current user.
    */
   getActiveSessionsForUser: (): Promise<ApiResponse<ActiveSessionResponse[]>> =>
-    client<ApiResponse<ActiveSessionResponse[]>>("/sessions/active", {
+    client<ActiveSessionResponse[]>("/sessions/active", {
       method: "GET",
     }),
 
@@ -15,7 +15,7 @@ export const sessionAPI = {
    * @param sessionid - The ID of the session to complete
    */
   completeSession: (sessionId: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/sessions/${sessionId}/complete`, {
+    client<null>(`/sessions/${sessionId}/complete`, {
       method: "PUT",
     }),
 };

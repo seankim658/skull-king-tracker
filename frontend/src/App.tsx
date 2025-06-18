@@ -51,10 +51,10 @@ function AppContent() {
           <Route path="/users/:userId" element={<ProfilePage />} />
           <Route path="/explore" element={<ExplorePage />} />
 
-          <Route
+          {/*<Route
             path="/game/:gameId/add-players"
             element={<AddPlayersPage />}
-          />
+          />*/}
         </Route>
       </Route>
 
