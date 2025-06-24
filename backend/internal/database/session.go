@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -57,15 +58,12 @@ func CreateGameSession(ctx context.Context, tx *sql.Tx, sessionName, createdByUs
 	return returnedSessionID, nil
 }
 
-// Helper struct to include session details along with game flow activity
-type GameSessionWithActivity struct {
-	dbModels.GameSession
-	HasActiveGame bool `db:"has_active_game"`
-}
-
-// Retrieves all active sessions for a given user where the user participated in at least one
-// game (checks if any games within those sessions is currently 'pending' or 'active').
-func GetActiveSessionsByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]GameSessionWithActivity, error) {
+// Retrieves all active or pending sessions for a given user where the user participated in at least one game (checks if any games within those sessions is currently 'pending' or 'active').
+func GetActiveSessionsByUserID(
+	ctx context.Context,
+	tx *sql.Tx,
+	userID string,
+) ([]dbModels.GameSessionWithActivity, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -83,12 +81,16 @@ func GetActiveSessionsByUserID(ctx context.Context, tx *sql.Tx, userID string) (
     gs.updated_at,
     gs.completed_at,
     EXISTS (
-      SELECT 1
-      FROM games g_check
-      WHERE g_check.session_id = gs.session_id
-      AND g_check.status IN ('active')
-    ) as has_active_game
+      SELECT 1 FROM games g_check
+      WHERE g_check.session_id = gs.session_id AND g_check.status = 'active'
+    ) as has_active_game,
+    EXISTS (
+      SELECT 1 FROM games g_check_pending
+      WHERE g_check_pending.session_id = gs.session_id AND g_check_pending.status = 'pending'
+    ) as has_pending_game,
+    COALESCE(u.display_name, u.username) as creator_name
   FROM game_sessions gs
+  LEFT JOIN users u ON gs.created_by_user_id = u.user_id
   WHERE gs.status = 'active'
   AND EXISTS (
     SELECT 1
@@ -108,9 +110,9 @@ func GetActiveSessionsByUserID(ctx context.Context, tx *sql.Tx, userID string) (
 	}
 	defer rows.Close()
 
-	var sessions []GameSessionWithActivity
+	var sessions []dbModels.GameSessionWithActivity
 	for rows.Next() {
-		var s GameSessionWithActivity
+		var s dbModels.GameSessionWithActivity
 		if err := rows.Scan(
 			&s.SessionID,
 			&s.SessionName,
@@ -120,9 +122,11 @@ func GetActiveSessionsByUserID(ctx context.Context, tx *sql.Tx, userID string) (
 			&s.UpdatedAt,
 			&s.CompletedAt,
 			&s.HasActiveGame,
+			&s.HasPendingGame,
+			&s.CreatorName,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan active session row")
-			return nil, fmt.Errorf("error scanning active session row for user %s: %w", userID, err)
+			return nil, fmt.Errorf("error scanning/pending active session row for user %s: %w", userID, err)
 		}
 		sessions = append(sessions, s)
 	}
@@ -176,4 +180,33 @@ func UpdateSessionStatus(
 
 	logger.Info().Msg("Session status updated successfully")
 	return nil
+}
+
+// Retrieves a game session by its ID
+func GetGameSessionByID(ctx context.Context, tx *sql.Tx, sessionID string) (*dbModels.GameSession, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"GetGameSessionByID",
+	).With().Str(l.SessionIDKey, sessionID).Logger()
+
+	query := `
+  SELECT session_id, session_name, created_by_user_id, status, created_at, updated_at, completed_at
+  FROM game_sessions
+  WHERE session_id = $1;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get game session by ID")
+
+	session, err := scanGameSession(querier.QueryRowContext(ctx, query, sessionID))
+	if err != nil {
+		if errors.Is(err, ErrSessionNotFound) {
+			logger.Warn().Msg("Game session not found by ID")
+		} else {
+			logger.Error().Err(err).Msg("Failed to get game session by ID (after scan)")
+		}
+		return nil, err
+	}
+	logger.Info().Msg("Game session retrieved successfully by ID")
+	return session, nil
 }

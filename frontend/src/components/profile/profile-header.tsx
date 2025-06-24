@@ -125,8 +125,9 @@ export function ProfileHeader({
           <Button
             onClick={() => sendFriendRequest(profile.user_id)}
             disabled={isLoading}
+            className="cursor-pointer"
           >
-            <UserPlus className={friendButtonIconStyling} />
+            <UserPlus className={friendButtonIconStyling} /> Add Friend
           </Button>
         );
       case "pending_sent_to_profile":
@@ -135,6 +136,7 @@ export function ProfileHeader({
             variant="outline"
             onClick={() => cancelFriendRequest(profile.user_id)}
             disabled={isLoading}
+            className="cursor-pointer"
           >
             Cancel Request
           </Button>
@@ -147,6 +149,7 @@ export function ProfileHeader({
             variant="destructive"
             onClick={handleUnfriend}
             disabled={isLoading}
+            className="cursor-pointer"
           >
             <UserX className={friendButtonIconStyling} /> Unfriend
           </Button>
@@ -157,6 +160,7 @@ export function ProfileHeader({
             variant="destructive"
             onClick={handleUnfriend}
             disabled={isLoading}
+            className="cursor-pointer"
           >
             <UserCheck className={friendButtonIconStyling} /> Unblock
           </Button>

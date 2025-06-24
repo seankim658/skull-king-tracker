@@ -83,8 +83,8 @@ func FindOrCreateGuestPlayer(ctx context.Context, tx *sql.Tx, displayName string
 		"FindOrCreateGuestPlayer",
 	).With().Str(l.GuestPlayerNameKey, displayName).Logger()
 
-	// Try to find existing guest player
 	queryFind := "SELECT guest_player_id FROM guest_players WHERE display_name = $1;"
+	logger.Debug().Str(l.QueryKey, queryFind).Msg("Attempting to find existing guest player")
 	var guestPlayerID string
 	err := querier.QueryRowContext(ctx, queryFind, displayName).Scan(&guestPlayerID)
 	if err == nil {
@@ -105,6 +105,7 @@ func FindOrCreateGuestPlayer(ctx context.Context, tx *sql.Tx, displayName string
   VALUES ($1, $2, $3)
   RETURNING guest_player_id;
   `
+	logger.Debug().Str(l.QueryKey, queryCreate).Msg("Attempting to create new guest player")
 	err = querier.QueryRowContext(ctx, queryCreate, newGuestPlayerID, displayName, currentTime).Scan(&guestPlayerID)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to create new guest player")
@@ -175,6 +176,32 @@ func AddPlayerToGame(ctx context.Context, tx *sql.Tx, gameID string, userID, gue
 	return returnedGamePlayerID, nil
 }
 
+// Deletes a player from a game using their game_player_id
+func DeleteGamePlayer(ctx context.Context, tx *sql.Tx, gamePlayerID string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"DeleteGamePlayer",
+	).With().Str(l.GamePlayerIDKey, gamePlayerID).Logger()
+
+	query := `DELETE FROM game_players WHERE game_player_id = $1;`
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to delete game player")
+	result, err := querier.ExecContext(ctx, query, gamePlayerID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to delete game player")
+		return fmt.Errorf("error deleting game player %s: %w", gamePlayerID, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrGamePlayerNotFound
+	}
+
+	logger.Info().Msg("Game player deleted successfully")
+	return nil
+}
+
 // Retrieves a game by its ID
 func GetGameByID(ctx context.Context, tx *sql.Tx, gameID string) (*dbModels.Game, error) {
 	querier := GetQuerier(tx)
@@ -203,4 +230,206 @@ func GetGameByID(ctx context.Context, tx *sql.Tx, gameID string) (*dbModels.Game
 	}
 	logger.Info().Msg("Game retrieved successfully by ID")
 	return game, nil
+}
+
+// Updates the status of a game
+func UpdateGameStatus(ctx context.Context, tx *sql.Tx, gameID, status string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"UpdateGameStatus",
+	).With().Str(l.GameIDKey, gameID).Str(l.GameStatusKey, status).Logger()
+
+	query := `UPDATE games SET status = $1, updated_at = NOW() WHERE game_id = $2;`
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update game status")
+	result, err := querier.ExecContext(ctx, query, status, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to update game status")
+		return fmt.Errorf("error updating game status for %s: %w", gameID, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrGameNotFound
+	}
+
+	logger.Info().Msg("Game status updated successfully")
+	return nil
+}
+
+// Retrieves all players for a given game
+func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbModels.GamePlayerDetails, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetPlayersByGameID",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	query := `
+  SELECT
+    gp.game_player_id,
+    gp.game_id,
+    gp.user_id,
+    gp.guest_player_id,
+    COALESCE(u.display_name, u.username, g.display_name) AS display_name,
+    u.avatar_url,
+    gp.seating_order,
+    gp.final_score
+  FROM game_players gp
+  LEFT JOIN users u ON gp.user_id = u.user_id
+  LEFT JOIN guest_players g ON gp.guest_player_id = g.guest_player_id
+  WHERE gp.game_id = $1
+  ORDER BY gp.seating_order ASC;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get players by game ID")
+
+	rows, err := querier.QueryContext(ctx, query, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query game players")
+		return nil, fmt.Errorf("error querying players for game %s: %w", gameID, err)
+	}
+	defer rows.Close()
+
+	var players []dbModels.GamePlayerDetails
+	for rows.Next() {
+		var p dbModels.GamePlayerDetails
+		if err := rows.Scan(
+			&p.GamePlayerID,
+			&p.GameID,
+			&p.UserID,
+			&p.GuestPlayerID,
+			&p.DisplayName,
+			&p.AvatarURL,
+			&p.SeatingOrder,
+			&p.FinalScore,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan game player row")
+			return nil, fmt.Errorf("error scanning player data for game %s: %w", gameID, err)
+		}
+		players = append(players, p)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over game player rows for game %s: %w", gameID, err)
+	}
+
+	logger.Info().Int(l.CountKey, len(players)).Msg("Game players retrieved successfully")
+	return players, nil
+}
+
+// Retrieves all games for a given session, including winner information
+func GetGamesBySessionID(ctx context.Context, tx *sql.Tx, sessionID, viewerID string) ([]dbModels.GameWithWinner, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetGamesBySessionID",
+	).With().Str(l.SessionIDKey, sessionID).Str(l.UserIDKey, viewerID).Logger()
+
+	query := `
+  SELECT
+    g.game_id,
+    g.status,
+    g.created_at,
+    g.completed_at,
+    COALESCE(u.display_name, u.username, gp_winner.display_name) AS winning_player,
+    (g.current_scorekeeper_user_id = $2) AS is_viewer_scorekeeper,
+    COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name
+  FROM games g
+  LEFT JOIN game_players p ON g.game_id = p.game_id AND p.finishing_position = 1
+  LEFT JOIN users u ON p.user_id = u.user_id
+  LEFT JOIN guest_players gp_winner ON p.guest_player_id = gp_winner.guest_player_id
+  LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
+  WHERE g.session_id = $1
+  ORDER BY g.created_at DESC;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get games by session ID")
+
+	rows, err := querier.QueryContext(ctx, query, sessionID, viewerID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query games by session ID")
+		return nil, fmt.Errorf("error querying games for session %s: %w", sessionID, err)
+	}
+	defer rows.Close()
+
+	var games []dbModels.GameWithWinner
+	for rows.Next() {
+		var game dbModels.GameWithWinner
+		if err := rows.Scan(
+			&game.GameID,
+			&game.Status,
+			&game.CreatedAt,
+			&game.CompletedAt,
+			&game.WinningPlayer,
+			&game.IsViewerScorekeeper,
+			&game.ScorekeeperName,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan game with winner row")
+			return nil, fmt.Errorf("error scanning game data for session %s: %w", sessionID, err)
+		}
+		games = append(games, game)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over games rows for session %s: %w", sessionID, err)
+	}
+
+	logger.Info().Int(l.CountKey, len(games)).Msg("Games for session retrieved successfully")
+	return games, nil
+}
+
+// Updates the scorekeeper and seating order for a game
+func UpdateGameSettings(
+	ctx context.Context,
+	tx *sql.Tx,
+	gameID, scorekeeperUserID string,
+	orderedPlayersIDs []string,
+) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"UpdateGameSettings",
+	).With().Str(l.GameIDKey, gameID).Str(l.ScorekeeperIDKey, scorekeeperUserID).Logger()
+
+	updateScorekeeperQuery := `
+  UPDATE games 
+  SET current_scorekeeper_user_id = $1, updated_at = NOW()
+  WHERE game_id = $2;
+  `
+	logger.Debug().Str(l.QueryKey, updateScorekeeperQuery).Msg("Attempting to update game scorekeeper")
+	if _, err := querier.ExecContext(ctx, updateScorekeeperQuery, scorekeeperUserID, gameID); err != nil {
+		logger.Error().Err(err).Msg("Failed to update scorekeeper")
+		return fmt.Errorf("error updating scorekeeper for game %s: %w", gameID, err)
+	}
+
+	updateOrderQuery := `
+  UPDATE game_players
+  SET seating_order = $1, final_score = $2
+  WHERE game_player_id = $3;
+  `
+	logger.Debug().Str(l.QueryKey, updateOrderQuery).Msg("Preparing to update seating order for players")
+	stmt, err := querier.PrepareContext(ctx, updateOrderQuery)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to prepare statement for updating seating order")
+		return fmt.Errorf("error preparing seating order update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for i, playerID := range orderedPlayersIDs {
+		seatingOrder := i + 1
+		if _, err := stmt.ExecContext(ctx, seatingOrder, 0, playerID); err != nil {
+			logger.Error().
+				Err(err).
+				Str(l.GamePlayerIDKey, playerID).
+				Int(l.SeatingOrderKey, seatingOrder).
+				Msg("Failed to update seating order")
+			return fmt.Errorf("error updating seating order for player %s: %w", playerID, err)
+		}
+	}
+
+	logger.Info().Int("players_updated", len(orderedPlayersIDs)).Msg("Game settings updated successfully")
+	return nil
 }

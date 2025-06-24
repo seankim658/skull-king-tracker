@@ -17,11 +17,12 @@ type AddPlayerToGameRequest struct {
 
 // Response for a created game
 type GameResponse struct {
-	GameID          string    `json:"game_id"`
-	SessionID       *string   `json:"session_id,omitempty"`
-	Status          string    `json:"status"`
-	CreatedAt       time.Time `json:"created_at"`
-	CreatedByUserID string    `json:"created_by_user_id"`
+	GameID                   string    `json:"game_id"`
+	SessionID                *string   `json:"session_id,omitempty"`
+	Status                   string    `json:"status"`
+	CreatedAt                time.Time `json:"created_at"`
+	CreatedByUserID          string    `json:"created_by_user_id"`
+	CurrentScoreKeeperUserID *string   `json:"current_scorekeeper_user_id,omitempty"`
 }
 
 type GamePlayerResponse struct {
@@ -30,6 +31,12 @@ type GamePlayerResponse struct {
 	UserID        *string `json:"user_id,omitempty"`
 	GuestPlayerID *string `json:"guest_player_id,omitempty"`
 	DisplayName   string  `json:"display_name"`
+	AvatarURL     *string `json:"avatar_url,omitempty"`
 	SeatingOrder  int     `json:"seating_order"`
 	FinalScore    int     `json:"final_score"`
+}
+
+type UpdateGameSettingsRequest struct {
+	ScorekeeperUserID string   `json:"scorekeeper_user_id" validate:"required"`
+	OrderedPlayerIDs  []string `json:"ordered_player_ids" validate:"required"`
 }

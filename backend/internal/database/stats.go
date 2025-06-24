@@ -132,3 +132,43 @@ func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*SiteWideSummaryS
 	logger.Info().Interface("site_summary_stats", stats).Msg("Site wide summary stats retrieved successfully")
 	return stats, nil
 }
+
+// Retrieves the game statistics for a user within a specific session
+func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID string) (*ProfileStats, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		statsComponent,
+		"GetUserSessionStats",
+	).With().Str(l.UserIDKey, userID).Str(l.SessionIDKey, sessionID).Logger()
+
+	stats := &ProfileStats{}
+
+	queryGamesPlayed := `
+  SELECT COUNT(DISTINCT g.game_id)
+  FROM games g
+  JOIN game_players gp ON g.game_id = gp.game_id
+  WHERE gp.user_id = $1 AND g.session_id = $2 AND g.status = 'completed';
+  `
+	logger.Debug().Str(l.QueryKey, queryGamesPlayed).Msg("Attempting to query total games played in session")
+	err := querier.QueryRowContext(ctx, queryGamesPlayed, userID, sessionID).Scan(&stats.TotalGamesPlayed)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get total games in session")
+		return nil, fmt.Errorf("error getting total games played for user %s in session %s: %w", userID, sessionID, err)
+	}
+
+	queryTotalWins := `
+  SELECT COUNT(DISTINCT g.game_id)
+  FROM games g
+  JOIN game_players gp ON g.game_id = gp.game_id
+  WHERE gp.user_id = $1 AND g.session_id = $2 AND g.status = 'completed' AND gp.finishing_position = 1;
+  `
+	err = querier.QueryRowContext(ctx, queryTotalWins, userID, sessionID).Scan(&stats.TotalWins)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get total wins in session")
+		return nil, fmt.Errorf("error gettign total wins for user %s in session %s: %w", userID, sessionID, err)
+	}
+
+	logger.Info().Interface("session_user_stats", stats).Msg("User session stats retrieved successfully")
+	return stats, nil
+}

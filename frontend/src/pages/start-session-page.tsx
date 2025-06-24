@@ -11,7 +11,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { gameAPI } from "@/lib/api/service/game";
-import { errorExtract } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useSubmit } from "@/hooks/use-submit";
@@ -69,7 +68,7 @@ export function StartSessionPage() {
             </div>
           </CardContent>
           <CardFooter className="pt-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
               {isLoading ? "Starting Session..." : "Create Session"}
             </Button>
           </CardFooter>

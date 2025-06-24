@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { friendshipAPI } from "@/lib/api/service/friendship";
 import { gameAPI } from "@/lib/api/service/game";
-import type { UserSearchItem, GamePlayerResponse } from "@/lib/api/types";
+import type { GamePlayerResponse } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,17 +16,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getFullAvatarURL, getAvatarFallback, errorExtract } from "@/lib/utils";
-import { PlusCircle, UserPlus, X } from "lucide-react";
+import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
+import { PlusCircle, UserPlus, X, Rocket } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
+import { useConfirm } from "@/hooks/use-confirm";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
-  const [players, setPlayers] = useState<GamePlayerResponse[]>([]);
   const [guestName, setGuestName] = useState("");
 
   const {
@@ -35,59 +37,78 @@ export function AddPlayersPage() {
     request: fetchFriends,
   } = useApi(friendshipAPI.getFriends);
 
+  const {
+    data: players,
+    isLoading: isLoadingPlayers,
+    request: fetchPlayers,
+  } = useApi(gameAPI.getGamePlayers);
+
+  const { submit: addPlayerSubmit, isLoading: isAddingPlayer } = useSubmit(
+    gameAPI.addPlayerToGame,
+    {
+      actionVerb: "Adding player",
+      onSuccess: () => fetchPlayers(gameId!),
+    },
+  );
+
+  const { submit: removePlayerSubmit, isLoading: isRemovingPlayer } = useSubmit(
+    gameAPI.removePlayerFromGame,
+    {
+      actionVerb: "Removing player",
+      successMessage: "Player removed",
+      onSuccess: () => fetchPlayers(gameId!),
+    },
+  );
+
   useEffect(() => {
     if (!gameId) {
-      toast.error("Game ID is missing");
+      toast.error("Game ID is missing from the URL");
       navigate("/");
       return;
     }
     fetchFriends();
-  }, [gameId, navigate, fetchFriends]);
+    fetchPlayers(gameId);
+  }, [gameId, navigate, fetchFriends, fetchPlayers]);
 
-  const { submit: addPlayer, isLoading: isAddingPlayer } = useSubmit(
-    gameAPI.addPlayerToGame,
-    {
-      actionVerb: "Adding player",
-      onSuccess: (newPlayer) => {
-        if (newPlayer) setPlayers((prev) => [...prev, newPlayer]);
-      },
-    },
-  );
-
-  const { submit: addGuest, isLoading: isAddingGuest } = useSubmit(
-    gameAPI.addPlayerToGame,
-    {
-      actionVerb: "Adding guest",
-      onSuccess: (newPlayer) => {
-        if (newPlayer) {
-          setPlayers((prev) => [...prev, newPlayer]);
-          setGuestName("");
-        }
-      },
-    },
-  );
-
-  const handleAddPlayer = async (userId: string) => {
+  const handleAddFriend = (userId: string) => {
     if (!gameId) return;
-    addPlayer(gameId, { user_id: userId, seating_order: players.length + 1 });
-  };
-
-  const handleAddGuest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!gameId || !guestName.trim()) return;
-    addGuest(gameId, {
-      guest_name: guestName.trim(),
-      seating_order: players.length + 1,
+    addPlayerSubmit(gameId, {
+      user_id: userId,
+      seating_order: (players?.length || 0) + 1,
     });
   };
 
-  // TODO Implement remove player logic
-  const handleRemovePlayer = (gamePlayerId: string) => {
-    toast.info("Removing player");
+  const handleAddGuest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gameId || !guestName.trim()) return;
+    addPlayerSubmit(gameId, {
+      guest_name: guestName.trim(),
+      seating_order: (players?.length || 0) + 1,
+    });
+    setGuestName("");
+  };
+
+  const handleRemovePlayer = async (player: GamePlayerResponse) => {
+    if (!gameId) return;
+    const isConfirmed = await confirm({
+      title: "Remove player?",
+      description: `Are you sure you want to remove ${player.display_name} from the game?`,
+      confirmText: "Remove",
+    });
+    if (isConfirmed) {
+      removePlayerSubmit(gameId, player.game_player_id);
+    }
+  };
+
+  const handleProceed = () => {
+    navigate(`/game/${gameId}/setup`);
   };
 
   const alreadyAdded = (userId: string) =>
-    players.some((p) => p.user_id === userId);
+    players?.some((p) => p.user_id === userId);
+  const isActionLoading = isAddingPlayer || isRemovingPlayer;
+
+  const playerList = players || [];
 
   return (
     <div className="container mx-auto max-w-4xl p-4 md:p-6 space-y-8">
@@ -100,28 +121,39 @@ export function AddPlayersPage() {
           {/* Left side: Current Players */}
           <div>
             <h3 className="text-lg font-semibold mb-4">
-              Current Players ({players.length})
+              Current Players ({playerList.length})
             </h3>
             <div className="space-y-3">
-              {players.length > 0 ? (
-                players.map((player) => (
+              {isLoadingPlayers ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => (
+                    <Skeleton key={i} className="h-14 w-full" />
+                  ))}
+                </div>
+              ) : playerList.length > 0 ? (
+                playerList.map((player) => (
                   <div
                     key={player.game_player_id}
                     className="flex items-center justify-between bg-muted p-2 rounded-md"
                   >
-                    <div className="flex items-center gap-3"></div>
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src="" alt={player.display_naem} />
-                      <AvatarFallback>
-                        {getAvatarFallback(player.display_naem)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium">{player.display_naem}</span>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage
+                          src={getFullAvatarURL(player.avatar_url)}
+                          alt={player.display_name}
+                        />
+                        <AvatarFallback>
+                          {getAvatarFallback(player.display_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{player.display_name}</span>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleRemovePlayer(player.game_player_id)}
+                      className="h-8 w-8 cursor-pointer"
+                      onClick={() => handleRemovePlayer(player)}
+                      disabled={isActionLoading}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -141,7 +173,11 @@ export function AddPlayersPage() {
               <h3 className="text-lg font-semibold mb-2">Add a Friend</h3>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 {isLoadingFriends ? (
-                  <p>Loading friends...</p>
+                  <div className="space-y-3">
+                    {[...Array(3)].map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
                 ) : (
                   friends?.map((friend) => (
                     <div
@@ -169,14 +205,23 @@ export function AddPlayersPage() {
                       </div>
                       <Button
                         size="sm"
+                        className="cursor-pointer"
                         variant="outline"
-                        onClick={() => handleAddPlayer(friend.user_id)}
-                        disabled={alreadyAdded(friend.user_id)}
+                        onClick={() => handleAddFriend(friend.user_id)}
+                        disabled={
+                          alreadyAdded(friend.user_id) || isActionLoading
+                        }
                       >
                         <UserPlus className="h-4 w-4 mr-2" /> Add
                       </Button>
                     </div>
                   ))
+                )}
+                {!isLoadingFriends && friends?.length === 0 && (
+                  <p className="text-sm text-center text-muted-foreground py-2">
+                    {" "}
+                    You haven't added any friends yet
+                  </p>
                 )}
               </div>
             </div>
@@ -197,9 +242,14 @@ export function AddPlayersPage() {
                   placeholder="Enter guest's name"
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
+                  disabled={isActionLoading}
                 />
-                <Button type="submit">
-                  <PlusCircle className="h-4 w-4 mr-2" /> Add Guest
+                <Button
+                  type="submit"
+                  className="cursor-pointer"
+                  disabled={isActionLoading || !guestName.trim()}
+                >
+                  <PlusCircle className="h-4 w-4 mr-2" /> Add
                 </Button>
               </form>
             </div>
@@ -208,10 +258,17 @@ export function AddPlayersPage() {
         <CardFooter className="pt-6">
           <Button
             size="lg"
-            className="w-full md:w-auto"
-            disabled={players.length < 1}
+            className="w-full md:w-auto cursor-pointer"
+            disabled={playerList.length < 2 || isActionLoading}
+            onClick={handleProceed}
+            title={
+              playerList.length > 2
+                ? "A game requires at least 2 players"
+                : "Proceed to game setup"
+            }
           >
-            Start Game
+            <Rocket className="h-4 w-4 mr-2" />
+            Proceed to Game Setup
           </Button>
         </CardFooter>
       </Card>

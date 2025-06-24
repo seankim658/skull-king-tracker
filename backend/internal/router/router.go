@@ -62,12 +62,18 @@ func New(cfg *cf.Config) http.Handler {
 	gameHandler := h.NewGameHandler(cfg)
 	gameSubRouter := apiRouter.PathPrefix("/games").Subrouter()
 	gameSubRouter.HandleFunc("", gameHandler.HandleCreateGame).Methods(http.MethodPost)
+	gameSubRouter.HandleFunc("/{game_id}/details", gameHandler.HandleGetGameDetails).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleAddPlayerToGame).Methods(http.MethodPost)
+	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleGetGamePlayers).Methods(http.MethodGet)
+	gameSubRouter.HandleFunc("/{game_id}/players/{game_player_id}", gameHandler.HandleRemovePlayerFromGame).Methods(http.MethodDelete)
+  gameSubRouter.HandleFunc("/{game_id}/settings", gameHandler.HandleUpdateGameSettings).Methods(http.MethodPut)
+	gameSubRouter.HandleFunc("/{game_id}/start", gameHandler.HandleStartGame).Methods(http.MethodPut)
 
 	// Session routes
 	sessionHandler := h.NewSessionHandler(cfg)
 	sessionSubRouter := apiRouter.PathPrefix("/sessions").Subrouter()
 	sessionSubRouter.HandleFunc("/active", sessionHandler.HandleGetActiveSessionsForUser).Methods(http.MethodGet)
+	sessionSubRouter.HandleFunc("/{session_id}", sessionHandler.HandleGetSessionDetails).Methods(http.MethodGet)
 	sessionSubRouter.HandleFunc("/{session_id}/complete", sessionHandler.HandleCompleteSession).Methods(http.MethodPut)
 
 	// User profile routes

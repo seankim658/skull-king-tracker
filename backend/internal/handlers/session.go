@@ -1,5 +1,7 @@
 package handlers
 
+// TODO : fix the docstrings
+
 import (
 	"database/sql"
 	"errors"
@@ -41,7 +43,7 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 
 	dbSessionsWithActivity, err := db.GetActiveSessionsByUserID(ctx, nil, userID)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to retrive active sessions for user")
+		logger.Error().Err(err).Msg("Failed to retrieve active sessions for user")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve active sessions")
 		return
 	}
@@ -49,17 +51,21 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 	apiSessions := make([]apiModels.ActiveSessionResponse, 0, len(dbSessionsWithActivity))
 	for _, dbSess := range dbSessionsWithActivity {
 		apiSess := apiModels.ActiveSessionResponse{
-			SessionID:     dbSess.SessionID,
-			Status:        dbSess.Status,
-			HasActiveGame: dbSess.HasActiveGame,
-			CreatedAt:     dbSess.CreatedAt,
-			UpdatedAt:     dbSess.UpdatedAt,
+			SessionID:      dbSess.SessionID,
+			Status:         dbSess.Status,
+			HasActiveGame:  dbSess.HasActiveGame,
+			HasPendingGame: dbSess.HasPendingGame,
+			CreatedAt:      dbSess.CreatedAt,
+			UpdatedAt:      dbSess.UpdatedAt,
 		}
 		if dbSess.SessionName.Valid {
 			apiSess.SessionName = &dbSess.SessionName.String
 		}
 		if dbSess.CompletedAt.Valid {
 			apiSess.CompletedAt = &dbSess.CompletedAt.Time
+		}
+		if dbSess.CreatorName.Valid {
+			apiSess.CreatorName = &dbSess.CreatorName.String
 		}
 		apiSessions = append(apiSessions, apiSess)
 	}
@@ -76,10 +82,10 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 		"HandleCompleteSession",
 	)
 
-  sessionID, ok := PathVar(w, r, "session_id")
-  if !ok {
-    return
-  }
+	sessionID, ok := PathVar(w, r, "session_id")
+	if !ok {
+		return
+	}
 	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
 
 	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
@@ -124,4 +130,85 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 	}
 
 	Respond(w, r, http.StatusOK, nil, "Session marked as completed sucessfully")
+}
+
+// Handles fetching the details of a single session, including its games and user-specific statistics
+func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionHandlerComponent,
+		"HandleGetSessionDetails",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.UserIDKey, userID).Logger()
+
+	sessionID, ok := PathVar(w, r, "session_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
+
+	// TODO : Check if the user is in the session to be allowed to view
+
+	dbSession, err := db.GetGameSessionByID(ctx, nil, sessionID)
+	if err != nil {
+		if errors.Is(err, db.ErrSessionNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Session not found")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve session details")
+		}
+		return
+	}
+
+	dbGames, err := db.GetGamesBySessionID(ctx, nil, sessionID, userID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve games for the session")
+		return
+	}
+
+	dbUserStats, err := db.GetUserSessionStats(ctx, nil, userID, sessionID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve user stats for the session")
+		return
+	}
+
+	apiGames := make([]apiModels.SessionGame, len(dbGames))
+	for i, dbGame := range dbGames {
+		apiGames[i] = apiModels.SessionGame{
+			GameID:        dbGame.GameID,
+			Status:        dbGame.Status,
+			CreatedAt:     dbGame.CreatedAt,
+			IsScorekeeper: dbGame.IsViewerScorekeeper,
+		}
+		if dbGame.CompletedAt.Valid {
+			completedAtStr := dbGame.CompletedAt.Time.String()
+			apiGames[i].CompletedAt = &completedAtStr
+		}
+		if dbGame.WinningPlayer.Valid {
+			apiGames[i].WinningPlayer = &dbGame.WinningPlayer.String
+		}
+		if dbGame.ScorekeeperName.Valid {
+			apiGames[i].ScorekeeperName = &dbGame.ScorekeeperName.String
+		}
+	}
+
+	apiResponse := apiModels.SessionDetailResponse{
+		SessionID: dbSession.SessionID,
+		Status:    dbSession.Status,
+		Games:     apiGames,
+		UserSummary: apiModels.SessionUserSummary{
+			TotalGames: dbUserStats.TotalGamesPlayed,
+			Wins:       dbUserStats.TotalWins,
+		},
+	}
+	if dbSession.SessionName.Valid {
+		apiResponse.SessionName = &dbSession.SessionName.String
+	}
+
+	Respond(w, r, http.StatusOK, apiResponse, "Session details retrived successfully")
 }

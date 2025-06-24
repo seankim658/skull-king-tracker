@@ -15,6 +15,7 @@ export interface GameResponse {
   status: string;
   created_at: string;
   created_by_user_id: string;
+  current_scorekeeper_user_id?: string;
 }
 
 /**
@@ -35,6 +36,15 @@ export interface GamePlayerResponse {
   user_id?: string;
   guest_player_id?: string;
   display_name: string;
+  avatar_url?: string;
   seating_order: number;
   final_score: number;
+}
+
+/**
+ * Payload for updating game setings.
+ */
+export interface UpdateGameSettingsPayload {
+  scorekeeper_user_id: string;
+  ordered_player_ids: string[];
 }

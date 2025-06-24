@@ -5,6 +5,7 @@ import type {
   GameResponse,
   AddPlayerToGamePayload,
   GamePlayerResponse,
+  UpdateGameSettingsPayload,
 } from "../types";
 
 export const gameAPI = {
@@ -40,5 +41,61 @@ export const gameAPI = {
       headers: {
         "Content-Type": "application/json",
       },
+    }),
+
+  /**
+   * Removes a player from a game.
+   * @param gameId - The ID of the game
+   * @param gamePlayerId - The ID of the
+   */
+  removePlayerFromGame: (
+    gameId: string,
+    gamePlayerId: string,
+  ): Promise<ApiResponse<null>> =>
+    client<null>(`/games/${gameId}/players/${gamePlayerId}`, {
+      method: "DELETE",
+    }),
+
+  /**
+   * Updates a game status to 'active' to begin paly
+   * @param gameId - The ID of the game to start
+   */
+  startGame: (gameId: string): Promise<ApiResponse<null>> =>
+    client<null>(`/games${gameId}/start`, {
+      method: "PUT",
+    }),
+
+  /**
+   * Fetches all players for a specified game.
+   * @param gameId - The ID of the game
+   */
+  getGamePlayers: (
+    gameId: string,
+  ): Promise<ApiResponse<GamePlayerResponse[]>> =>
+    client<GamePlayerResponse[]>(`/games/${gameId}/players`, {
+      method: "GET",
+    }),
+
+  /**
+   * Fetches the details for a specific game.
+   * @param gameId - The ID of the game to fetch
+   */
+  getGameDetails: (gameId: string): Promise<ApiResponse<GameResponse>> =>
+    client<GameResponse>(`/games/${gameId}/details`, {
+      method: "GET",
+    }),
+
+  /**
+   * Updates the settings for a game.
+   * @param gameId - The ID of the game to update
+   * @param payload - The settings data to update
+   */
+  updateGameSettings: (
+    gameId: string,
+    payload: UpdateGameSettingsPayload,
+  ): Promise<ApiResponse<null>> =>
+    client<null>(`/games/${gameId}/settings`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
     }),
 };

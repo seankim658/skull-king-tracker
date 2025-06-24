@@ -30,9 +30,32 @@ type GamePlayer struct {
 	FinishingPosition sql.NullInt32  `db:"finishing_position"`
 }
 
+// Helper struct for a game player's display details
+type GamePlayerDetails struct {
+	GamePlayerID  string         `db:"game_player_id"`
+	GameID        string         `db:"game_id"`
+	UserID        sql.NullString `db:"user_id"`
+	GuestPlayerID sql.NullString `db:"guest_player_id"`
+	DisplayName   string         `db:"display_name"`
+	AvatarURL     sql.NullString `db:"avatar_url"`
+	SeatingOrder  int            `db:"seating_order"`
+	FinalScore    int            `db:"final_score"`
+}
+
 // Maps to the `guest_players` table
 type GuestPlayer struct {
 	GuestPlayerID string    `db:"guest_player_id"`
 	DisplayName   string    `db:"display_name"`
 	CreatedAt     time.Time `db:"created_at"`
+}
+
+// Helper struct for a game with winner information
+type GameWithWinner struct {
+	GameID              string         `db:"game_id"`
+	Status              string         `db:"status"`
+	CreatedAt           time.Time      `db:"created_at"`
+	CompletedAt         sql.NullTime   `db:"completed_at"`
+	WinningPlayer       sql.NullString `db:"winning_player"`
+	IsViewerScorekeeper bool           `db:"is_viewer_scorekeeper"`
+	ScorekeeperName     sql.NullString `db:"scorekeeper_name"`
 }
