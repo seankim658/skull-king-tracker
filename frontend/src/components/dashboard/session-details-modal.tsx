@@ -1,6 +1,4 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApi } from "@/hooks/use-api";
 import { sessionAPI } from "@/lib/api/service/session";
 import {
   Dialog,
@@ -23,6 +21,7 @@ import {
   CheckCircle,
   NotebookPen,
 } from "lucide-react";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 interface SessionDetailModalProps {
   sessionId: string | null;
@@ -36,18 +35,12 @@ export function SessionDetailsModal({
   onClose,
 }: SessionDetailModalProps) {
   const navigate = useNavigate();
+
   const {
     data: sessionDetails,
     isLoading,
     error,
-    request: fetchDetails,
-  } = useApi(sessionAPI.getSessionDetails);
-
-  useEffect(() => {
-    if (sessionId && isOpen) {
-      fetchDetails(sessionId);
-    }
-  }, [sessionId, isOpen, fetchDetails]);
+  } = useFetchOnMount(sessionAPI.getSessionDetails, sessionId!);
 
   const handleNavigateToGame = (gameId: string, status: string) => {
     if (status === "pending") {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -6,10 +6,10 @@ import { Skeleton } from "../ui/skeleton";
 import { sessionAPI } from "@/lib/api/service/session";
 import { gameAPI } from "@/lib/api/service/game";
 import { useConfirm } from "@/hooks/use-confirm";
-import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
 import type { ActiveSessionResponse, GameResponse } from "@/lib/api/types";
 import { SessionDetailsModal } from "./session-details-modal";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 export function ActiveSessions() {
   const navigate = useNavigate();
@@ -23,13 +23,8 @@ export function ActiveSessions() {
   const {
     data: activeSessions,
     isLoading: isLoadingSessions,
-    request: fetchActiveSessions,
     setData: setActiveSessions,
-  } = useApi(sessionAPI.getActiveSessionsForUser);
-
-  useEffect(() => {
-    fetchActiveSessions();
-  }, [fetchActiveSessions]);
+  } = useFetchOnMount(sessionAPI.getActiveSessionsForUser);
 
   const { submit: startGame, isLoading: isStartingGame } = useSubmit(
     gameAPI.createGame,

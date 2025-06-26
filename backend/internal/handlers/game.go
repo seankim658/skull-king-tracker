@@ -3,8 +3,8 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
-	"runtime/debug"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
@@ -50,21 +50,10 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var opErr error
-	var gameID string
-	var finalSessionID *string
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().Interface(l.PanicKey, p).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic recovered")
-			_ = tx.Rollback()
-			if opErr == nil && gameID == "" { // Check if an error was already handled or game creation failed before panic
-				ErrorResponse(w, r, http.StatusInternalServerError, "Critical error processing game creation.")
-			}
-		} else if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction due to error in handler logic")
-			_ = tx.Rollback()
-		}
-	}()
+	var finalSessionID *string
 
 	// Step 1: Handle Session
 	if req.SessionName != nil && *req.SessionName != "" {
@@ -72,12 +61,19 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 		createdSessionID, err := db.CreateGameSession(ctx, tx, *req.SessionName, userID)
 		if err != nil {
 			opErr = fmt.Errorf("failed to create new game session: %w", err)
-			logger.Error().Err(opErr).Str(l.SessionNameKey, *req.SessionName).Msg("Error creating game session")
+			logger.Error().
+				Err(opErr).
+				Str(l.SessionNameKey, *req.SessionName).
+				Msg("Error creating game session")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to create game session")
+			responseSent = true
 			return
 		}
 		finalSessionID = &createdSessionID
-		logger.Info().Str(l.SessionIDKey, *finalSessionID).Str(l.SessionNameKey, *req.SessionName).Msg("New game session created")
+		logger.Info().
+			Str(l.SessionIDKey, *finalSessionID).
+			Str(l.SessionNameKey, *req.SessionName).
+			Msg("New game session created")
 	} else if req.SessionID != nil && *req.SessionID != "" {
 		// 1.2: Session ID was included, create new session
 		finalSessionID = req.SessionID
@@ -88,36 +84,48 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 	initialStatus := "pending"
 	playerSeatingOrderRandomized := true
 
-	gameID, opErr = db.CreateGame(ctx, tx, finalSessionID, userID, userID, initialStatus, playerSeatingOrderRandomized)
-	if opErr != nil {
+	gameID, err := db.CreateGame(
+		ctx, tx, finalSessionID,
+		userID, userID, initialStatus,
+		playerSeatingOrderRandomized,
+	)
+	if err != nil {
+		opErr = fmt.Errorf("failed to create game in database: %w", err)
 		logger.Error().Err(opErr).Msg("Failed to create game in database")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to create gaem")
+		responseSent = true
 		return
 	}
 	logger.Info().Str(l.GameIDKey, gameID).Msg("Game created in database")
 
 	// Step 3: Add the creator as the first player
-	_, opErr = db.AddPlayerToGame(ctx, tx, gameID, &userID, nil, 1)
-	if opErr != nil {
+	_, err = db.AddPlayerToGame(ctx, tx, gameID, &userID, nil, 1)
+	if err != nil {
+		opErr = fmt.Errorf("failed to automatically add creator to game: %w", err)
 		logger.Error().Err(opErr).Msg("Failed to automatically add creator to game")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to add creator as player")
+		responseSent = true
 		return
 	}
 
-	// Step 4: Commit Transaction
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for game creation: %w", err)
-		logger.Error().Err(opErr).Msg("Transaction commit failed")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize game creation")
+	if responseSent {
 		return
 	}
-	logger.Debug().Msg("Transaction committed successfully for game creation")
 
 	// Step 5: Fetch the Created Game
 	createdGame, fetchErr := db.GetGameByID(ctx, nil, gameID)
 	if fetchErr != nil {
-		logger.Error().Err(fetchErr).Str(l.GameIDKey, gameID).Msg("Failed to fetch newly created game for response")
-		Respond(w, r, http.StatusCreated, map[string]string{"game_id": gameID}, "Game created successfully, but full details could not be retrieved")
+		opErr = fetchErr
+		logger.Error().
+			Err(fetchErr).
+			Str(l.GameIDKey, gameID).
+			Msg("Failed to fetch newly created game for response")
+		Respond(
+			w, r, http.StatusCreated,
+			map[string]string{"game_id": gameID},
+			"Game created successfully, but full details could not be retrieved",
+		)
+		responseSent = true
 		return
 	}
 
@@ -132,6 +140,7 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 		apiGameResponse.SessionID = &createdGame.SessionID.String
 	}
 	Respond(w, r, http.StatusCreated, apiGameResponse, "Game created successfully")
+	responseSent = true
 }
 
 // Handles adding a player (a registered user or guest) to a game
@@ -186,22 +195,12 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 	}
 
 	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
 	var gamePlayerID string
 	var finalGuestPlayerID *string
 	var playerDisplayName string
-
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().Interface(l.PanicKey, p).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic recovered")
-			_ = tx.Rollback()
-			if opErr == nil && gamePlayerID == "" {
-				ErrorResponse(w, r, http.StatusInternalServerError, "Critical error processing player addition")
-			}
-		} else if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction due to error in handler logic")
-			_ = tx.Rollback()
-		}
-	}()
 
 	// 1: Handle Guest Player (if applicable)
 	if req.GuestName != nil && *req.GuestName != "" {
@@ -210,6 +209,7 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 			opErr = fmt.Errorf("failed to find or create guest player: %w", err)
 			logger.Error().Err(opErr).Str(l.GuestPlayerNameKey, *req.GuestName).Msg("Error with guest player")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to process guest player")
+			responseSent = true
 			return
 		}
 		finalGuestPlayerID = &createdGuestID
@@ -218,14 +218,16 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 	}
 
 	// 2: Add Player to Game
-	gamePlayerID, opErr = db.AddPlayerToGame(ctx, tx, gameID, req.UserID, finalGuestPlayerID, req.SeatingOrder)
-	if opErr != nil {
+	gamePlayerID, err := db.AddPlayerToGame(ctx, tx, gameID, req.UserID, finalGuestPlayerID, req.SeatingOrder)
+	if err != nil {
+		opErr = fmt.Errorf("failed to add player to game in database: %w", err)
 		logger.Error().Err(opErr).Msg("Failed to add player to game in database")
 		if errors.Is(opErr, db.ErrPlayerAlreadyInGame) {
 			ErrorResponse(w, r, http.StatusConflict, "This player is already in the game")
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to add player to game")
 		}
+		responseSent = true
 		return
 	}
 	logger.Info().Str(l.GamePlayerIDKey, gamePlayerID).Msg("Player added to game in game_players table")
@@ -237,6 +239,7 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 			opErr = fmt.Errorf("failed to fetch user details for display name: %w", userErr)
 			logger.Error().Err(opErr).Str(l.UserIDKey, *req.UserID).Msg("Could not fetch user for display name")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve player details")
+			responseSent = true
 			return
 		}
 		if dbUser.DisplayName.Valid && dbUser.DisplayName.String != "" {
@@ -246,31 +249,25 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	// 4: Commit Transaction
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for adding player: %w", err)
-		logger.Error().Err(opErr).Msg("Transaction commit failed")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize adding player")
-		return
-	}
-	logger.Debug().Msg("Transaction committed successfully for adding player")
+	if !responseSent {
+		// 5: Send response
+		apiPlayerResponse := apiModels.GamePlayerResponse{
+			GamePlayerID: gamePlayerID,
+			GameID:       gameID,
+			DisplayName:  playerDisplayName,
+			SeatingOrder: req.SeatingOrder,
+			FinalScore:   0,
+		}
+		if req.UserID != nil {
+			apiPlayerResponse.UserID = req.UserID
+		}
+		if finalGuestPlayerID != nil {
+			apiPlayerResponse.GuestPlayerID = finalGuestPlayerID
+		}
 
-	// 5: Send response
-	apiPlayerResponse := apiModels.GamePlayerResponse{
-		GamePlayerID: gamePlayerID,
-		GameID:       gameID,
-		DisplayName:  playerDisplayName,
-		SeatingOrder: req.SeatingOrder,
-		FinalScore:   0,
+		Respond(w, r, http.StatusCreated, apiPlayerResponse, "Player added to game successfully")
+		responseSent = true
 	}
-	if req.UserID != nil {
-		apiPlayerResponse.UserID = req.UserID
-	}
-	if finalGuestPlayerID != nil {
-		apiPlayerResponse.GuestPlayerID = finalGuestPlayerID
-	}
-
-	Respond(w, r, http.StatusCreated, apiPlayerResponse, "Player added to game successfully")
 }
 
 // Handles removing a player from a game
@@ -303,20 +300,33 @@ func (gh *GameHandler) HandleRemovePlayerFromGame(w http.ResponseWriter, r *http
 		return
 	}
 
-	if err := db.DeleteGamePlayer(ctx, nil, gamePlayerID); err != nil {
-		if errors.Is(err, db.ErrGamePlayerNotFound) {
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not remove player")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.DeleteGamePlayer(ctx, tx, gamePlayerID)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrGamePlayerNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "Player not found in this game")
 		} else {
-			logger.Error().Err(err).Msg("Failed to delete player from game")
+			logger.Error().Err(opErr).Msg("Failed to delete player from game")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not remove player")
 		}
+		responseSent = true
 		return
 	}
 
-	Respond(w, r, http.StatusNoContent, nil, "Player removed successfully")
+	if !responseSent {
+		Respond(w, r, http.StatusNoContent, nil, "Player removed successfully")
+		responseSent = true
+	}
 }
 
-// Handles starting a game by updating its status
+// Handles starting a game by updating its status from 'pending' to 'active'
 // Path: /games/{game_id}/start
 // Method: PUT
 func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
@@ -337,19 +347,48 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to start game")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
 	game, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger)
 	if !authorized {
+		opErr = errors.New("authorization check failed")
+		responseSent = true
 		return
 	}
 
 	if game.Status != "pending" {
-		ErrorResponse(w, r, http.StatusConflict, fmt.Sprintf("Cannot start game because its status is already '%s'", game.Status))
+		opErr = fmt.Errorf("game not in pending state: %s", game.Status)
+		ErrorResponse(
+			w, r, http.StatusConflict,
+			fmt.Sprintf("Cannot start game because its status is already '%s'", game.Status),
+		)
+		responseSent = true
 		return
 	}
 
-	// TODO : add logic to determine starting dealer and first round details, seating order, etc
+	players, err := db.GetPlayersByGameID(ctx, tx, gameID)
+	if err != nil {
+		opErr = fmt.Errorf("failed to get players for game start: %w", err)
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve players to start the game")
+		responseSent = true
+		return
+	}
+	if len(players) < 2 {
+		opErr = errors.New("not enough players to start game")
+		ErrorResponse(w, r, http.StatusBadRequest, "Cannot start a game with fewer than 2 players")
+		responseSent = true
+		return
+	}
 
-	// TODO : should use a transaction
+  // TODO : determine starting dealer
+
 	if err := db.UpdateGameStatus(ctx, nil, gameID, "active"); err != nil {
 		logger.Error().Err(err).Msg("Failed to update game status to active")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the game")
@@ -493,24 +532,15 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 	}
 
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			opErr = fmt.Errorf("panic recovered: %v", p)
-			logger.Error().Err(opErr).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic in HandleUpdateGameSettings")
-		}
-		if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction")
-			if rbErr := tx.Rollback(); rbErr != nil {
-				logger.Error().Err(rbErr).Msg("Transaction rollback failed")
-			}
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	// --- Validate ---
 	dbPlayers, err := db.GetPlayersByGameID(ctx, tx, gameID)
 	if err != nil {
 		opErr = err
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to verify game players")
+		responseSent = true
 		return
 	}
 
@@ -524,14 +554,24 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 	}
 	if !isScorekeeperValid {
 		opErr = errors.New("invalid scorekeeper_user_id")
-		ErrorResponse(w, r, http.StatusBadRequest, "Selected scorekeeper is not a valid player in this game")
+		ErrorResponse(
+			w, r, http.StatusBadRequest,
+			"Selected scorekeeper is not a valid player in this game",
+		)
+		responseSent = true
 		return
 	}
 
 	// Validate seating order
 	if len(req.OrderedPlayerIDs) != len(dbPlayers) {
-		opErr = fmt.Errorf("player list length mismatch: expected %d, got %d", len(dbPlayers), len(req.OrderedPlayerIDs))
-		ErrorResponse(w, r, http.StatusBadRequest, "Player list mismatch: ensure all players are included in the seating order")
+		opErr = fmt.Errorf(
+			"player list length mismatch: expected %d, got %d",
+			len(dbPlayers), len(req.OrderedPlayerIDs),
+		)
+		ErrorResponse(w, r, http.StatusBadRequest,
+			"Player list mismatch: ensure all players are included in the seating order",
+		)
+		responseSent = true
 		return
 	}
 
@@ -542,7 +582,11 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 	for _, reqPlayerID := range req.OrderedPlayerIDs {
 		if !playerIDSet[reqPlayerID] {
 			opErr = fmt.Errorf("invalid player ID in seating order: %s", reqPlayerID)
-			ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid player ID %s found in seating order", reqPlayerID))
+			ErrorResponse(
+				w, r, http.StatusBadRequest,
+				fmt.Sprintf("Invalid player ID %s found in seating order", reqPlayerID),
+			)
+			responseSent = true
 			return
 		}
 	}
@@ -550,15 +594,12 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 	opErr = db.UpdateGameSettings(ctx, tx, gameID, req.ScorekeeperUserID, req.OrderedPlayerIDs)
 	if opErr != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save game settings")
+		responseSent = true
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for game settings update: %w", err)
-		logger.Error().Err(opErr).Msg("Transaction commit failed")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize game settings update")
-		return
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Game settings updated successfully")
+		responseSent = true
 	}
-
-	Respond(w, r, http.StatusOK, nil, "Game settings updated successfully")
 }

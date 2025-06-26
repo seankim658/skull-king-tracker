@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { userAPI } from "@/lib/api/service/user";
 import type { UpdateUserProfilePayload, User } from "@/lib/api/types";
+import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "sonner";
 import { getFullAvatarURL } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api/client";
 import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
 import { useSubmit } from "@/hooks/use-submit";
-import { useApi } from "@/hooks/use-api";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 type StatsPrivacy = User["stats_privacy"];
 const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
@@ -52,17 +53,8 @@ export function SettingsPage() {
   const {
     data: linkedAccounts,
     isLoading: isLoadingLinkedAccounts,
-    request: fetchAccounts,
-  } = useApi(userAPI.getLinkedAccounts);
-
-  useEffect(() => {
-    if (user) {
-      fetchAccounts();
-      setDisplayName(user.display_name || user.username || "");
-      setStatsPrivacy(user.stats_privacy || "public");
-      setAvatarUrl(user.avatar_url || "");
-    }
-  }, [user, fetchAccounts]);
+    refetch: fetchAccounts,
+  } = useFetchOnMount(userAPI.getLinkedAccounts);
 
   const { submit: updateProfile, isLoading: isSavingProfile } = useSubmit(
     userAPI.updateUserProfile,
@@ -134,10 +126,10 @@ export function SettingsPage() {
 
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4 py-8 md:p-6 lg:py-12">
-      <h1 className="text-3xl font-bold tracking-tight mb-2">Settings</h1>
-      <p className="text-muted-foreground">
-        Manage your account and theme preferences
-      </p>
+      <PageHeader
+        title="Settings"
+        description="Manage your account and theme preferences"
+      />
 
       <Separator />
 
@@ -308,7 +300,7 @@ export function SettingsPage() {
                             availableProvider.name,
                           )
                         }
-                        disabled={isOnlyAccount}
+                        disabled={isOnlyAccount || isDisconnecting}
                         className="w-full sm:w-auto"
                       >
                         Disconnect

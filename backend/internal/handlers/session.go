@@ -1,13 +1,9 @@
 package handlers
 
-// TODO : fix the docstrings
-
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
-	"runtime/debug"
 	"time"
 
 	cf "github.com/seankim658/skullking/internal/config"
@@ -27,6 +23,8 @@ func NewSessionHandler(cfg *cf.Config) *SessionHandler {
 }
 
 // Retrieves active game sessions for the authenticated user
+// Path: /sessions/active
+// Method: GET
 func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -74,6 +72,8 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 }
 
 // Marks a session as completed
+// Path: /api/sessions/{session_id}/complete
+// Method: PUT
 func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -94,7 +94,23 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 	}
 	logger = logger.With().Str(l.UserIDKey, userID).Logger()
 
-	// TODO : Check if the current user can complete this session
+	session, err := db.GetGameSessionByID(ctx, nil, sessionID)
+	if err != nil {
+		if errors.Is(err, db.ErrSessionNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Session not found")
+		} else {
+			logger.Error().Err(err).Msg("Failed to get session for auth check")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to verify session access")
+		}
+		return
+	}
+	if !session.CreatedByUserID.Valid || session.CreatedByUserID.String != userID {
+		logger.Warn().
+			Str("creator_id", session.CreatedByUserID.String).
+			Msg("User is not the creator of the session")
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to complete this session")
+		return
+	}
 
 	tx, txOk := StartTx(ctx, w, r, logger, "Failed to complete session")
 	if !txOk {
@@ -102,15 +118,8 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 	}
 
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().Interface(l.PanicKey, p).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic recovered")
-			_ = tx.Rollback()
-		} else if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction due to error in handler logic")
-			_ = tx.Rollback()
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	completedTime := sql.NullTime{Time: time.Now(), Valid: true}
 	opErr = db.UpdateSessionStatus(ctx, tx, sessionID, "completed", completedTime)
@@ -120,19 +129,19 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update session status")
 		}
+		responseSent = true
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for completing session: %w", err)
-		logger.Error().Err(opErr).Msg("Transaction commit failed")
-		return
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Session marked as completed sucessfully")
+		responseSent = true
 	}
-
-	Respond(w, r, http.StatusOK, nil, "Session marked as completed sucessfully")
 }
 
 // Handles fetching the details of a single session, including its games and user-specific statistics
+// Path: /sessions/{session_id}
+// Method: GET
 func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -153,7 +162,15 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 	}
 	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
 
-	// TODO : Check if the user is in the session to be allowed to view
+	participated, err := db.CheckUserParticipatedInSession(ctx, nil, userID, sessionID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to check user participation for auth")
+		return
+	}
+	if !participated {
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to view this session's details")
+		return
+	}
 
 	dbSession, err := db.GetGameSessionByID(ctx, nil, sessionID)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -266,4 +267,34 @@ func CheckGameAccessAndScorekeeper(
 
 	logger.Debug().Str(l.GameIDKey, gameID).Str(l.UserIDKey, userID).Msg("User confirmed as scorekeeper")
 	return game, true
+}
+
+// Handles a basic defer block for non-read database transactions
+func ManageTransaction(
+	tx *sql.Tx,
+	opErr *error,
+	logger zerolog.Logger,
+	responseSent *bool,
+) {
+	if p := recover(); p != nil {
+		*opErr = fmt.Errorf("panic recovered: %v", p)
+		logger.Error().
+			Err(*opErr).
+			Bytes(l.StackTraceKey, debug.Stack()).
+			Msg("Panic recovered, continuing to rollback")
+	}
+
+	if *opErr != nil {
+		if rbErr := tx.Rollback(); rbErr != nil {
+			logger.Error().Err(rbErr).Msg("Transaction rollback failed")
+		} else {
+			logger.Warn().Err(*opErr).Msg("Transaction rolled back due to error")
+		}
+		return
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		*opErr = fmt.Errorf("transaction commit failed: %w", commitErr)
+		logger.Error().Err(*opErr).Msg("Failed to commit transaction")
+	}
 }

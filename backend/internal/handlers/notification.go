@@ -20,6 +20,8 @@ func NewNotificationHandler(cfg *cf.Config) *NotificationHandler {
 }
 
 // Retrieves the user notifications
+// Path: /notifications
+// Method: GET
 func (nh *NotificationHandler) HandleGetNotifications(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -51,6 +53,8 @@ func (nh *NotificationHandler) HandleGetNotifications(w http.ResponseWriter, r *
 }
 
 // Marks a single notification as read
+// Path: /notifications/{notification_id}/read
+// Method: PUT
 func (nh *NotificationHandler) HandleMarkNotificationRead(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -80,6 +84,8 @@ func (nh *NotificationHandler) HandleMarkNotificationRead(w http.ResponseWriter,
 }
 
 // Marks a single notification as unread
+// Path: /notifications/{notification_id}/read
+// Method: DELETE
 func (nh *NotificationHandler) HandleMarkNotificationUnread(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(

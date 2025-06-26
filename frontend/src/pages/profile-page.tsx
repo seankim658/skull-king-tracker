@@ -1,4 +1,3 @@
-import { useEffect, } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { userAPI } from "@/lib/api/service/user";
@@ -7,7 +6,7 @@ import { ProfileStatsSummary } from "@/components/profile/profile-stats-summary"
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
-import { useApi } from "@/hooks/use-api";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -17,14 +16,8 @@ export function ProfilePage() {
     data: profileData,
     isLoading,
     error,
-    request: fetchProfile,
-  } = useApi(userAPI.getUserProfile);
-
-  useEffect(() => {
-    if (userId) {
-      fetchProfile(userId);
-    }
-  }, [userId, fetchProfile]);
+    refetch: fetchProfile,
+  } = useFetchOnMount(userAPI.getUserProfile, userId!);
 
   if (isLoading || isLoadingAuth) {
     return (

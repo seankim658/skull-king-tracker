@@ -320,7 +320,11 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
 }
 
 // Retrieves all games for a given session, including winner information
-func GetGamesBySessionID(ctx context.Context, tx *sql.Tx, sessionID, viewerID string) ([]dbModels.GameWithWinner, error) {
+func GetGamesBySessionID(
+	ctx context.Context,
+	tx *sql.Tx,
+	sessionID, viewerID string,
+) ([]dbModels.GameWithWinner, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -383,11 +387,10 @@ func GetGamesBySessionID(ctx context.Context, tx *sql.Tx, sessionID, viewerID st
 // Updates the scorekeeper and seating order for a game
 func UpdateGameSettings(
 	ctx context.Context,
-	tx *sql.Tx,
+	querier DBTX,
 	gameID, scorekeeperUserID string,
 	orderedPlayersIDs []string,
 ) error {
-	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		gameComponent,
@@ -432,4 +435,85 @@ func UpdateGameSettings(
 
 	logger.Info().Int("players_updated", len(orderedPlayersIDs)).Msg("Game settings updated successfully")
 	return nil
+}
+
+// Updates a game's status and sets the starting dealer
+func UpdateGameStartDetails(
+	ctx context.Context,
+	tx *sql.Tx,
+	gameID,
+	startingDealerGamePlayerID,
+	status string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"UpdateGameStartDetails",
+	).With().Str(l.GameIDKey, gameID).Str("starting_dealer_id", startingDealerGamePlayerID).Logger()
+
+	query := `
+  UPDATE games
+  SET status = $1, starting_dealer_game_player_id = $2, updated_at = NOW()
+  WHERE game_id = $3;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update game start details")
+	result, err := querier.ExecContext(ctx, query, status, startingDealerGamePlayerID, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to update game start details")
+		return fmt.Errorf("error updating game start details for %s: %w", gameID, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrGameNotFound
+	}
+
+	logger.Info().Msg("Game start details updated successfully")
+	return nil
+}
+
+func CreateRound(
+	ctx context.Context,
+	tx *sql.Tx,
+	gameID, dealerGamePlayerID string,
+	roundNumber int,
+	isTiebreaker bool,
+) (string, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"CreateRound",
+	).With().Str(l.GameIDKey, gameID).Int(l.RoundKey, roundNumber).Logger()
+
+	newRoundID := uuid.NewString()
+	initialStatus := "bidding"
+
+	query := `
+  INSERT INTO rounds (
+    round_id, game_id, round_number, dealer_game_player_id, 
+    status, is_tiebreaker_round, created_at, updated_at
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+  RETURNING round_id;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to create round")
+
+	var returnedRoundID string
+	err := querier.QueryRowContext(ctx, query,
+		newRoundID,
+		gameID,
+		roundNumber,
+		dealerGamePlayerID,
+		initialStatus,
+		isTiebreaker,
+	).Scan(&returnedRoundID)
+
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to create round")
+		return "", fmt.Errorf("error creating round for game %s: %w", gameID, err)
+	}
+
+	logger.Info().Str(l.RoundIDKey, returnedRoundID).Msg("Round created successfully")
+	return returnedRoundID, nil
 }

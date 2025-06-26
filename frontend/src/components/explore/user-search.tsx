@@ -1,11 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { Skeleton } from "../ui/skeleton";
+import { SkeletonList } from "../ui/skeleton-list";
 import { userAPI } from "@/lib/api/service/user";
-import type { UserSearchItem } from "@/lib/api/types";
-import { errorExtract, getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
+import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
 import { Search } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useApi } from "@/hooks/use-api";
@@ -57,19 +56,7 @@ export function UserSearch() {
 
       {isFocused && (query.length > 0 || isLoading || results?.length) && (
         <div className="absolute z-10 mt-1 w-full bg-card border rounded-md shadow-lg max-h-80 overflow-y-auto">
-          {isLoading && query.length > 0 && (
-            <div className="p-2">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-3 p-2">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="space-y-1">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {isLoading && query.length > 0 && <SkeletonList count={3} />}
           {!isLoading && debouncedQuery.length > 0 && results?.length === 0 && (
             <div className="p-4 text-center text-sm text-muted-foreground">
               No users found matching "{debouncedQuery}"

@@ -1,13 +1,12 @@
 import { SiteSummaryStats } from "@/components/explore/site-summary-stats";
 import { UserSearch } from "@/components/explore/user-search";
 import { Separator } from "@/components/ui/separator";
+import { PageHeader } from "@/components/ui/page-header";
 
 export function ExplorePage() {
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-10">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Explore</h1>
-      </div>
+      <PageHeader title="Explore" />
 
       <SiteSummaryStats />
 

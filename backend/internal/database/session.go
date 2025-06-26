@@ -210,3 +210,28 @@ func GetGameSessionByID(ctx context.Context, tx *sql.Tx, sessionID string) (*dbM
 	logger.Info().Msg("Game session retrieved successfully by ID")
 	return session, nil
 }
+
+// Checks if a user has participated in any game within a given session
+func CheckUserParticipatedInSession(
+	ctx context.Context, tx *sql.Tx, userID, sessionID string,
+) (bool, error) {
+	querier := GetQuerier(tx)
+	query := `
+  SELECT EXISTS (
+    SELECT 1
+    FROM game_players gp
+    JOIN games g ON gp.game_id = g.game_id
+    WHERE gp.user_id = $1 AND g.session_id = $2
+  );
+  `
+
+	var participated bool
+	err := querier.QueryRowContext(ctx, query, userID, sessionID).Scan(&participated)
+	if err != nil {
+		return false,
+			fmt.Errorf(
+				"error checking user participation for user %s in session %s: %w", userID, sessionID, err,
+			)
+	}
+	return participated, nil
+}

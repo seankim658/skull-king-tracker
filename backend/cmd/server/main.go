@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -40,17 +41,16 @@ func main() {
 	r := router.New(cfg)
 
 	log.Info().
-    Str("port", cfg.APIPort).
-    Str("app_base_url", cfg.AppBaseURL).
-    Msgf("Starting server on port %s", cfg.APIPort)
+		Str("port", cfg.APIPort).
+		Str("app_base_url", cfg.AppBaseURL).
+		Msgf("Starting server on port %s", cfg.APIPort)
 
 	server := &http.Server{
-		Addr:    ":" + cfg.APIPort,
-		Handler: r,
-		// TODO
-		// ReadTimeout
-		// WriteTimeout
-		// IdleTimeout
+		Addr:         ":" + cfg.APIPort,
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
@@ -64,5 +64,5 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-  log.Info().Msg("Shutting down server...")
+	log.Info().Msg("Shutting down server...")
 }

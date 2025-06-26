@@ -67,6 +67,8 @@ const (
 	// Game
 	GameIDKey        = "game_id"
 	ScorekeeperIDKey = "scorekeeper_id"
+	RoundKey         = "round"
+	RoundIDKey       = "round_id"
 
 	// Session
 	SessionIDKey   = "session_id"

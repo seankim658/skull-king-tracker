@@ -1,12 +1,8 @@
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 import { Users, Swords, CalendarDays, UserPlus } from "lucide-react";
 import { statsAPI } from "@/lib/api/service/stat";
-import type { SiteSummaryStatsResponse } from "@/lib/api/types";
-import { toast } from "sonner";
-import { errorExtract } from "@/lib/utils";
-import { useApi } from "@/hooks/use-api";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 const outerDivStyle = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
 const summaryStatStyle = "text-2xl font-bold";
@@ -20,12 +16,7 @@ export function SiteSummaryStats() {
     data: summaryStats,
     isLoading,
     error,
-    request: fetchSummary,
-  } = useApi(statsAPI.getSiteSummaryStats);
-
-  useEffect(() => {
-    fetchSummary()
-  }, [fetchSummary]);
+  } = useFetchOnMount(statsAPI.getSiteSummaryStats);
 
   if (isLoading) {
     return (

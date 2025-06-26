@@ -19,10 +19,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
 import { PlusCircle, UserPlus, X, Rocket } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
 import { useConfirm } from "@/hooks/use-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -31,17 +31,15 @@ export function AddPlayersPage() {
 
   const [guestName, setGuestName] = useState("");
 
-  const {
-    data: friends,
-    isLoading: isLoadingFriends,
-    request: fetchFriends,
-  } = useApi(friendshipAPI.getFriends);
+  const { data: friends, isLoading: isLoadingFriends } = useFetchOnMount(
+    friendshipAPI.getFriends,
+  );
 
   const {
     data: players,
     isLoading: isLoadingPlayers,
-    request: fetchPlayers,
-  } = useApi(gameAPI.getGamePlayers);
+    refetch: fetchPlayers,
+  } = useFetchOnMount(gameAPI.getGamePlayers, gameId!);
 
   const { submit: addPlayerSubmit, isLoading: isAddingPlayer } = useSubmit(
     gameAPI.addPlayerToGame,
@@ -64,11 +62,8 @@ export function AddPlayersPage() {
     if (!gameId) {
       toast.error("Game ID is missing from the URL");
       navigate("/");
-      return;
     }
-    fetchFriends();
-    fetchPlayers(gameId);
-  }, [gameId, navigate, fetchFriends, fetchPlayers]);
+  }, [gameId, navigate]);
 
   const handleAddFriend = (userId: string) => {
     if (!gameId) return;

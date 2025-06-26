@@ -30,9 +30,9 @@ import {
 } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { Skeleton } from "./skeleton";
 import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
+import { SkeletonList } from "./skeleton-list";
 
 export function NotificationBell() {
   const { isAuthenticated } = useAuth();
@@ -141,17 +141,7 @@ export function NotificationBell() {
           <DropdownMenuLabel>Notifications</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {isLoading ? (
-            <div className="p-2 space-y-2">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-3 p-2">
-                  <Skeleton className="h-9 w-9 rounded-full" />
-                  <div className="space-y-1.5 flex-1">
-                    <Skeleton className="h-4 w-4/5" />
-                    <Skeleton className="h-3 w-2/5" />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <SkeletonList count={2} />
           ) : notifications?.length === 0 ? (
             <p className="p-4 text-sm text-center text-muted-foreground">
               You have no new notifications.
@@ -206,6 +196,7 @@ export function NotificationBell() {
                               size="icon"
                               className="h-7 w-7 cursor-pointer"
                               onClick={() => handleUpdateReadStatus(notif)}
+                              disabled={isActionLoading}
                             >
                               {notif.is_read ? (
                                 <Mail className="h-4 w-4" />
@@ -230,6 +221,7 @@ export function NotificationBell() {
                           size="sm"
                           className="cursor-pointer"
                           onClick={() => handleResponse(notif, "accept")}
+                          disabled={isActionLoading}
                         >
                           Accept
                         </Button>
@@ -238,6 +230,7 @@ export function NotificationBell() {
                           variant="outline"
                           className="cursor-pointer"
                           onClick={() => handleResponse(notif, "decline")}
+                          disabled={isActionLoading}
                         >
                           Decline
                         </Button>

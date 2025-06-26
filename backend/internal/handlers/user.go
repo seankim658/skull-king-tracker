@@ -110,7 +110,8 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 	case "public":
 		canViewStats = true
 	case "friends_only":
-		if apiFriendshipStatus == apiModels.FriendshipStatusAPIFriends || apiFriendshipStatus == apiModels.FriendshipStatusAPISelf {
+		if apiFriendshipStatus == apiModels.FriendshipStatusAPIFriends ||
+			apiFriendshipStatus == apiModels.FriendshipStatusAPISelf {
 			canViewStats = true
 		}
 	case "private":
@@ -127,7 +128,8 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 		} else if dbUserStats != nil {
 			var winPercentage float64
 			if dbUserStats.TotalGamesPlayed > 0 {
-				winPercentage = math.Round((float64(dbUserStats.TotalWins)/float64(dbUserStats.TotalGamesPlayed))*10000) / 100
+				winPercentage = math.Round(
+					(float64(dbUserStats.TotalWins)/float64(dbUserStats.TotalGamesPlayed))*10000) / 100
 			}
 			finalResponse.Stats = &apiModels.UserStats{
 				TotalGamesPlayed: dbUserStats.TotalGamesPlayed,

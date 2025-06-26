@@ -17,7 +17,6 @@ import {
 } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
 import { gameAPI } from "@/lib/api/service/game";
 import type { GamePlayerResponse } from "@/lib/api/types";
@@ -43,6 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
 
 function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -91,19 +91,14 @@ export function GameSetupPage() {
   const [players, setPlayers] = useState<GamePlayerResponse[]>([]);
   const [scorekeeperId, setScorekeeperId] = useState<string>("");
 
-  const { data: initialPlayers, request: fetchPlayers } = useApi(
+  const { data: initialPlayers } = useFetchOnMount(
     gameAPI.getGamePlayers,
+    gameId!,
   );
-  const { data: gameDetails, request: fetchGameDetails } = useApi(
+  const { data: gameDetails, refetch: fetchGameDetails } = useFetchOnMount(
     gameAPI.getGameDetails,
+    gameId!,
   );
-
-  useEffect(() => {
-    if (gameId) {
-      fetchPlayers(gameId);
-      fetchGameDetails(gameId);
-    }
-  }, [gameId, fetchPlayers, fetchGameDetails]);
 
   useEffect(() => {
     if (initialPlayers) setPlayers(initialPlayers);

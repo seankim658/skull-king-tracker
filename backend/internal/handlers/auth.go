@@ -87,7 +87,10 @@ func (ah *AuthHandler) HandleInitiateLink(w http.ResponseWriter, r *http.Request
 	logger = logger.With().Str(l.ProviderKey, providerName).Logger()
 
 	// Step 3: Set session flags for linking
-	session, err := GetSessionStore(w, r, "Failed to initiate account linking: session error", http.StatusInternalServerError, logger)
+	session, err := GetSessionStore(
+		w, r, "Failed to initiate account linking: session error",
+		http.StatusInternalServerError, logger,
+	)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to get session store for linking")
 		return
@@ -98,7 +101,10 @@ func (ah *AuthHandler) HandleInitiateLink(w http.ResponseWriter, r *http.Request
 
 	if err := session.Save(r, w); err != nil {
 		logger.Error().Err(err).Msg("Failed to save session for linking flag")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to initiate account linking: session save error")
+		ErrorResponse(
+			w, r, http.StatusInternalServerError,
+			"Failed to initiate account linking: session save error",
+		)
 		return
 	}
 	logger.Debug().Msg("Session flags set for linking, beginning OAuth flow with provider")
@@ -143,7 +149,10 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 
 	gothUser, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
-		logger.Error().Err(err).Str(l.ProviderKey, providerName).Msg("Failed to complete OAuth user authentication")
+		logger.Error().
+			Err(err).
+			Str(l.ProviderKey, providerName).
+			Msg("Failed to complete OAuth user authentication")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Authentication failed: "+err.Error())
 		return
 	}
@@ -193,7 +202,9 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		}
 		linkingProviderName, castOk = linkingProviderVal.(string)
 		if !castOk {
-			logger.Error().Interface(l.ValueKey, linkingProviderVal).Msg("Failed to cast linking_provider_name to string")
+			logger.Error().
+				Interface(l.ValueKey, linkingProviderVal).
+				Msg("Failed to cast linking_provider_name to string")
 		}
 
 		// If session flags are valid and match the current provider, it's an account linking flow
@@ -275,7 +286,9 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 			// Error should have been called by the code that set handleErr, handling defensively
 			if !responseSent {
 				logger.Error().
-					Msg("Inconsistency: handleError set but no response was sent prior to defer rollback, sending generic error")
+					Msg(
+						"Inconsistency: handleError set but no response was sent prior to defer rollback, sending generic error",
+					)
 				ErrorResponse(w, r, http.StatusInternalServerError, l.InternalServerError)
 			}
 
@@ -312,8 +325,12 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 				logger.Info().
 					Str(l.ProviderIdentityIDKey, existingIdentity.ProviderIdentityID).
 					Msg("This provider account is already linked to the current user")
-				if errUpdate := db.UpdateUserProviderIdentityDetails(ctx, tx, existingIdentity.ProviderIdentityID, gothUser); errUpdate != nil {
-					handleErr = fmt.Errorf("failed to update existing provider identity details during re-link: %w", errUpdate)
+				if errUpdate := db.UpdateUserProviderIdentityDetails(
+					ctx, tx, existingIdentity.ProviderIdentityID, gothUser,
+				); errUpdate != nil {
+					handleErr = fmt.Errorf(
+						"failed to update existing provider identity details during re-link: %w", errUpdate,
+					)
 					logger.Error().Err(handleErr).Msg("Error updating provider identity details")
 					ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update linked account details")
 					responseSent = true
@@ -360,12 +377,19 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 				responseSent = true
 				return
 			}
-			logger.Info().Str(l.ProviderKey, gothUser.Provider).Msg("New provider identity created and linked to current user successfully")
+			logger.Info().
+				Str(l.ProviderKey, gothUser.Provider).
+				Msg("New provider identity created and linked to current user successfully")
 		} else {
 			// Case 4.1.4: An unexpected database error occurred while checking for the provider identity
-			handleErr = fmt.Errorf("unexpected database error while checking provider identity during linking: %w", idErr)
+			handleErr = fmt.Errorf(
+				"unexpected database error while checking provider identity during linking: %w", idErr,
+			)
 			logger.Error().Err(handleErr).Msg("Unexpected Database error")
-			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to process account linking due to a database error, please try again")
+			ErrorResponse(
+				w, r, http.StatusInternalServerError,
+				"Failed to process account linking due to a database error, please try again",
+			)
 			responseSent = true
 			return
 		}
@@ -373,8 +397,14 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		// After successful link or update in the linking flow, fetch the user model for session data
 		dbUserForSession, handleErr = db.GetUserByID(ctx, tx, appUserID)
 		if handleErr != nil {
-			logger.Error().Err(handleErr).Str(l.UserIDKey, appUserID).Msg("Failed to retrieve user (for session) after linking provider")
-			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize the linking process, please try again")
+			logger.Error().
+				Err(handleErr).
+				Str(l.UserIDKey, appUserID).
+				Msg("Failed to retrieve user (for session) after linking provider")
+			ErrorResponse(
+				w, r, http.StatusInternalServerError,
+				"Failed to finalize the linking process, please try again",
+			)
 			responseSent = true
 			return
 		}
@@ -396,7 +426,10 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 			// Need to either:
 			//  - Link to an existing user if one exists with the same email
 			//  - Create a new user if no email match is found (or if email is not provided)
-			logger.Debug().Msg("Provider identity not found, will check for existing user by email from provider, or create a new user")
+			logger.Debug().
+				Msg(
+					"Provider identity not found, will check for existing user by email from provider, or create a new user",
+				)
 			var existingDBUserByEmail *dbModels.User
 
 			// 4.2.2.a: If the OAuth provider returned an email, check if a user already exists with that user
@@ -425,7 +458,10 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 				dbUserForSession = existingDBUserByEmail
 			} else {
 				// Case 4.2.2.a.2: No existing user found with the provider's email (or the provider did not return an email)
-				logger.Debug().Msg("No existing user found by email from provider (or email was empty/not provided), creating new user")
+				logger.Debug().
+					Msg(
+						"No existing user found by email from provider (or email was empty/not provided), creating new user",
+					)
 
 				// Prepare a default username for the user
 				baseUsername := gothUser.NickName
@@ -436,7 +472,10 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 				if genUserErr != nil {
 					handleErr = fmt.Errorf("failed to generate username for new user: %w", genUserErr)
 					logger.Error().Err(handleErr).Msg("Username generation failed")
-					ErrorResponse(w, r, http.StatusInternalServerError, "Failed to prepare new user account, please try again")
+					ErrorResponse(
+						w, r, http.StatusInternalServerError,
+						"Failed to prepare new user account, please try again",
+					)
 					responseSent = true
 					return
 				}
@@ -454,11 +493,17 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 				createdUserID, createdUserErr := db.CreateUser(ctx, tx, newUser)
 				if createdUserErr != nil {
 					handleErr = fmt.Errorf("failed to create new user in database: %w", createdUserErr)
-					logger.Error().Err(handleErr).Interface("new_user", newUser).Msg("Database errror during new user creation")
+					logger.Error().
+						Err(handleErr).
+						Interface("new_user", newUser).
+						Msg("Database errror during new user creation")
 					if errors.Is(createdUserErr, db.ErrUsernameTaken) || errors.Is(createdUserErr, db.ErrEmailTaken) {
 						ErrorResponse(w, r, http.StatusConflict, "This username or email is already in use")
 					} else {
-						ErrorResponse(w, r, http.StatusInternalServerError, "Failed to create your account due to a database error")
+						ErrorResponse(
+							w, r, http.StatusInternalServerError,
+							"Failed to create your account due to a database error",
+						)
 					}
 					responseSent = true
 					return
@@ -467,13 +512,19 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 
 				dbUserForSession, handleErr = db.GetUserByID(ctx, tx, appUserID)
 				if handleErr != nil {
-					handleErr = fmt.Errorf("failed to retrieve newly created user from database (ID: %s): %w", appUserID, handleErr)
+					handleErr = fmt.Errorf(
+						"failed to retrieve newly created user from database (ID: %s): %w",
+						appUserID, handleErr,
+					)
 					logger.Error().Err(handleErr).Msg("Critical: Newly created user could not be fetched")
 					ErrorResponse(w, r, http.StatusInternalServerError, l.InternalServerError)
 					responseSent = true
 					return
 				}
-				logger.Info().Str(l.UserIDKey, appUserID).Str(l.UsernameKey, dbUserForSession.Username).Msg("New user created successfully")
+				logger.Info().
+					Str(l.UserIDKey, appUserID).
+					Str(l.UsernameKey, dbUserForSession.Username).
+					Msg("New user created successfully")
 			}
 
 			// 4.2.2.b: Create and save the new provider identity, linking it to the `appUserID`
@@ -488,7 +539,10 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 			_, createLPIErr := db.CreateUserProviderIdentity(ctx, tx, newDbIdentity)
 			if createLPIErr != nil {
 				handleErr = fmt.Errorf("failed to create user provider identity record: %w", createLPIErr)
-				logger.Error().Err(handleErr).Interface("new_db_identity", newDbIdentity).Msg("Database error creating user provider identity record")
+				logger.Error().
+					Err(handleErr).
+					Interface("new_db_identity", newDbIdentity).
+					Msg("Database error creating user provider identity record")
 				if errors.Is(createLPIErr, db.ErrProviderIdentityConflict) {
 					// Shouldn't happen, handling defensively
 					ErrorResponse(w, r, http.StatusConflict, "Failed to link authentication method due to a conflict")
@@ -504,19 +558,26 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 				Msg("New user provider identity created and linked successfully")
 		} else {
 			// Case 4.2.3: Provider identity was found, standard login scenario
-			logger.Debug().Str(l.ProviderIdentityIDKey, existingIdentity.ProviderIdentityID).Msg("Existing provider identity found")
+			logger.Debug().
+				Str(l.ProviderIdentityIDKey, existingIdentity.ProviderIdentityID).
+				Msg("Existing provider identity found")
 			appUserID = existingIdentity.UserID
 
 			dbUserForSession, handleErr = db.GetUserByID(ctx, tx, appUserID)
 			if handleErr != nil {
-				handleErr = fmt.Errorf("failed to retrieve user by ID (ID: %s) for existing provider identity: %w", appUserID, handleErr)
+				handleErr = fmt.Errorf(
+					"failed to retrieve user by ID (ID: %s) for existing provider identity: %w",
+					appUserID, handleErr,
+				)
 				logger.Error().Err(handleErr).Msg("Database error fetching user with existing provider identity")
 				ErrorResponse(w, r, http.StatusInternalServerError, "Failed to process your login, please try again")
 				responseSent = true
 				return
 			}
 
-			if errUpdate := db.UpdateUserProviderIdentityDetails(ctx, tx, existingIdentity.ProviderIdentityID, gothUser); errUpdate != nil {
+			if errUpdate := db.UpdateUserProviderIdentityDetails(
+				ctx, tx, existingIdentity.ProviderIdentityID, gothUser,
+			); errUpdate != nil {
 				logger.Warn().
 					Err(errUpdate).
 					Str(l.ProviderIdentityIDKey, existingIdentity.ProviderIdentityID).
@@ -545,16 +606,23 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	}
 	providerOriginalAvatarURLChanged := (gothUser.AvatarURL != "" && gothUser.AvatarURL != lastKnownOriginalProviderURL)
 	var avatarHelperErr error
-	dbUserForSession, avatarHelperErr = ah.processPrimaryAvatarUpdate(ctx, tx, dbUserForSession, gothUser, providerOriginalAvatarURLChanged)
+	dbUserForSession, avatarHelperErr = ah.processPrimaryAvatarUpdate(
+		ctx, tx, dbUserForSession, gothUser, providerOriginalAvatarURLChanged,
+	)
 	if avatarHelperErr != nil {
-		logger.Warn().Err(avatarHelperErr).Msg("Error occurred during primary avatar update processing, continuing login...")
+		logger.Warn().
+			Err(avatarHelperErr).
+			Msg("Error occurred during primary avatar update processing, continuing login...")
 	}
 
 	// --- Step 5 ---
 	// Update user's last login timestamp
 	updateLoginTimeErr := db.UpdateUserLastLogin(ctx, tx, appUserID)
 	if updateLoginTimeErr != nil {
-		logger.Error().Err(updateLoginTimeErr).Str(l.UserIDKey, appUserID).Msg("Failed to update user's last login time, proceeding")
+		logger.Error().
+			Err(updateLoginTimeErr).
+			Str(l.UserIDKey, appUserID).
+			Msg("Failed to update user's last login time, proceeding")
 	} else {
 		logger.Debug().Str(l.UserIDKey, appUserID).Msg("User's last login time updated successfully")
 	}
@@ -601,18 +669,26 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 	}
 
 	if handleErr == nil {
-		logger.Info().Str(l.UserIDKey, appUserID).Msg("User session created/updated and saved successfully. Login/linking process complete.")
+		logger.Info().
+			Str(l.UserIDKey, appUserID).
+			Msg("User session created/updated and saved successfully. Login/linking process complete.")
 	} else {
 		// This case should ideally be caught by the defer's commit check, but as a fallback, if handleErr is set (e.g. from a failed commit that didn't panic)
 		// we log it here.
-		logger.Error().Err(handleErr).Str(l.UserIDKey, appUserID).Msg("Login/linking process completed with an error during finalization (e.g. commit error).")
+		logger.Error().
+			Err(handleErr).
+			Str(l.UserIDKey, appUserID).
+			Msg("Login/linking process completed with an error during finalization (e.g. commit error).")
 		return
 	}
 
 	// --- Step 7 ---
 	// Redirect user to frontend
 
-	if !strings.HasSuffix(redirectURL, "/") && !strings.Contains(redirectURL, "?") && !strings.HasSuffix(redirectURL, "dashboard") && !strings.HasSuffix(redirectURL, "settings") {
+	if !strings.HasSuffix(redirectURL, "/") &&
+		!strings.Contains(redirectURL, "?") &&
+		!strings.HasSuffix(redirectURL, "dashboard") &&
+		!strings.HasSuffix(redirectURL, "settings") {
 		// Avoid double slashes if already ends with settings or dashboard
 		if redirectURL == ah.Cfg.FrontendBaseURL {
 			redirectURL += "/"
@@ -650,7 +726,10 @@ func (ah *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info().Msg("User logged out successfully")
-	Respond(w, r, http.StatusOK, apiModels.LogoutResponse{Message: "Successfully logged out"}, "Successfully logged out")
+	Respond(
+		w, r, http.StatusOK,
+		apiModels.LogoutResponse{Message: "Successfully logged out"}, "Successfully logged out",
+	)
 }
 
 // Retrieves the currently authenticated user's details
@@ -702,7 +781,10 @@ func (ah *AuthHandler) HandleGetCurrentUser(w http.ResponseWriter, r *http.Reque
 
 	apiUser, convErr := modelConverters.DBUserToAPIUser(dbUser)
 	if convErr != nil {
-		logger.Error().Err(convErr).Str(l.UserIDKey, dbUser.UserID).Msg("Failed to convert database user to API user")
+		logger.Error().
+			Err(convErr).
+			Str(l.UserIDKey, dbUser.UserID).
+			Msg("Failed to convert database user to API user")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to process user details")
 		return
 	}
@@ -744,9 +826,11 @@ func (ah *AuthHandler) processPrimaryAvatarUpdate(
 			(dbUser.AvatarSource.Valid && dbUser.AvatarSource.String == currentProviderName)
 
 		if shouldConsiderUpdatingMainAvatar && providerOriginalAvatarURLChanged {
-			logger.Info().Msg("Provider's avatar changed and is eligible to update main user avatar, processing...")
+			logger.Info().
+				Msg("Provider's avatar changed and is eligible to update main user avatar, processing...")
 			newLocalPath, processErr := i.ProcessAndStoreAvatar(
-				ctx, gothProviderAvatarURL, dbUser.UserID, ah.Cfg.AvatarStoragePath, i.AvatarWebPrefixPath, i.AvatarImgSize,
+				ctx, gothProviderAvatarURL, dbUser.UserID,
+				ah.Cfg.AvatarStoragePath, i.AvatarWebPrefixPath, i.AvatarImgSize,
 			)
 			if processErr == nil {
 				updates := map[string]any{
@@ -754,21 +838,32 @@ func (ah *AuthHandler) processPrimaryAvatarUpdate(
 					"avatar_source": currentProviderName,
 				}
 				if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, updates); dbErr != nil {
-					logger.Warn().Err(dbErr).Msg("Failed to update users table with new avatar path/source from provider, continuing login...")
+					logger.Warn().
+						Err(dbErr).
+						Msg("Failed to update users table with new avatar path/source from provider, continuing login...")
 					return dbUser, fmt.Errorf("failed to update user profile for avatar: %w", dbErr)
 				}
 				dbUser.AvatarURL = db.NullString(newLocalPath)
 				dbUser.AvatarSource = db.NullString(currentProviderName)
-				logger.Info().Str(l.PathKey, newLocalPath).Msg("Main user avatar updated from provider")
+				logger.Info().
+					Str(l.PathKey, newLocalPath).
+					Msg("Main user avatar updated from provider")
 			} else {
-				logger.Warn().Err(processErr).Msg("Failed to process image from provider for main user avatar, continuing login...")
+				logger.Warn().
+					Err(processErr).
+					Msg("Failed to process image from provider for main user avatar, continuing login...")
 				return dbUser, fmt.Errorf("failed ot process avatar image: %w", processErr)
 			}
 		}
 	} else {
 		logger.Debug().Msg("Provider did not return an avatar URL")
-		if dbUser.AvatarSource.Valid && dbUser.AvatarSource.String == currentProviderName && dbUser.AvatarURL.Valid {
-			logger.Info().Msg("Current avatar source matches this provider, but provider returned no avatar, clearing user's main avatar...")
+		if dbUser.AvatarSource.Valid &&
+			dbUser.AvatarSource.String == currentProviderName &&
+			dbUser.AvatarURL.Valid {
+			logger.Info().
+				Msg(
+					"Current avatar source matches this provider, but provider returned no avatar, clearing user's main avatar...",
+				)
 			updates := map[string]any{
 				"avatar_url":    "",
 				"avatar_source": "",
