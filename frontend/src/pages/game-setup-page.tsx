@@ -228,7 +228,6 @@ export function GameSetupPage() {
             </DndContext>
           </div>
 
-          {/* TODO Scorekeeper Section */}
           <div>
             <Label
               htmlFor="scorekeeper-select"
@@ -271,8 +270,9 @@ export function GameSetupPage() {
               isSaving || isStarting || gameDetails.status !== "pending"
             }
             size="lg"
+            className="cursor-pointer"
           >
-            <Rocket className="h-4 w-4 mr-2 cursor-pointer" />
+            <Rocket className="h-4 w-4 mr-2" />
             {gameDetails.status === "pending"
               ? "Save and Start Game"
               : `Game is ${gameDetails.status}`}

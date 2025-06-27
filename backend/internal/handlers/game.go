@@ -112,7 +112,7 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Step 5: Fetch the Created Game
-	createdGame, fetchErr := db.GetGameByID(ctx, nil, gameID)
+	createdGame, fetchErr := db.GetGameByID(ctx, tx, gameID)
 	if fetchErr != nil {
 		opErr = fetchErr
 		logger.Error().
