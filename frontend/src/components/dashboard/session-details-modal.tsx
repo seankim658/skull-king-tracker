@@ -21,7 +21,8 @@ import {
   CheckCircle,
   NotebookPen,
 } from "lucide-react";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useApi } from "@/hooks/use-api";
+import { useEffect } from "react";
 
 interface SessionDetailModalProps {
   sessionId: string | null;
@@ -40,7 +41,14 @@ export function SessionDetailsModal({
     data: sessionDetails,
     isLoading,
     error,
-  } = useFetchOnMount(sessionAPI.getSessionDetails, sessionId!);
+    request: fetchSessionDetails,
+  } = useApi(sessionAPI.getSessionDetails);
+
+  useEffect(() => {
+    if (sessionId && isOpen) {
+      fetchSessionDetails(sessionId);
+    }
+  }, [sessionId, isOpen, fetchSessionDetails]);
 
   const handleNavigateToGame = (gameId: string, status: string) => {
     if (status === "pending") {
