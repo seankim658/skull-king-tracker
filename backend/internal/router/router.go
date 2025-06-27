@@ -29,7 +29,12 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	avatarDiskPath := cfg.AvatarStoragePath
 	fileServer := http.FileServer(http.Dir(avatarDiskPath))
 
-	mainRouter.PathPrefix(avatarWebPrefix).Handler(http.StripPrefix(avatarWebPrefix, fileServer))
+	cachingFileServer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+		fileServer.ServeHTTP(w, r)
+	})
+
+	mainRouter.PathPrefix(avatarWebPrefix).Handler(http.StripPrefix(avatarWebPrefix, cachingFileServer))
 
 	// --- API Subrouter ---
 	apiRouter := mainRouter.PathPrefix("/api").Subrouter()
