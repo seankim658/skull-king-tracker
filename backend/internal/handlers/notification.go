@@ -1,22 +1,79 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	convert "github.com/seankim658/skullking/internal/models/convert"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
 const notificationComponent = "handlers-notification"
 
 type NotificationHandler struct {
-	Cfg *cf.Config
+	Cfg    *cf.Config
+	SSEHub *sse.Hub
 }
 
-func NewNotificationHandler(cfg *cf.Config) *NotificationHandler {
-	return &NotificationHandler{Cfg: cfg}
+func NewNotificationHandler(cfg *cf.Config, sseHub *sse.Hub) *NotificationHandler {
+	return &NotificationHandler{Cfg: cfg, SSEHub: sseHub}
+}
+
+// Establishes an SSE connection for real-time notifications
+// Path: /notifications/events
+// Method: GET
+func (nh *NotificationHandler) HandleNotificationStream(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"HandleNotificationStream",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.UserIDKey, userID).Logger()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Streaming unsupported")
+		return
+	}
+
+	messageChan := make(chan string)
+	nh.SSEHub.AddClient(userID, messageChan)
+	logger.Info().Msg("SSE client connected and registered")
+
+	defer func() {
+		nh.SSEHub.RemoveClient(userID)
+		logger.Info().Msg("SSE client disconnected and unregistered")
+	}()
+
+	go func() {
+		<-ctx.Done()
+		nh.SSEHub.RemoveClient(userID)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case message, open := <-messageChan:
+			if !open {
+				return
+			}
+			fmt.Fprintf(w, "data: %s\n\n", message)
+			flusher.Flush()
+		}
+	}
 }
 
 // Retrieves the user notifications

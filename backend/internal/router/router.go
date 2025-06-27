@@ -10,9 +10,10 @@ import (
 	h "github.com/seankim658/skullking/internal/handlers"
 	l "github.com/seankim658/skullking/internal/logger"
 	mw "github.com/seankim658/skullking/internal/middleware"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
-func New(cfg *cf.Config) http.Handler {
+func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	mainRouter := mux.NewRouter()
 
 	// --- Middleware Setup ---
@@ -66,7 +67,7 @@ func New(cfg *cf.Config) http.Handler {
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleAddPlayerToGame).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleGetGamePlayers).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/players/{game_player_id}", gameHandler.HandleRemovePlayerFromGame).Methods(http.MethodDelete)
-  gameSubRouter.HandleFunc("/{game_id}/settings", gameHandler.HandleUpdateGameSettings).Methods(http.MethodPut)
+	gameSubRouter.HandleFunc("/{game_id}/settings", gameHandler.HandleUpdateGameSettings).Methods(http.MethodPut)
 	gameSubRouter.HandleFunc("/{game_id}/start", gameHandler.HandleStartGame).Methods(http.MethodPut)
 
 	// Session routes
@@ -83,7 +84,7 @@ func New(cfg *cf.Config) http.Handler {
 	userSubRouter.HandleFunc("/search", userHandler.HandleSearchUsers).Methods(http.MethodGet)
 
 	// Friendship routes
-	friendshipHandler := h.NewFriendshipHandler(cfg)
+	friendshipHandler := h.NewFriendshipHandler(cfg, sseHub)
 	friendshipSubRouter := apiRouter.PathPrefix("/friends").Subrouter()
 	friendshipSubRouter.HandleFunc("", friendshipHandler.HandleGetFriends).Methods(http.MethodGet)
 	friendshipSubRouter.HandleFunc("/request", friendshipHandler.HandleSendFriendRequest).Methods(http.MethodPost)
@@ -94,9 +95,10 @@ func New(cfg *cf.Config) http.Handler {
 	friendshipSubRouter.HandleFunc("/block/{user_id_to_unblock}", friendshipHandler.HandleUnblockUser).Methods(http.MethodDelete)
 
 	// Notification routes
-	notificationHandler := h.NewNotificationHandler(cfg)
+	notificationHandler := h.NewNotificationHandler(cfg, sseHub)
 	notificationSubRouter := apiRouter.PathPrefix("/notifications").Subrouter()
 	notificationSubRouter.HandleFunc("", notificationHandler.HandleGetNotifications).Methods(http.MethodGet)
+	notificationSubRouter.HandleFunc("/events", notificationHandler.HandleGetNotifications).Methods(http.MethodGet)
 	notificationSubRouter.HandleFunc("/{notification_id}/read", notificationHandler.HandleMarkNotificationRead).Methods(http.MethodPut)
 	notificationSubRouter.HandleFunc("/{notification_id}/read", notificationHandler.HandleMarkNotificationUnread).Methods(http.MethodDelete)
 

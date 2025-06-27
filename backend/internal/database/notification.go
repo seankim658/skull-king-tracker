@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -189,4 +190,43 @@ func DeleteFriendRequestNotification(ctx context.Context, tx *sql.Tx, recipientI
 
 	logger.Info().Msg("Friend request notification cleaned up successfully.")
 	return nil
+}
+
+// Retrieves a single notification with its actor details by ID
+func GetNotificationWithActorByID(ctx context.Context, tx *sql.Tx, notificationID string) (*dbModels.NotificationWithActor, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"GetNotificationWithActorByID",
+	).With().Str(l.NotificationIDKey, notificationID).Logger()
+
+	query := `
+  SELECT
+    un.notification_id, un.recipient_user_id, un.type, un.actor_user_id,
+    un.message, un.is_read, un.link, un.created_at, un.friendship_id,
+    u.username AS actor_username,
+    u.display_name AS actor_display_name,
+    u.avatar_url AS actor_avatar_url
+  FROM user_notifications un
+  JOIN users u ON un.actor_user_id = u.user_id
+  WHERE un.notification_id = $1;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get notification with actor by ID")
+
+	var n dbModels.NotificationWithActor
+	err := querier.QueryRowContext(ctx, query, notificationID).Scan(
+		&n.NotificationID, &n.RecipientUserID, &n.Type, &n.ActorUserID,
+		&n.Message, &n.IsRead, &n.Link, &n.FriendshipID,
+		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.Warn().Msg("Notification not found by ID")
+			return nil, err
+		}
+		logger.Error().Err(err).Msg("Failed to scan notification with actor row")
+		return nil, fmt.Errorf("error scanning notification for ID %s: %w", notificationID, err)
+	}
+	return &n, nil
 }

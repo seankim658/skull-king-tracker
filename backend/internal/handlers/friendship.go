@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,16 +11,18 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
 const friendshipComponent = "handlers-friendship"
 
 type FriendshipHandler struct {
-	Cfg *cf.Config
+	Cfg    *cf.Config
+	SSEHub *sse.Hub
 }
 
-func NewFriendshipHandler(cfg *cf.Config) *FriendshipHandler {
-	return &FriendshipHandler{Cfg: cfg}
+func NewFriendshipHandler(cfg *cf.Config, sseHub *sse.Hub) *FriendshipHandler {
+	return &FriendshipHandler{Cfg: cfg, SSEHub: sseHub}
 }
 
 // Handles a user's request to friend another user
@@ -92,7 +95,7 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		actorDisplayName = actor.DisplayName.String
 	}
 	message := fmt.Sprintf("%s wants to be your friend", actorDisplayName)
-	_, err = db.CreateNotification(
+	createdNotificationID, err := db.CreateNotification(
 		ctx,
 		tx,
 		req.AddresseeID,
@@ -109,6 +112,24 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		)
 		responseSent = true
 		return
+	}
+
+	dbNotif, notifErr := db.GetNotificationWithActorByID(ctx, tx, createdNotificationID)
+	if notifErr != nil {
+		logger.Error().Err(notifErr).Msg("Failed to fetch created notification for SSE broadcast")
+	} else {
+		apiNotif, convErr := modelConverters.DBNotificationWithActorToAPI(dbNotif)
+		if convErr != nil {
+			logger.Error().Err(convErr).Msg("Failed to convert notification for SSE broadcast")
+		} else {
+			jsonNotif, jsonErr := json.Marshal(apiNotif)
+			if jsonErr != nil {
+				logger.Error().Err(jsonErr).Msg("Failed to marshal notification for SSE broadcast")
+			} else {
+				fh.SSEHub.Broadcast(req.AddresseeID, string(jsonNotif))
+				logger.Info().Str(l.RecipientIDKey, req.AddresseeID).Msg("Broadcasted new friendship notification via SSE")
+			}
+		}
 	}
 
 	if !responseSent {

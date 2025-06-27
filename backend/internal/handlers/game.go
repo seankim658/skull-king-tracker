@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 
 	cf "github.com/seankim658/skullking/internal/config"

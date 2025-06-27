@@ -33,6 +33,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
 import { SkeletonList } from "./skeleton-list";
+import { API_BASE_URL } from "@/lib/api/client";
 
 export function NotificationBell() {
   const { isAuthenticated } = useAuth();
@@ -50,17 +51,62 @@ export function NotificationBell() {
 
   const {
     data: notifications,
-    isLoading,
+    isLoading: isLoadingInitial,
     request: fetchNotifications,
+    setData: setNotifications,
   } = useApi(notificationAPI.getNotifications, apiOptions);
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 60000);
-      return () => clearInterval(interval);
     }
   }, [isAuthenticated, fetchNotifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const eventsUrl = `${API_BASE_URL}/notifications/events`;
+    const eventSource = new EventSource(eventsUrl, { withCredentials: true });
+
+    eventSource.onmessage = (event) => {
+      try {
+        const newNotification: Notification = JSON.parse(event.data);
+        toast.info(
+          <span>
+            New notification from{" "}
+            <b>
+              {newNotification.actor.display_name ||
+                newNotification.actor.username}
+            </b>
+          </span>,
+        );
+
+        setNotifications((prev) => {
+          if (!prev) return [newNotification];
+          if (
+            prev.some(
+              (n) => n.notification_id === newNotification.notification_id,
+            )
+          ) {
+            return prev;
+          }
+          return [newNotification, ...prev];
+        });
+      } catch (e) {
+        console.error("Failed to parse SSE notification data:", e);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("EventSource failed:", err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [isAuthenticated, setNotifications]);
 
   const { submit: markAsRead, isLoading: isMarkingRead } = useSubmit(
     notificationAPI.markAsRead,
@@ -140,7 +186,7 @@ export function NotificationBell() {
         <DropdownMenuContent align="end" className="w-96">
           <DropdownMenuLabel>Notifications</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {isLoading ? (
+          {isLoadingInitial && !notifications ? (
             <SkeletonList count={2} />
           ) : notifications?.length === 0 ? (
             <p className="p-4 text-sm text-center text-muted-foreground">

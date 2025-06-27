@@ -14,6 +14,7 @@ import (
 	"github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	"github.com/seankim658/skullking/internal/router"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
 func main() {
@@ -33,12 +34,16 @@ func main() {
 	defer database.Close()
 
 	if err := auth.InitAuth(cfg); err != nil {
-		log.Error().Err(err).Msg("Failed to initialize authentication providers. Some OAuth logins may not be available or app may not function correctly.")
+		log.Error().
+      Err(err).
+      Msg("Failed to initialize authentication providers. Some OAuth logins may not be available or app may not function correctly.")
 	}
+
+  sseHub := sse.NewHub()
 
 	log.Info().Msg("Application components initialized")
 
-	r := router.New(cfg)
+	r := router.New(cfg, sseHub)
 
 	log.Info().
 		Str("port", cfg.APIPort).

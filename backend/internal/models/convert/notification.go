@@ -1,6 +1,8 @@
 package models
 
 import (
+	"errors"
+
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
@@ -37,4 +39,35 @@ func DBNotificationsToAPIResponse(dbNotifications []dbModels.NotificationWithAct
 		apiNotifications = append(apiNotifications, apiNotif)
 	}
 	return apiNotifications
+}
+
+func DBNotificationWithActorToAPI(dbNotif *dbModels.NotificationWithActor) (*apiModels.Notification, error) {
+	if dbNotif == nil {
+		return nil, errors.New("cannot convert nil db notification to api notification")
+	}
+	var actorDisplayName, actorAvatarURL, friendshipID *string
+	if dbNotif.ActorDisplayName.Valid {
+		actorDisplayName = &dbNotif.ActorDisplayName.String
+	}
+	if dbNotif.ActorAvatarURL.Valid {
+		actorAvatarURL = &dbNotif.ActorAvatarURL.String
+	}
+	if dbNotif.FriendshipID.Valid {
+		friendshipID = &dbNotif.FriendshipID.String
+	}
+	apiNotif := &apiModels.Notification{
+		NotificationID: dbNotif.NotificationID,
+		Type:           dbNotif.Type,
+		Message:        dbNotif.Message,
+		IsRead:         dbNotif.IsRead,
+		FriendshipID:   friendshipID,
+		CreatedAt:      dbNotif.CreatedAt,
+		Actor: apiModels.NotificationActor{
+			UserID:      dbNotif.ActorUserID,
+			Username:    dbNotif.ActorUsername,
+			DisplayName: actorDisplayName,
+			AvatarURL:   actorAvatarURL,
+		},
+	}
+	return apiNotif, nil
 }
