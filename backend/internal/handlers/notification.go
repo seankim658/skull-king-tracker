@@ -42,11 +42,19 @@ func (nh *NotificationHandler) HandleNotificationStream(w http.ResponseWriter, r
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
+		logger.Error().Msg("Streaming unsupported - no flusher available")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Streaming unsupported")
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "event: connected\ndata: Connection established\n\n")
+	flusher.Flush()
 
 	messageChan := make(chan string)
 	nh.SSEHub.AddClient(userID, messageChan)
@@ -54,24 +62,43 @@ func (nh *NotificationHandler) HandleNotificationStream(w http.ResponseWriter, r
 
 	defer func() {
 		nh.SSEHub.RemoveClient(userID)
+		close(messageChan)
 		logger.Info().Msg("SSE client disconnected and unregistered")
 	}()
 
+	done := make(chan bool)
 	go func() {
-		<-ctx.Done()
-		nh.SSEHub.RemoveClient(userID)
+		defer close(done)
+		select {
+		case <-ctx.Done():
+			logger.Info().Msg("SSE client context cancelled")
+			return
+		case <-r.Context().Done():
+			logger.Info().Msg("SSE client request context cancelled")
+			return
+		}
 	}()
 
 	for {
 		select {
+		case <-done:
+			return
 		case <-ctx.Done():
 			return
 		case message, open := <-messageChan:
 			if !open {
+				logger.Info().Msg("SSE message channel closed")
 				return
 			}
-			fmt.Fprintf(w, "data: %s\n\n", message)
+
+			_, err := fmt.Fprintf(w, "data: %s\n\n", message)
+			if err != nil {
+				logger.Error().Err(err).Msg("Failed to write SSE message")
+				return
+			}
+
 			flusher.Flush()
+			logger.Debug().Str("message", message).Msg("SSE message sent")
 		}
 	}
 }

@@ -17,6 +17,11 @@ func NewHub() *Hub {
 func (h *Hub) AddClient(userID string, clientChan chan string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if existingChan, exists := h.clients[userID]; exists {
+		close(existingChan)
+	}
+
 	h.clients[userID] = clientChan
 }
 
@@ -25,8 +30,8 @@ func (h *Hub) RemoveClient(userID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if ch, ok := h.clients[userID]; ok {
-		close(ch)
 		delete(h.clients, userID)
+		_ = ch
 	}
 }
 
@@ -38,7 +43,9 @@ func (h *Hub) Broadcast(userID string, message string) {
 		select {
 		case clientChan <- message:
 		default:
-    // TODO : should we log if the client's channel is full
+			go func() {
+				h.RemoveClient(userID)
+			}()
 		}
 	}
 }

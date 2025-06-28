@@ -20,16 +20,22 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+func (rw *responseWriter) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 func LoggingMiddleware(accessLog zerolog.Logger, appLog zerolog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-      requestID := uuid.NewString()
-      requestSpecificAppLogger := appLog.With().Str(l.RequestIDKey, requestID).Logger()
+			requestID := uuid.NewString()
+			requestSpecificAppLogger := appLog.With().Str(l.RequestIDKey, requestID).Logger()
 
-      ctxWithLogger := l.NewContextWithLogger(r.Context(), requestSpecificAppLogger)
-      r = r.WithContext(ctxWithLogger)
+			ctxWithLogger := l.NewContextWithLogger(r.Context(), requestSpecificAppLogger)
+			r = r.WithContext(ctxWithLogger)
 
 			rw := &responseWriter{ResponseWriter: w, status: http.StatusOK}
 
@@ -38,7 +44,7 @@ func LoggingMiddleware(accessLog zerolog.Logger, appLog zerolog.Logger) func(htt
 			duration := time.Since(start)
 
 			accessLog.Info().
-        Str(l.RequestIDKey, requestID).
+				Str(l.RequestIDKey, requestID).
 				Str("method", r.Method).
 				Str("path", r.URL.Path).
 				Str("query", r.URL.RawQuery).

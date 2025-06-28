@@ -217,7 +217,7 @@ func GetNotificationWithActorByID(ctx context.Context, tx *sql.Tx, notificationI
 	var n dbModels.NotificationWithActor
 	err := querier.QueryRowContext(ctx, query, notificationID).Scan(
 		&n.NotificationID, &n.RecipientUserID, &n.Type, &n.ActorUserID,
-		&n.Message, &n.IsRead, &n.Link, &n.FriendshipID,
+		&n.Message, &n.IsRead, &n.Link, &n.CreatedAt, &n.FriendshipID,
 		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL,
 	)
 	if err != nil {

@@ -103,7 +103,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	notificationHandler := h.NewNotificationHandler(cfg, sseHub)
 	notificationSubRouter := apiRouter.PathPrefix("/notifications").Subrouter()
 	notificationSubRouter.HandleFunc("", notificationHandler.HandleGetNotifications).Methods(http.MethodGet)
-	notificationSubRouter.HandleFunc("/events", notificationHandler.HandleGetNotifications).Methods(http.MethodGet)
+	notificationSubRouter.HandleFunc("/events", notificationHandler.HandleNotificationStream).Methods(http.MethodGet, http.MethodOptions)
 	notificationSubRouter.HandleFunc("/{notification_id}/read", notificationHandler.HandleMarkNotificationRead).Methods(http.MethodPut)
 	notificationSubRouter.HandleFunc("/{notification_id}/read", notificationHandler.HandleMarkNotificationUnread).Methods(http.MethodDelete)
 

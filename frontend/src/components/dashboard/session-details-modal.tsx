@@ -21,8 +21,7 @@ import {
   CheckCircle,
   NotebookPen,
 } from "lucide-react";
-import { useApi } from "@/hooks/use-api";
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 interface SessionDetailModalProps {
   sessionId: string | null;
@@ -40,15 +39,19 @@ export function SessionDetailsModal({
   const {
     data: sessionDetails,
     isLoading,
+    isError,
     error,
-    request: fetchSessionDetails,
-  } = useApi(sessionAPI.getSessionDetails);
-
-  useEffect(() => {
-    if (sessionId && isOpen) {
-      fetchSessionDetails(sessionId);
-    }
-  }, [sessionId, isOpen, fetchSessionDetails]);
+  } = useQuery({
+    queryKey: ["sessionDetails", sessionId],
+    queryFn: async () => {
+      const response = await sessionAPI.getSessionDetails(sessionId!);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Could not load session details");
+      }
+      return response.data;
+    },
+    enabled: !!sessionId && isOpen,
+  });
 
   const handleNavigateToGame = (gameId: string, status: string) => {
     if (status === "pending") {
@@ -77,15 +80,21 @@ export function SessionDetailsModal({
       );
     }
 
-    if (error || !sessionDetails) {
+    if (isError) {
       return (
         <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Error Loading Session</AlertTitle>
-          <AlertDescription>
-            {error || "Could not load the session details"}
-          </AlertDescription>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
+      );
+    }
+
+    if (!sessionDetails) {
+      return (
+        <p className="text-muted-foreground text-center py-4">
+          Loading session details...
+        </p>
       );
     }
 

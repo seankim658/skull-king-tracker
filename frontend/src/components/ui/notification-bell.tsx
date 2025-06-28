@@ -22,16 +22,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { notificationAPI } from "@/lib/api/service/notification";
 import { friendshipAPI } from "@/lib/api/service/friendship";
 import type { Notification } from "@/lib/api/types";
-import {
-  getFullAvatarURL,
-  getAvatarFallback,
-  cn,
-} from "@/lib/utils";
+import { getFullAvatarURL, getAvatarFallback, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useSubmit } from "@/hooks/use-submit";
 import { SkeletonList } from "./skeleton-list";
-import { API_BASE_URL } from "@/lib/api/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 
@@ -57,10 +52,17 @@ export function NotificationBell() {
       return;
     }
 
-    const eventsUrl = `${API_BASE_URL}/notifications/events`;
+    const eventsUrl = `${import.meta.env.VITE_SSE_BASE_URL}/notifications/events`;
+    console.log("Attempting to connect to SSE:", eventsUrl);
+
     const eventSource = new EventSource(eventsUrl, { withCredentials: true });
 
+    eventSource.onopen = (event) => {
+      console.log("SSE connection opened:", event);
+    };
+
     eventSource.onmessage = (event) => {
+      console.log("SSE message received:", event.data);
       try {
         const newNotification: Notification = JSON.parse(event.data);
         toast.info(
@@ -91,11 +93,24 @@ export function NotificationBell() {
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error("EventSource failed:", err);
+    eventSource.onerror = (event) => {
+      console.error("SSE connection error", event);
+      console.log(`EventSource readystate:`, eventSource.readyState);
+      console.log(`EventSource url:`, eventSource.url);
+
+      if (eventSource.readyState === EventSource.CONNECTING) {
+        console.log(`SSE is reconnecting...`);
+      } else if (eventSource.readyState === EventSource.CLOSED) {
+        console.log(`SSE connection closed`);
+      }
     };
 
+    eventSource.addEventListener("connected", (event) => {
+      console.log("SSE connected event received:", event.data);
+    });
+
     return () => {
+      console.log("Closing SSE connection");
       eventSource.close();
     };
   }, [isAuthenticated, queryClient]);

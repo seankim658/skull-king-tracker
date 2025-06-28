@@ -35,11 +35,11 @@ func main() {
 
 	if err := auth.InitAuth(cfg); err != nil {
 		log.Error().
-      Err(err).
-      Msg("Failed to initialize authentication providers. Some OAuth logins may not be available or app may not function correctly.")
+			Err(err).
+			Msg("Failed to initialize authentication providers. Some OAuth logins may not be available or app may not function correctly.")
 	}
 
-  sseHub := sse.NewHub()
+	sseHub := sse.NewHub()
 
 	log.Info().Msg("Application components initialized")
 
@@ -54,7 +54,7 @@ func main() {
 		Addr:         ":" + cfg.APIPort,
 		Handler:      r,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 0,
 		IdleTimeout:  60 * time.Second,
 	}
 
