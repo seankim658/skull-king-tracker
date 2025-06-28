@@ -15,10 +15,12 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useSubmit } from "@/hooks/use-submit";
 import type { GameResponse } from "@/lib/api/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function StartSessionPage() {
   const [sessionName, setSessionName] = useState("");
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { submit: createSessionAndGame, isLoading } = useSubmit(
     gameAPI.createGame,
@@ -26,6 +28,7 @@ export function StartSessionPage() {
       actionVerb: "Creating session",
       onSuccess: (data: GameResponse | undefined) => {
         toast.success(`Session "${sessionName.trim()} created`);
+        queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
         if (data?.game_id) {
           navigate(`/game/${data.game_id}/add-players`);
         }
@@ -68,7 +71,11 @@ export function StartSessionPage() {
             </div>
           </CardContent>
           <CardFooter className="pt-4">
-            <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full cursor-pointer"
+              disabled={isLoading}
+            >
               {isLoading ? "Starting Session..." : "Create Session"}
             </Button>
           </CardFooter>

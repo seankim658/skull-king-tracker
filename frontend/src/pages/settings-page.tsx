@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ import { getFullAvatarURL } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api/client";
 import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
 import { useSubmit } from "@/hooks/use-submit";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type StatsPrivacy = User["stats_privacy"];
 const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
@@ -43,6 +43,7 @@ const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
 ];
 
 export function SettingsPage() {
+  const queryClient = useQueryClient();
   const confirm = useConfirm();
   const { user, checkAuthStatus, isLoadingAuth } = useAuth();
 
@@ -50,18 +51,35 @@ export function SettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [statsPrivacy, setStatsPrivacy] = useState<StatsPrivacy>("public");
 
-  const {
-    data: linkedAccounts,
-    isLoading: isLoadingLinkedAccounts,
-    refetch: fetchAccounts,
-  } = useFetchOnMount(userAPI.getLinkedAccounts);
+  const { data: linkedAccounts, isLoading: isLoadingLinkedAccounts } = useQuery(
+    {
+      queryKey: ["linkedAccounts"],
+      queryFn: async () => {
+        const response = await userAPI.getLinkedAccounts();
+        if (!response.success || !response.data) {
+          throw new Error(
+            response.message || "Could not fetch linked accounts",
+          );
+        }
+        return response.data;
+      },
+      enabled: !!user,
+    },
+  );
 
   const { submit: updateProfile, isLoading: isSavingProfile } = useSubmit(
     userAPI.updateUserProfile,
     {
       actionVerb: "Saving profile",
       successMessage: "Profile updated successfully",
-      onSuccess: () => checkAuthStatus(),
+      onSuccess: () => {
+        if (user) {
+          queryClient.invalidateQueries({
+            queryKey: ["userProfile", user.user_id],
+          });
+        }
+        checkAuthStatus();
+      },
     },
   );
 
@@ -70,18 +88,28 @@ export function SettingsPage() {
     {
       actionVerb: "Disconnecting account",
       successMessage: "Account unlinked successfully",
-      onSuccess: () => fetchAccounts(),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["linkedAccounts"] });
+      },
     },
   );
+
+  useEffect(() => {
+    if (user) {
+      setDisplayName(user.display_name || user.username || "");
+      setAvatarUrl(user.avatar_url || "");
+      setStatsPrivacy(user.stats_privacy);
+    }
+  }, [user]);
 
   const handleProfileSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
 
     const payload: UpdateUserProfilePayload = {};
-    if (displayName.trim() !== (user.display_name || user.username))
+    if (displayName.trim() !== (user.display_name || ""))
       payload.display_name = displayName.trim();
-    if (avatarUrl !== user.avatar_url) payload.avatar_url = avatarUrl;
+    if (avatarUrl !== (user.avatar_url || "")) payload.avatar_url = avatarUrl;
     if (statsPrivacy !== user.stats_privacy)
       payload.stats_privacy = statsPrivacy;
 

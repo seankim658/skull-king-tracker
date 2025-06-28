@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { friendshipAPI } from "@/lib/api/service/friendship";
@@ -22,30 +22,46 @@ import { Separator } from "@/components/ui/separator";
 import { useSubmit } from "@/hooks/use-submit";
 import { useConfirm } from "@/hooks/use-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
 
   const [guestName, setGuestName] = useState("");
 
-  const { data: friends, isLoading: isLoadingFriends } = useFetchOnMount(
-    friendshipAPI.getFriends,
-  );
+  const { data: friends, isLoading: isLoadingFriends } = useQuery({
+    queryKey: ["friends"],
+    queryFn: async () => {
+      const response = await friendshipAPI.getFriends();
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Could not fetch friends list");
+      }
+      return response.data;
+    },
+  });
 
-  const {
-    data: players,
-    isLoading: isLoadingPlayers,
-    refetch: fetchPlayers,
-  } = useFetchOnMount(gameAPI.getGamePlayers, gameId!);
+  const { data: players, isLoading: isLoadingPlayers } = useQuery({
+    queryKey: ["gamePlayers", gameId],
+    queryFn: async () => {
+      const response = await gameAPI.getGamePlayers(gameId!);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Could not fetch game players");
+      }
+      return response.data;
+    },
+    enabled: !!gameId,
+  });
 
   const { submit: addPlayerSubmit, isLoading: isAddingPlayer } = useSubmit(
     gameAPI.addPlayerToGame,
     {
       actionVerb: "Adding player",
-      onSuccess: () => fetchPlayers(gameId!),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["gamePlayers", gameId] });
+      },
     },
   );
 
@@ -54,16 +70,11 @@ export function AddPlayersPage() {
     {
       actionVerb: "Removing player",
       successMessage: "Player removed",
-      onSuccess: () => fetchPlayers(gameId!),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["gamePlayers", gameId] });
+      },
     },
   );
-
-  useEffect(() => {
-    if (!gameId) {
-      toast.error("Game ID is missing from the URL");
-      navigate("/");
-    }
-  }, [gameId, navigate]);
 
   const handleAddFriend = (userId: string) => {
     if (!gameId) return;
@@ -96,6 +107,10 @@ export function AddPlayersPage() {
   };
 
   const handleProceed = () => {
+    if ((players?.length ?? 0) < 2) {
+      toast.error("A game requires at least 2 players to proceed");
+      return;
+    }
     navigate(`/game/${gameId}/setup`);
   };
 

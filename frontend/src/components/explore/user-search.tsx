@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
@@ -7,7 +7,7 @@ import { userAPI } from "@/lib/api/service/user";
 import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
 import { Search } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
-import { useApi } from "@/hooks/use-api";
+import { useQuery } from "@tanstack/react-query";
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -17,24 +17,21 @@ export function UserSearch() {
   const debouncedQuery = useDebounce(query, 300);
   const navigate = useNavigate();
 
-  const {
-    data: results,
-    isLoading,
-    request: fetchUsers,
-    setData: setResults,
-  } = useApi(userAPI.searchUsers);
-
-  useEffect(() => {
-    if (debouncedQuery.trim().length >= MIN_QUERY_LENGTH) {
-      fetchUsers(debouncedQuery);
-    } else {
-      setResults([]);
-    }
-  }, [debouncedQuery, fetchUsers, setResults]);
+  const { data: results, isLoading } = useQuery({
+    queryKey: ["userSearch", debouncedQuery],
+    queryFn: async () => {
+      const response = await userAPI.searchUsers(debouncedQuery);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Search failed");
+      }
+      return response.data;
+    },
+    enabled: debouncedQuery.trim().length >= MIN_QUERY_LENGTH,
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleUserSelect = (userId: string) => {
     setQuery("");
-    setResults([]);
     setIsFocused(false);
     navigate(`/users/${userId}`);
   };

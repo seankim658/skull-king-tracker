@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 import { Users, Swords, CalendarDays, UserPlus } from "lucide-react";
 import { statsAPI } from "@/lib/api/service/stat";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useQuery } from "@tanstack/react-query";
 
 const outerDivStyle = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
 const summaryStatStyle = "text-2xl font-bold";
@@ -15,8 +15,18 @@ export function SiteSummaryStats() {
   const {
     data: summaryStats,
     isLoading,
-    error,
-  } = useFetchOnMount(statsAPI.getSiteSummaryStats);
+    isError,
+  } = useQuery({
+    queryKey: ["SiteSummaryStats"],
+    queryFn: async () => {
+      const response = await statsAPI.getSiteSummaryStats();
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch size stats");
+      }
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 15,
+  });
 
   if (isLoading) {
     return (
@@ -37,7 +47,7 @@ export function SiteSummaryStats() {
     );
   }
 
-  if (error || !summaryStats) {
+  if (isError || !summaryStats) {
     return (
       <Card>
         <CardContent className="pt-6">

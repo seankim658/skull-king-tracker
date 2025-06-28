@@ -42,7 +42,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -87,18 +87,34 @@ function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
 export function GameSetupPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [players, setPlayers] = useState<GamePlayerResponse[]>([]);
   const [scorekeeperId, setScorekeeperId] = useState<string>("");
 
-  const { data: initialPlayers } = useFetchOnMount(
-    gameAPI.getGamePlayers,
-    gameId!,
-  );
-  const { data: gameDetails, refetch: fetchGameDetails } = useFetchOnMount(
-    gameAPI.getGameDetails,
-    gameId!,
-  );
+  const { data: initialPlayers, isLoading: isLoadingPlayers } = useQuery({
+    queryKey: ["gamePlayers", gameId],
+    queryFn: async () => {
+      const response = await gameAPI.getGamePlayers(gameId!);
+      if (!response.success || !response.data) {
+        throw new Error("Could not fetch players");
+      }
+      return response.data;
+    },
+    enabled: !!gameId,
+  });
+
+  const { data: gameDetails, isLoading: isLoadingDetails } = useQuery({
+    queryKey: ["gameDetails", gameId],
+    queryFn: async () => {
+      const response = await gameAPI.getGameDetails(gameId!);
+      if (!response.success || !response.data) {
+        throw new Error("Could not fetch game details");
+      }
+      return response.data;
+    },
+    enabled: !!gameId,
+  });
 
   useEffect(() => {
     if (initialPlayers) setPlayers(initialPlayers);
@@ -115,7 +131,7 @@ export function GameSetupPage() {
     {
       actionVerb: "Saving settings",
       onSuccess: () => {
-        if (gameId) fetchGameDetails(gameId);
+        queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
       },
     },
   );
@@ -124,7 +140,10 @@ export function GameSetupPage() {
     gameAPI.startGame,
     {
       actionVerb: "Starting game",
-      onSuccess: () => navigate(`/game/${gameId}/scorecard`),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
+        navigate(`/game/${gameId}/scorecard`);
+      },
     },
   );
 
@@ -166,7 +185,7 @@ export function GameSetupPage() {
 
   const registeredPlayers = players.filter((p) => p.user_id);
 
-  if (!initialPlayers || !gameDetails) {
+  if (isLoadingPlayers || isLoadingDetails) {
     return (
       <div className="container mx-auto p-4 md:p-6">
         <Card className="max-w-2xl mx-auto">
@@ -228,6 +247,7 @@ export function GameSetupPage() {
             </DndContext>
           </div>
 
+          {/* Scorekeeper Section */}
           <div>
             <Label
               htmlFor="scorekeeper-select"
@@ -267,15 +287,15 @@ export function GameSetupPage() {
           <Button
             onClick={() => gameId && startGame(gameId)}
             disabled={
-              isSaving || isStarting || gameDetails.status !== "pending"
+              isSaving || isStarting || gameDetails?.status !== "pending"
             }
             size="lg"
             className="cursor-pointer"
           >
             <Rocket className="h-4 w-4 mr-2" />
-            {gameDetails.status === "pending"
+            {gameDetails?.status === "pending"
               ? "Save and Start Game"
-              : `Game is ${gameDetails.status}`}
+              : `Game is ${gameDetails?.status}`}
           </Button>
         </CardFooter>
       </Card>

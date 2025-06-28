@@ -6,7 +6,7 @@ import { ProfileStatsSummary } from "@/components/profile/profile-stats-summary"
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useQuery } from "@tanstack/react-query";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -15,9 +15,23 @@ export function ProfilePage() {
   const {
     data: profileData,
     isLoading,
+    isError,
     error,
     refetch: fetchProfile,
-  } = useFetchOnMount(userAPI.getUserProfile, userId!);
+  } = useQuery({
+    queryKey: ["userProfile", userId],
+    queryFn: async () => {
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+      const response = await userAPI.getUserProfile(userId);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch user profile");
+      }
+      return response.data;
+    },
+    enabled: !!userId,
+  });
 
   if (isLoading || isLoadingAuth) {
     return (
@@ -32,13 +46,13 @@ export function ProfilePage() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="container mx-auto p-4 md:p-6">
         <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       </div>
     );
@@ -66,7 +80,7 @@ export function ProfilePage() {
       <ProfileHeader
         profile={profileData.profile}
         isOwnProfile={isOwnProfile}
-        onActionSuccess={() => userId && fetchProfile(userId)}
+        onActionSuccess={fetchProfile}
       />
       <ProfileStatsSummary
         stats={profileData.stats}

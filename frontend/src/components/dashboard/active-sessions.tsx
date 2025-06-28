@@ -9,22 +9,28 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { useSubmit } from "@/hooks/use-submit";
 import type { ActiveSessionResponse, GameResponse } from "@/lib/api/types";
 import { SessionDetailsModal } from "./session-details-modal";
-import { useFetchOnMount } from "@/hooks/use-fetch-on-mount";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function ActiveSessions() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null,
   );
 
-  const {
-    data: activeSessions,
-    isLoading: isLoadingSessions,
-    setData: setActiveSessions,
-  } = useFetchOnMount(sessionAPI.getActiveSessionsForUser);
+  const { data: activeSessions, isLoading: isLoadingSessions } = useQuery({
+    queryKey: ["activeSessions"],
+    queryFn: async () => {
+      const response = await sessionAPI.getActiveSessionsForUser();
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch active sessions");
+      }
+      return response.data;
+    },
+  });
 
   const { submit: startGame, isLoading: isStartingGame } = useSubmit(
     gameAPI.createGame,
@@ -32,6 +38,7 @@ export function ActiveSessions() {
       actionVerb: "Starting game",
       successMessage: "New game started",
       onSuccess: (data: GameResponse | undefined) => {
+        queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
         if (data?.game_id) {
           navigate(`/game${data.game_id}/add-players`);
         }
@@ -43,11 +50,8 @@ export function ActiveSessions() {
     sessionAPI.completeSession,
     {
       actionVerb: "Completing session",
-      onSuccess: (_data, sessionId: string) => {
-        setActiveSessions(
-          (prev: ActiveSessionResponse[] | null) =>
-            prev?.filter((s) => s.session_id !== sessionId) || [],
-        );
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
       },
     },
   );

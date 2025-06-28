@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Bell, MailOpen, Mail } from "lucide-react";
 import { Button } from "./button";
@@ -25,42 +25,32 @@ import type { Notification } from "@/lib/api/types";
 import {
   getFullAvatarURL,
   getAvatarFallback,
-  errorExtract,
   cn,
 } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { useApi } from "@/hooks/use-api";
 import { useSubmit } from "@/hooks/use-submit";
 import { SkeletonList } from "./skeleton-list";
 import { API_BASE_URL } from "@/lib/api/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 export function NotificationBell() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const handleFetchError = useCallback((e: Error) => {
-    console.error(`Failed to fetch notifications: ${errorExtract(e, "")}`);
-  }, []);
-
-  const apiOptions = useMemo(
-    () => ({
-      onError: handleFetchError,
-    }),
-    [handleFetchError],
-  );
-
-  const {
-    data: notifications,
-    isLoading: isLoadingInitial,
-    request: fetchNotifications,
-    setData: setNotifications,
-  } = useApi(notificationAPI.getNotifications, apiOptions);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchNotifications();
-    }
-  }, [isAuthenticated, fetchNotifications]);
+  const { data: notifications, isLoading: isLoadingInitial } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const response = await notificationAPI.getNotifications();
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch notifications");
+      }
+      return response.data;
+    },
+    enabled: !!isAuthenticated,
+    staleTime: 1000 * 60,
+  });
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -83,17 +73,19 @@ export function NotificationBell() {
           </span>,
         );
 
-        setNotifications((prev) => {
-          if (!prev) return [newNotification];
-          if (
-            prev.some(
-              (n) => n.notification_id === newNotification.notification_id,
+        queryClient.setQueryData(
+          ["notifications"],
+          (oldData: Notification[] | undefined) => {
+            if (!oldData) return [newNotification];
+            if (
+              oldData.some(
+                (n) => n.notification_id === newNotification.notification_id,
+              )
             )
-          ) {
-            return prev;
-          }
-          return [newNotification, ...prev];
-        });
+              return oldData;
+            return [newNotification, ...oldData];
+          },
+        );
       } catch (e) {
         console.error("Failed to parse SSE notification data:", e);
       }
@@ -106,20 +98,22 @@ export function NotificationBell() {
     return () => {
       eventSource.close();
     };
-  }, [isAuthenticated, setNotifications]);
+  }, [isAuthenticated, queryClient]);
 
   const { submit: markAsRead, isLoading: isMarkingRead } = useSubmit(
     notificationAPI.markAsRead,
     {
       actionVerb: "Marking as read",
-      onSuccess: () => fetchNotifications(),
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
     },
   );
   const { submit: markAsUnread, isLoading: isMarkingUnread } = useSubmit(
     notificationAPI.markAsUnread,
     {
       actionVerb: "Marking as unread",
-      onSuccess: () => fetchNotifications(),
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
     },
   );
 
@@ -140,7 +134,6 @@ export function NotificationBell() {
         notification.friendship_id,
         response,
       );
-      await notificationAPI.markAsRead(notification.notification_id);
       return { success: true };
     },
     [],
@@ -150,9 +143,17 @@ export function NotificationBell() {
     respondAndMarkRead,
     {
       actionVerb: "Responding to friend request",
-      onSuccess: (_data, _notification, response) => {
+      onSuccess: (_data, notification, response) => {
         toast.success(`Friend request ${response}`);
-        fetchNotifications();
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({
+          queryKey: ["userProfile", notification.actor.user_id],
+        });
+        if (user) {
+          queryClient.invalidateQueries({
+            queryKey: ["userProfile", user.user_id],
+          });
+        }
       },
     },
   );
@@ -160,7 +161,6 @@ export function NotificationBell() {
   if (!isAuthenticated) return null;
 
   const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
-
   const isActionLoading = isMarkingRead || isMarkingUnread || isResponding;
 
   return (
