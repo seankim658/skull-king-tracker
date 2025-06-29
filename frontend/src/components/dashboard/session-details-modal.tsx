@@ -133,14 +133,14 @@ export function SessionDetailsModal({
                 No games have been played in this session yet.
               </p>
             ) : (
-              sessionDetails.games.map((game) => (
+              sessionDetails.games.map((game, index) => (
                 <div
                   key={game.game_id}
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-md"
                 >
                   <div>
                     <p className="font-medium flex items-center">
-                      Game{" "}
+                      Game {index + 1}{" "}
                       <Badge
                         variant={
                           game.status === "active" ? "destructive" : "secondary"
