@@ -154,7 +154,7 @@ export function ActiveSessions() {
               </div>
             </div>
 
-            <div className="flex flex-shrink-0 gap-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row flex-shrink-0 gap-2 w-full sm:w-auto">
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
