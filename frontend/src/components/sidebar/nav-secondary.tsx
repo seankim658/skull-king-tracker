@@ -6,6 +6,7 @@ import {
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
+  useSidebar,
 } from "../ui/sidebar";
 
 interface NavSecondaryProps
@@ -22,13 +23,21 @@ export function NavSecondary({
   className,
   ...props
 }: NavSecondaryProps) {
+  const { setOpen, isMobile } = useSidebar();
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpen(false);
+    }
+  };
+
   return (
     <SidebarGroup className={className} {...props}>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuButton key={item.title} asChild>
-              <Link to={item.url}>
+              <Link to={item.url} onClick={handleLinkClick}>
                 <item.icon />
                 <span>{item.title}</span>
               </Link>

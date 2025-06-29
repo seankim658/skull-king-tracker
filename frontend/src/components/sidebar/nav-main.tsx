@@ -8,6 +8,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "../ui/sidebar";
 
 interface NavMainProps {
@@ -20,6 +21,14 @@ interface NavMainProps {
 }
 
 export function NavMain({ items, uploadButton = false }: NavMainProps) {
+  const { setOpen, isMobile } = useSidebar();
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpen(false);
+    }
+  };
+
   return (
     <SidebarGroup>
       <SidebarGroupContent className={cn("flex flex-col gap-2")}>
@@ -60,7 +69,7 @@ export function NavMain({ items, uploadButton = false }: NavMainProps) {
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton tooltip={item.title} asChild>
-                <Link to={item.url}>
+                <Link to={item.url} onClick={handleLinkClick}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </Link>
