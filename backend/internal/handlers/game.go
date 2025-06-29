@@ -386,7 +386,7 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  // TODO : determine starting dealer
+	// TODO : determine starting dealer
 
 	if err := db.UpdateGameStatus(ctx, nil, gameID, "active"); err != nil {
 		logger.Error().Err(err).Msg("Failed to update game status to active")
@@ -516,7 +516,8 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 		return
 	}
 	if !RequireFields(w, r, map[string]string{
-		"scorekeeper_user_id": req.ScorekeeperUserID,
+		"scorekeeper_user_id":            req.ScorekeeperUserID,
+		"starting_dealer_game_player_id": req.StartingDealerGamePlayerID,
 	}) {
 		return
 	}
@@ -543,6 +544,11 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	playerIDSet := make(map[string]bool)
+	for _, p := range dbPlayers {
+		playerIDSet[p.GamePlayerID] = true
+	}
+
 	// Validate scorekeeper
 	isScorekeeperValid := false
 	for _, p := range dbPlayers {
@@ -561,6 +567,14 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Validate starting dealer
+	if !playerIDSet[req.StartingDealerGamePlayerID] {
+		opErr = fmt.Errorf("invalid starting dealer: %s", req.StartingDealerGamePlayerID)
+		ErrorResponse(w, r, http.StatusBadRequest, "Selected starting dealer is not in this game")
+		responseSent = true
+		return
+	}
+
 	// Validate seating order
 	if len(req.OrderedPlayerIDs) != len(dbPlayers) {
 		opErr = fmt.Errorf(
@@ -574,10 +588,6 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	playerIDSet := make(map[string]bool)
-	for _, p := range dbPlayers {
-		playerIDSet[p.GamePlayerID] = true
-	}
 	for _, reqPlayerID := range req.OrderedPlayerIDs {
 		if !playerIDSet[reqPlayerID] {
 			opErr = fmt.Errorf("invalid player ID in seating order: %s", reqPlayerID)
@@ -590,7 +600,30 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	opErr = db.UpdateGameSettings(ctx, tx, gameID, req.ScorekeeperUserID, req.OrderedPlayerIDs)
+	finalOrderedPlayerIDs := req.OrderedPlayerIDs
+	dealerIndex := -1
+	for i, id := range finalOrderedPlayerIDs {
+		if id == req.StartingDealerGamePlayerID {
+			dealerIndex = i
+			break
+		}
+	}
+
+	if dealerIndex != -1 {
+		reordered := append(finalOrderedPlayerIDs[dealerIndex:], finalOrderedPlayerIDs[:dealerIndex]...)
+		finalOrderedPlayerIDs = reordered
+		logger.Debug().
+			Interface("original_order", req.OrderedPlayerIDs).
+			Interface("final_order", finalOrderedPlayerIDs).
+			Msg("Reordered players based on new starting dealer")
+	}
+
+	opErr = db.UpdateGameSettings(
+		ctx, tx, gameID,
+		req.ScorekeeperUserID,
+		req.StartingDealerGamePlayerID,
+		finalOrderedPlayerIDs,
+	)
 	if opErr != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save game settings")
 		responseSent = true

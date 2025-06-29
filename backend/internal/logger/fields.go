@@ -65,10 +65,11 @@ const (
 	GothNickNameKey       = "goth_nickname"
 
 	// Game
-	GameIDKey        = "game_id"
-	ScorekeeperIDKey = "scorekeeper_id"
-	RoundKey         = "round"
-	RoundIDKey       = "round_id"
+	GameIDKey                 = "game_id"
+	ScorekeeperIDKey          = "scorekeeper_id"
+	RoundKey                  = "round"
+	RoundIDKey                = "round_id"
+	StartingDealerPlayerIDKey = "starting_dealer_id"
 
 	// Session
 	SessionIDKey   = "session_id"

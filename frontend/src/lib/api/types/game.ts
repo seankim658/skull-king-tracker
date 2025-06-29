@@ -47,4 +47,5 @@ export interface GamePlayerResponse {
 export interface UpdateGameSettingsPayload {
   scorekeeper_user_id: string;
   ordered_player_ids: string[];
+  starting_dealer_game_player_id: string;
 }

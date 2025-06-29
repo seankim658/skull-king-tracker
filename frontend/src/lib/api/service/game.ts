@@ -61,7 +61,7 @@ export const gameAPI = {
    * @param gameId - The ID of the game to start
    */
   startGame: (gameId: string): Promise<ApiResponse<null>> =>
-    client<null>(`/games${gameId}/start`, {
+    client<null>(`/games/${gameId}/start`, {
       method: "PUT",
     }),
 

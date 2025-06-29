@@ -30,7 +30,13 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GripVertical, Shuffle, NotebookPen, Rocket } from "lucide-react";
+import {
+  GripVertical,
+  Shuffle,
+  NotebookPen,
+  Rocket,
+  AlertTriangle,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarFallback, getFullAvatarURL } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -43,6 +49,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -88,9 +96,12 @@ export function GameSetupPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user: authenticatedUser } = useAuth();
 
   const [players, setPlayers] = useState<GamePlayerResponse[]>([]);
   const [scorekeeperId, setScorekeeperId] = useState<string>("");
+  const [startingDealerId, setStartingDealerId] = useState<string>("");
+  const [showScorekeeperWarning, setShowScorekeeperWarning] = useState(false);
 
   const { data: initialPlayers, isLoading: isLoadingPlayers } = useQuery({
     queryKey: ["gamePlayers", gameId],
@@ -117,7 +128,12 @@ export function GameSetupPage() {
   });
 
   useEffect(() => {
-    if (initialPlayers) setPlayers(initialPlayers);
+    if (initialPlayers) {
+      setPlayers(initialPlayers);
+      if (initialPlayers.length > 0) {
+        setStartingDealerId(initialPlayers[0].game_player_id);
+      }
+    }
   }, [initialPlayers]);
 
   useEffect(() => {
@@ -126,12 +142,44 @@ export function GameSetupPage() {
     }
   }, [gameDetails]);
 
+  useEffect(() => {
+    if (
+      players.length > 0 &&
+      !players.find((p) => p.game_player_id === startingDealerId)
+    ) {
+      setStartingDealerId(players[0].game_player_id);
+    } else if (
+      players.length > 0 &&
+      players[0].game_player_id !== startingDealerId
+    ) {
+      const isDealerInList = players.some(
+        (p) => p.game_player_id === startingDealerId,
+      );
+      if (!isDealerInList || players[0].game_player_id === startingDealerId) {
+        setStartingDealerId(players[0].game_player_id);
+      }
+    }
+  }, [players, startingDealerId]);
+
+  useEffect(() => {
+    if (
+      authenticatedUser &&
+      scorekeeperId &&
+      scorekeeperId !== authenticatedUser.user_id
+    ) {
+      setShowScorekeeperWarning(true);
+    } else {
+      setShowScorekeeperWarning(false);
+    }
+  }, [scorekeeperId, authenticatedUser]);
+
   const { submit: saveSettings, isLoading: isSaving } = useSubmit(
     gameAPI.updateGameSettings,
     {
       actionVerb: "Saving settings",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["gamePlayers", gameId] });
       },
     },
   );
@@ -160,19 +208,44 @@ export function GameSetupPage() {
       setPlayers((items) => {
         const oldIndex = items.findIndex((p) => p.game_player_id === active.id);
         const newIndex = items.findIndex((p) => p.game_player_id === over.id);
-        return arrayMove(items, oldIndex, newIndex);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        if (newItems.length > 0) {
+          setStartingDealerId(newItems[0].game_player_id);
+        }
+        return newItems;
       });
     }
   }
 
   const handleShuffle = () => {
-    setPlayers((currentPlayers) =>
-      [...currentPlayers].sort(() => Math.random() - 0.5),
-    );
+    const shuffled = [...players].sort(() => Math.random() - 0.5);
+    setPlayers(shuffled);
+    if (shuffled.length > 0) {
+      setStartingDealerId(shuffled[0].game_player_id);
+    }
+  };
+
+  const handleDealerChange = (newDealerId: string) => {
+    setStartingDealerId(newDealerId);
+    setPlayers((currentPlayers) => {
+      const dealerIndex = currentPlayers.findIndex(
+        (p) => p.game_player_id === newDealerId,
+      );
+      if (dealerIndex === -1) return currentPlayers;
+      return [
+        ...currentPlayers.slice(dealerIndex),
+        ...currentPlayers.slice(0, dealerIndex),
+      ];
+    });
   };
 
   const handleSaveSettings = () => {
-    if (!gameId || !scorekeeperId || players.length === 0) {
+    if (
+      !gameId ||
+      !scorekeeperId ||
+      !startingDealerId ||
+      players.length === 0
+    ) {
       toast.error("Cannot save settings: missing required information");
       return;
     }
@@ -180,10 +253,36 @@ export function GameSetupPage() {
     saveSettings(gameId, {
       scorekeeper_user_id: scorekeeperId,
       ordered_player_ids: orderedPlayerIds,
+      starting_dealer_game_player_id: startingDealerId,
     });
   };
 
+  const handleProceed = () => {
+    if ((players?.length ?? 0) < 2) {
+      toast.error("A game requires at least 2 players to proceed");
+      return;
+    }
+    if (!gameId) {
+      toast.error("Game ID is missing, cannot start the game");
+      return;
+    }
+
+    if (!scorekeeperId || !startingDealerId || players.length === 0) {
+      toast.error("Cannot start game: missing required information");
+      return;
+    }
+    const orderedPlayerIds = players.map((p) => p.game_player_id);
+    saveSettings(gameId, {
+      scorekeeper_user_id: scorekeeperId,
+      ordered_player_ids: orderedPlayerIds,
+      starting_dealer_game_player_id: startingDealerId,
+    });
+    startGame(gameId);
+  };
+
   const registeredPlayers = players.filter((p) => p.user_id);
+  const isCurrentUserScorekeeper =
+    authenticatedUser?.user_id === gameDetails?.current_scorekeeper_user_id;
 
   if (isLoadingPlayers || isLoadingDetails) {
     return (
@@ -247,50 +346,96 @@ export function GameSetupPage() {
             </DndContext>
           </div>
 
-          {/* Scorekeeper Section */}
-          <div>
-            <Label
-              htmlFor="scorekeeper-select"
-              className="text-lg font-semibold block mb-2"
-            >
-              Scorekeeper
-            </Label>
-            <Select
-              value={scorekeeperId}
-              onValueChange={setScorekeeperId}
-              disabled={isSaving}
-            >
-              <SelectTrigger id="scorekeeper-select">
-                <SelectValue placeholder="Select a scorekeeper" />
-              </SelectTrigger>
-              <SelectContent>
-                {registeredPlayers.map((player) => (
-                  <SelectItem key={player.user_id} value={player.user_id!}>
-                    {player.display_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Settings Section */}
+          <div className="space-y-4">
+            {/* Starting Dealer Section */}
+            <div>
+              <Label
+                htmlFor="dealer-select"
+                className="text-lg font-semibold block mb-2"
+              >
+                Starting Dealer
+              </Label>
+              <Select
+                value={startingDealerId}
+                onValueChange={handleDealerChange}
+                disabled={isSaving}
+              >
+                <SelectTrigger id="dealer-select" className="w-full">
+                  <SelectValue placeholder="Select starting dealer" />
+                  <SelectContent>
+                    {players.map((player) => (
+                      <SelectItem
+                        key={player.game_player_id}
+                        value={player.game_player_id}
+                      >
+                        {player.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </SelectTrigger>
+              </Select>
+            </div>
+
+            {/* Scorekeeper Section */}
+            <div>
+              <Label
+                htmlFor="scorekeeper-select"
+                className="text-lg font-semibold block mb-2"
+              >
+                Scorekeeper
+              </Label>
+              <Select
+                value={scorekeeperId}
+                onValueChange={setScorekeeperId}
+                disabled={isSaving}
+              >
+                <SelectTrigger id="scorekeeper-select" className="w-full">
+                  <SelectValue placeholder="Select a scorekeeper" />
+                </SelectTrigger>
+                <SelectContent>
+                  {registeredPlayers.map((player) => (
+                    <SelectItem key={player.user_id} value={player.user_id!}>
+                      {player.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {showScorekeeperWarning && (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Warning: Transferring Control</AlertTitle>
+                  <AlertDescription>
+                    By changing the scorekeeper and saving, you will hand over
+                    control of this game. You will no longer be able to make
+                    changes.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
           </div>
         </CardContent>
 
         <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6">
           <Button
             onClick={handleSaveSettings}
-            disabled={isSaving}
+            disabled={isSaving || !isCurrentUserScorekeeper}
             size="lg"
-            className="cursor-pointer"
+            className="w-full sm:w-auto cursor-pointer"
           >
             <NotebookPen className="h-4 w-4 mr-2" />
             {isSaving ? "Saving..." : "Save Settings"}
           </Button>
           <Button
-            onClick={() => gameId && startGame(gameId)}
+            onClick={handleProceed}
             disabled={
-              isSaving || isStarting || gameDetails?.status !== "pending"
+              isSaving ||
+              isStarting ||
+              !isCurrentUserScorekeeper ||
+              gameDetails?.status !== "pending"
             }
             size="lg"
-            className="cursor-pointer"
+            className="w-full sm:w-auto cursor-pointer"
           >
             <Rocket className="h-4 w-4 mr-2" />
             {gameDetails?.status === "pending"

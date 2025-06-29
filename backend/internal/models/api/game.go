@@ -37,6 +37,7 @@ type GamePlayerResponse struct {
 }
 
 type UpdateGameSettingsRequest struct {
-	ScorekeeperUserID string   `json:"scorekeeper_user_id" validate:"required"`
-	OrderedPlayerIDs  []string `json:"ordered_player_ids" validate:"required"`
+	ScorekeeperUserID          string   `json:"scorekeeper_user_id" validate:"required"`
+	OrderedPlayerIDs           []string `json:"ordered_player_ids" validate:"required"`
+	StartingDealerGamePlayerID string   `json:"starting_dealer_game_player_id" validate:"required"`
 }

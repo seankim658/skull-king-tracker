@@ -388,22 +388,36 @@ func GetGamesBySessionID(
 func UpdateGameSettings(
 	ctx context.Context,
 	querier DBTX,
-	gameID, scorekeeperUserID string,
+	gameID, scorekeeperUserID,
+	startingDealerGamePlayerID string,
 	orderedPlayersIDs []string,
 ) error {
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		gameComponent,
 		"UpdateGameSettings",
-	).With().Str(l.GameIDKey, gameID).Str(l.ScorekeeperIDKey, scorekeeperUserID).Logger()
+	).With().
+		Str(l.GameIDKey, gameID).
+		Str(l.ScorekeeperIDKey, scorekeeperUserID).
+		Str(l.StartingDealerPlayerIDKey, startingDealerGamePlayerID).
+		Logger()
 
 	updateScorekeeperQuery := `
   UPDATE games 
-  SET current_scorekeeper_user_id = $1, updated_at = NOW()
-  WHERE game_id = $2;
+  SET 
+    current_scorekeeper_user_id = $1, 
+    starting_dealer_game_player_id = $2,
+    updated_at = NOW()
+  WHERE game_id = $3;
   `
 	logger.Debug().Str(l.QueryKey, updateScorekeeperQuery).Msg("Attempting to update game scorekeeper")
-	if _, err := querier.ExecContext(ctx, updateScorekeeperQuery, scorekeeperUserID, gameID); err != nil {
+	if _, err := querier.ExecContext(
+		ctx,
+		updateScorekeeperQuery,
+		scorekeeperUserID,
+		startingDealerGamePlayerID,
+		gameID,
+	); err != nil {
 		logger.Error().Err(err).Msg("Failed to update scorekeeper")
 		return fmt.Errorf("error updating scorekeeper for game %s: %w", gameID, err)
 	}
