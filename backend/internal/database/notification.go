@@ -151,7 +151,11 @@ func UpdateNotificationReadStatus(
 }
 
 // Deletes a notification by its associated friendship ID and type
-func DeleteNotificationByFriendshipID(ctx context.Context, tx *sql.Tx, friendshipID, notificationType string) error {
+func DeleteNotificationByFriendshipID(
+	ctx context.Context,
+	tx *sql.Tx,
+	friendshipID, notificationType string,
+) error {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -193,7 +197,11 @@ func DeleteFriendRequestNotification(ctx context.Context, tx *sql.Tx, recipientI
 }
 
 // Retrieves a single notification with its actor details by ID
-func GetNotificationWithActorByID(ctx context.Context, tx *sql.Tx, notificationID string) (*dbModels.NotificationWithActor, error) {
+func GetNotificationWithActorByID(
+	ctx context.Context,
+	tx *sql.Tx,
+	notificationID string,
+) (*dbModels.NotificationWithActor, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -227,6 +235,52 @@ func GetNotificationWithActorByID(ctx context.Context, tx *sql.Tx, notificationI
 		}
 		logger.Error().Err(err).Msg("Failed to scan notification with actor row")
 		return nil, fmt.Errorf("error scanning notification for ID %s: %w", notificationID, err)
+	}
+	return &n, nil
+}
+
+// Retrieves a single notification by its type and the involved user IDs
+func GetNotificationByUsersAndType(
+	ctx context.Context,
+	tx *sql.Tx,
+	recipientID, actorID, notificationType string,
+) (*dbModels.NotificationWithActor, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"GetNotificationByUsersAndType",
+	).With().
+		Str(l.RecipientIDKey, recipientID).
+		Str(l.ActorIDKey, actorID).
+		Str(l.NotificationTypeKey, notificationType).
+		Logger()
+
+	query := `
+  SELECT
+    un.notification_id, un.recipient_user_id, un.type, un.actor_user_id,
+    un.message, un.is_read, un.link, un.created_at, un.friendship_id,
+    u.username AS actor_username,
+    u.display_name AS actor_display_name,
+    u.avatar_url AS actor_avatar_url
+  FROM user_notifications un
+  JOIN users u ON un.actor_user_id = u.user_id
+  WHERE un.recipient_user_id = $1 AND un.actor_user_id = $2 AND un.type = $3;
+  `
+
+	var n dbModels.NotificationWithActor
+	err := querier.QueryRowContext(ctx, query, recipientID, actorID, notificationType).Scan(
+		&n.NotificationID, &n.RecipientUserID, &n.Type, &n.ActorUserID,
+		&n.Message, &n.IsRead, &n.Link, &n.CreatedAt, &n.FriendshipID,
+		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.Warn().Msg("Notification not found by IDs and type")
+			return nil, err
+		}
+		logger.Error().Err(err).Msg("Failed to scan notification with actor row")
+		return nil, fmt.Errorf("error scanning notification for recipient %s / actor %s: %w", recipientID, actorID, err)
 	}
 	return &n, nil
 }

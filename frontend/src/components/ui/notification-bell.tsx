@@ -21,7 +21,11 @@ import { Badge } from "./badge";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { notificationAPI } from "@/lib/api/service/notification";
 import { friendshipAPI } from "@/lib/api/service/friendship";
-import type { Notification } from "@/lib/api/types";
+import type {
+  Notification,
+  SSEEvent,
+  SSEDeletedNotificationPayload,
+} from "@/lib/api/types";
 import { getFullAvatarURL, getAvatarFallback, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -64,30 +68,57 @@ export function NotificationBell() {
     eventSource.onmessage = (event) => {
       console.log("SSE message received:", event.data);
       try {
-        const newNotification: Notification = JSON.parse(event.data);
-        toast.info(
-          <span>
-            New notification from{" "}
-            <b>
-              {newNotification.actor.display_name ||
-                newNotification.actor.username}
-            </b>
-          </span>,
-        );
+        const sseEvent: SSEEvent = JSON.parse(event.data);
 
-        queryClient.setQueryData(
-          ["notifications"],
-          (oldData: Notification[] | undefined) => {
-            if (!oldData) return [newNotification];
-            if (
-              oldData.some(
-                (n) => n.notification_id === newNotification.notification_id,
-              )
-            )
-              return oldData;
-            return [newNotification, ...oldData];
-          },
-        );
+        switch (sseEvent.event) {
+          case "notification_created": {
+            const newNotification = sseEvent.payload as Notification;
+            toast.info(
+              <span>
+                New notification from{" "}
+                <b>
+                  {newNotification.actor.display_name ||
+                    newNotification.actor.username}
+                </b>
+              </span>,
+            );
+
+            queryClient.setQueryData(
+              ["notifications"],
+              (oldData: Notification[] | undefined) => {
+                if (!oldData) return [newNotification];
+                if (
+                  oldData.some(
+                    (n) =>
+                      n.notification_id === newNotification.notification_id,
+                  )
+                )
+                  return oldData;
+                return [newNotification, ...oldData];
+              },
+            );
+            break;
+          }
+
+          case "notification_deleted": {
+            const { notification_id } =
+              sseEvent.payload as SSEDeletedNotificationPayload;
+            queryClient.setQueryData(
+              ["notifications"],
+              (oldData: Notification[] | undefined) => {
+                if (!oldData) return [];
+                return oldData.filter(
+                  (n) => n.notification_id !== notification_id,
+                );
+              },
+            );
+            break;
+          }
+
+          default:
+            console.warn(`Unknown SSE event type: ${sseEvent.event}`);
+            break;
+        }
       } catch (e) {
         console.error("Failed to parse SSE notification data:", e);
       }

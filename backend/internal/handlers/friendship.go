@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -122,12 +123,16 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		if convErr != nil {
 			logger.Error().Err(convErr).Msg("Failed to convert notification for SSE broadcast")
 		} else {
-			jsonNotif, jsonErr := json.Marshal(apiNotif)
+			ssePayload := apiModels.SSEEvent{
+				Event:   "notification_created",
+				Payload: apiNotif,
+			}
+			jsonPayload, jsonErr := json.Marshal(ssePayload)
 			if jsonErr != nil {
-				logger.Error().Err(jsonErr).Msg("Failed to marshal notification for SSE broadcast")
+				logger.Error().Err(jsonErr).Msg("Failed to marshal SSE creation event payload")
 			} else {
-				fh.SSEHub.Broadcast(req.AddresseeID, string(jsonNotif))
-				logger.Info().Str(l.RecipientIDKey, req.AddresseeID).Msg("Broadcasted new friendship notification via SSE")
+				fh.SSEHub.Broadcast(req.AddresseeID, string(jsonPayload))
+				logger.Info().Str(l.RecipientIDKey, req.AddresseeID).Msg("Broadcasted 'notification_created' event via SSE")
 			}
 		}
 	}
@@ -244,13 +249,37 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		}
 		message := fmt.Sprintf("%s accepted your friend request", actorDisplayName)
 
-		_, err = db.CreateNotification(
+		acceptedNotificationID, err := db.CreateNotification(
 			ctx, tx, friendship.RequesterID,
 			addresseeID, "friend_accepted",
 			message, &friendshipID,
 		)
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to create 'friend_accepted' notification")
+		} else {
+			dbNotif, notifErr := db.GetNotificationWithActorByID(ctx, tx, acceptedNotificationID)
+			if notifErr != nil {
+				logger.Error().Err(notifErr).Msg("Failed to fetch 'friend_accepted' notification for SSE broadcast")
+			} else {
+				apiNotif, convErr := modelConverters.DBNotificationWithActorToAPI(dbNotif)
+				if convErr != nil {
+					logger.Error().Err(convErr).Msg("Failed to convert 'friend_accepted' notification for SSE broadcast")
+				} else {
+					ssePayload := apiModels.SSEEvent{
+						Event:   "notification_created",
+						Payload: apiNotif,
+					}
+					jsonPayload, jsonErr := json.Marshal(ssePayload)
+					if jsonErr != nil {
+						logger.Error().Err(jsonErr).Msg("Failed to marshal 'friend_accepted' SSE event payload")
+					} else {
+						fh.SSEHub.Broadcast(friendship.RequesterID, string(jsonPayload))
+						logger.Info().
+							Str(l.RecipientIDKey, friendship.RequesterID).
+							Msg("Braodcast 'friend_accepted' event via SSE")
+					}
+				}
+			}
 		}
 	}
 
@@ -339,6 +368,7 @@ func (fh *FriendshipHandler) HandleCancelFriendRequest(w http.ResponseWriter, r 
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
+	// 1. Find the pending friendship to get its ID
 	pendingFriendship, err := db.GetPendingFriendshipByUsers(ctx, tx, requesterID, addresseeID)
 	if err != nil {
 		opErr = err
@@ -351,6 +381,33 @@ func (fh *FriendshipHandler) HandleCancelFriendRequest(w http.ResponseWriter, r 
 		return
 	}
 
+	// 2. Find the notification associated with this request to get its ID for the SSE event
+	notificationToCancel, err := db.GetNotificationByUsersAndType(
+		ctx, tx, addresseeID, requesterID,
+		apiModels.NotificationTypeFriendRequest,
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		logger.Error().Err(err).Msg("Could not find notifiaction to broadcast")
+	}
+
+	// 3. Broadcast deletion via SSE
+	if notificationToCancel != nil {
+		ssePayload := apiModels.SSEEvent{
+			Event: "notification_deleted",
+			Payload: apiModels.SSEDeletedNotificationPayload{
+				NotificationID: notificationToCancel.NotificationID,
+			},
+		}
+		jsonPayload, jsonErr := json.Marshal(ssePayload)
+		if jsonErr != nil {
+			logger.Error().Err(jsonErr).Msg("Failed to marshal SSE deletion event payload")
+		} else {
+			fh.SSEHub.Broadcast(addresseeID, string(jsonPayload))
+			logger.Info().Str(l.RecipientIDKey, addresseeID).Msg("Broadcasted 'notification_deleted' event via SSE")
+		}
+	}
+
+	// 4. Delete the notification from the database
 	if err := db.DeleteNotificationByFriendshipID(
 		ctx, tx, pendingFriendship.FriendshipID,
 		apiModels.NotificationTypeFriendRequest,
@@ -358,6 +415,7 @@ func (fh *FriendshipHandler) HandleCancelFriendRequest(w http.ResponseWriter, r 
 		logger.Error().Err(opErr).Msg("Failed to delete notification for canceled request")
 	}
 
+	// 5. Delete the friendship record
 	opErr = db.DeleteFriendshipByID(ctx, tx, pendingFriendship.FriendshipID)
 	if opErr != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to cancel friend request")
