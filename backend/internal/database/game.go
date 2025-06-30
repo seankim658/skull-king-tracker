@@ -531,3 +531,106 @@ func CreateRound(
 	logger.Info().Str(l.RoundIDKey, returnedRoundID).Msg("Round created successfully")
 	return returnedRoundID, nil
 }
+
+// Fetches all necessary data to build the game scorecard
+func GetScorecardState(ctx context.Context, tx *sql.Tx, gameID string) (*dbModels.FullScorecardData, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetScorecardStats",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	scorecardData := &dbModels.FullScorecardData{}
+
+	game, err := GetGameByID(ctx, tx, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting game for scorecard: %w", err)
+	}
+	scorecardData.Game = *game
+
+	players, err := GetPlayersByGameID(ctx, tx, gameID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting players for scorecard: %w", err)
+	}
+	scorecardData.Players = players
+
+	queryRounds := `
+  SELECT 
+    round_id, game_id, round_number, dealer_game_player_id, 
+    status, is_tiebreaker_round, created_at, updated_at 
+  FROM rounds 
+  WHERE game_id = $1 
+  ORDER BY round_number ASC;
+  `
+	rows, err := querier.QueryContext(ctx, queryRounds, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query rounds for scorecard")
+		return nil, fmt.Errorf("error getting rounds for scorecard: %w", err)
+	}
+	defer rows.Close()
+
+	var rounds []dbModels.Round
+	for rows.Next() {
+		var r dbModels.Round
+		if err := rows.Scan(
+			&r.RoundID, &r.GameID, &r.RoundNumber, &r.DealerGamePlayerID,
+			&r.Status, &r.IsTiebreakerRound, &r.CreatedAt, &r.UpdatedAt,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan round row")
+			return nil, fmt.Errorf("error scanning round data: %w", err)
+		}
+		rounds = append(rounds, r)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating round rows: %w", err)
+	}
+	scorecardData.Rounds = rounds
+
+	queryScores := `
+  SELECT 
+    prs.player_round_score_id, prs.round_id, prs.game_player_id, 
+    prs.bid_amount, prs.tricks_taken, prs.round_score, prs.bonus_points_applied
+  FROM player_round_scores prs
+  JOIN rounds r ON prs.round_id = r.round_id
+  WHERE r.game_id = $1;
+  `
+	scoreRows, err := querier.QueryContext(ctx, queryScores, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query player scores for scorecard")
+		return nil, fmt.Errorf("error getting player scores: %w", err)
+	}
+	defer scoreRows.Close()
+
+	var scores []dbModels.PlayerRoundScoreDetails
+	for scoreRows.Next() {
+		var s dbModels.PlayerRoundScoreDetails
+		if err := scoreRows.Scan(
+			&s.PlayerRoundScoreID, &s.RoundID, &s.GamePlayerID, &s.BidAmount,
+			&s.TricksTaken, &s.RoundScore, &s.BonusPointsApplied,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan player score row")
+			return nil, fmt.Errorf("error scanning player score data: %w", err)
+		}
+		scores = append(scores, s)
+	}
+	if err = scoreRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating score rows: %w", err)
+	}
+	scorecardData.Scores = scores
+
+	logger.Info().Msg("Successfully fetched all scorecard data")
+	return scorecardData, nil
+}
+
+// Checks if a registered user is a player in a game
+func IsUserInGame(ctx context.Context, tx *sql.Tx, userID, gameID string) (bool, error) {
+	querier := GetQuerier(tx)
+	query := "SELECT EXISTS(SELECT 1 FROM game_players WHERE user_id = $1 AND game_id = $2);"
+	var exists bool
+	err := querier.QueryRowContext(ctx, query, userID, gameID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("error checking if user is in game: %w", err)
+	}
+	return exists, nil
+}

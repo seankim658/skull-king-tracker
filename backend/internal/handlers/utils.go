@@ -94,6 +94,20 @@ func PathVar(w http.ResponseWriter, r *http.Request, varName string) (string, bo
 	return value, true
 }
 
+// Get an integer path var
+func PathVarInt(w http.ResponseWriter, r *http.Request, varName string) (int, bool) {
+	valueStr, ok := PathVar(w, r, varName)
+	if !ok {
+		return 0, false
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("Path variable '%s' must be a valid integer", varName))
+		return 0, false
+	}
+	return value, true
+}
+
 // Gets a query paramter value from the request URL
 func QueryParam(r *http.Request, param string) string {
 	return r.URL.Query().Get(param)

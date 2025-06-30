@@ -71,6 +71,9 @@ const (
 	RoundIDKey                = "round_id"
 	StartingDealerPlayerIDKey = "starting_dealer_id"
 
+	// Round
+	BidAmountKey = "bids_submitted"
+
 	// Session
 	SessionIDKey   = "session_id"
 	SessionNameKey = "session_name"

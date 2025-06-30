@@ -96,14 +96,11 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		actorDisplayName = actor.DisplayName.String
 	}
 	message := fmt.Sprintf("%s wants to be your friend", actorDisplayName)
+
 	createdNotificationID, err := db.CreateNotification(
-		ctx,
-		tx,
-		req.AddresseeID,
-		requesterID,
+		ctx, tx, req.AddresseeID, requesterID,
 		apiModels.NotificationTypeFriendRequest,
-		message,
-		&friendshipID,
+		message, &friendshipID,
 	)
 	if err != nil {
 		opErr = err
@@ -115,27 +112,7 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		return
 	}
 
-	dbNotif, notifErr := db.GetNotificationWithActorByID(ctx, tx, createdNotificationID)
-	if notifErr != nil {
-		logger.Error().Err(notifErr).Msg("Failed to fetch created notification for SSE broadcast")
-	} else {
-		apiNotif, convErr := modelConverters.DBNotificationWithActorToAPI(dbNotif)
-		if convErr != nil {
-			logger.Error().Err(convErr).Msg("Failed to convert notification for SSE broadcast")
-		} else {
-			ssePayload := apiModels.SSEEvent{
-				Event:   "notification_created",
-				Payload: apiNotif,
-			}
-			jsonPayload, jsonErr := json.Marshal(ssePayload)
-			if jsonErr != nil {
-				logger.Error().Err(jsonErr).Msg("Failed to marshal SSE creation event payload")
-			} else {
-				fh.SSEHub.Broadcast(req.AddresseeID, string(jsonPayload))
-				logger.Info().Str(l.RecipientIDKey, req.AddresseeID).Msg("Broadcasted 'notification_created' event via SSE")
-			}
-		}
-	}
+	broadcastNotification(ctx, tx, fh.SSEHub, createdNotificationID, req.AddresseeID, logger)
 
 	if !responseSent {
 		Respond(w, r, http.StatusCreated, nil, "Friendship request sent successfully")
@@ -250,36 +227,13 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		message := fmt.Sprintf("%s accepted your friend request", actorDisplayName)
 
 		acceptedNotificationID, err := db.CreateNotification(
-			ctx, tx, friendship.RequesterID,
-			addresseeID, "friend_accepted",
-			message, &friendshipID,
+			ctx, tx, friendship.RequesterID, addresseeID,
+			"friend_accepted", message, &friendshipID,
 		)
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to create 'friend_accepted' notification")
 		} else {
-			dbNotif, notifErr := db.GetNotificationWithActorByID(ctx, tx, acceptedNotificationID)
-			if notifErr != nil {
-				logger.Error().Err(notifErr).Msg("Failed to fetch 'friend_accepted' notification for SSE broadcast")
-			} else {
-				apiNotif, convErr := modelConverters.DBNotificationWithActorToAPI(dbNotif)
-				if convErr != nil {
-					logger.Error().Err(convErr).Msg("Failed to convert 'friend_accepted' notification for SSE broadcast")
-				} else {
-					ssePayload := apiModels.SSEEvent{
-						Event:   "notification_created",
-						Payload: apiNotif,
-					}
-					jsonPayload, jsonErr := json.Marshal(ssePayload)
-					if jsonErr != nil {
-						logger.Error().Err(jsonErr).Msg("Failed to marshal 'friend_accepted' SSE event payload")
-					} else {
-						fh.SSEHub.Broadcast(friendship.RequesterID, string(jsonPayload))
-						logger.Info().
-							Str(l.RecipientIDKey, friendship.RequesterID).
-							Msg("Braodcast 'friend_accepted' event via SSE")
-					}
-				}
-			}
+			broadcastNotification(ctx, tx, fh.SSEHub, acceptedNotificationID, friendship.RequesterID, logger)
 		}
 	}
 

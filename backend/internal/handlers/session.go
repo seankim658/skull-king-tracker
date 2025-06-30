@@ -12,7 +12,7 @@ import (
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 )
 
-const sessionHandlerComponent = "handlers-session"
+const sessionComponent = "handlers-session"
 
 type SessionHandler struct {
 	Cfg *cf.Config
@@ -29,7 +29,7 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		sessionHandlerComponent,
+		sessionComponent,
 		"HandleGetActiveSessionsForUser",
 	)
 

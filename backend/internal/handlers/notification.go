@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/rs/zerolog"
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
-	convert "github.com/seankim658/skullking/internal/models/convert"
+	apiModels "github.com/seankim658/skullking/internal/models/api"
+	modelConverters "github.com/seankim658/skullking/internal/models/convert"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -132,7 +137,7 @@ func (nh *NotificationHandler) HandleGetNotifications(w http.ResponseWriter, r *
 		return
 	}
 
-	apiNotifications := convert.DBNotificationsToAPIResponse(dbNotifications)
+	apiNotifications := modelConverters.DBNotificationsToAPIResponse(dbNotifications)
 	Respond(w, r, http.StatusOK, apiNotifications, "Notifications retrieved successfully")
 }
 
@@ -196,4 +201,40 @@ func (nh *NotificationHandler) HandleMarkNotificationUnread(w http.ResponseWrite
 	}
 
 	Respond(w, r, http.StatusNoContent, nil, "Notification marked as unread")
+}
+
+// Fetches a newly created notification, converts it, and sends it via SSE
+func broadcastNotification(
+	ctx context.Context,
+	tx *sql.Tx,
+	sseHub *sse.Hub,
+	notificationID,
+	recipientID string,
+	logger zerolog.Logger,
+) {
+	dbNotif, err := db.GetNotificationWithActorByID(ctx, tx, notificationID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to fetch created notification for SSE broadcast")
+		return
+	}
+
+	apiNotif, err := modelConverters.DBNotificationWithActorToAPI(dbNotif)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to convert notification for SSE broadcast")
+		return
+	}
+
+	ssePayload := apiModels.SSEEvent{
+		Event:   "notification_created",
+		Payload: apiNotif,
+	}
+
+	jsonPayload, err := json.Marshal(ssePayload)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to marshal SSE notification payload")
+		return
+	}
+
+	sseHub.Broadcast(recipientID, string(jsonPayload))
+	logger.Info().Str(l.RecipientIDKey, recipientID).Msgf("Broadcasted '%s' event via SSE", ssePayload.Event)
 }

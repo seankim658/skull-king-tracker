@@ -11,7 +11,7 @@ import (
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 )
 
-const gameHandlerComponent = "handlers-game"
+const gameComponent = "handlers-game"
 
 type GameHandler struct {
 	Cfg *cf.Config
@@ -28,7 +28,7 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleCreateGame",
 	)
 
@@ -149,7 +149,7 @@ func (gh *GameHandler) HandleAddPlayerToGame(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleAddPlayerToGame",
 	)
 
@@ -276,7 +276,7 @@ func (gh *GameHandler) HandleRemovePlayerFromGame(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleRemovePlayerFromGame",
 	)
 
@@ -332,7 +332,7 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleStartGame",
 	)
 
@@ -404,7 +404,7 @@ func (gh *GameHandler) HandleGetGamePlayers(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleGetGamePlayers",
 	)
 
@@ -451,7 +451,7 @@ func (gh *GameHandler) HandleGetGameDetails(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleGetGameDetails",
 	)
 
@@ -492,7 +492,7 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		gameHandlerComponent,
+		gameComponent,
 		"HandleUpdateGameSettings",
 	)
 

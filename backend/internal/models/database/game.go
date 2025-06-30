@@ -59,3 +59,38 @@ type GameWithWinner struct {
 	IsViewerScorekeeper bool           `db:"is_viewer_scorekeeper"`
 	ScorekeeperName     sql.NullString `db:"scorekeeper_name"`
 }
+
+// Contains the full details for a player's score in a round
+type PlayerRoundScoreDetails struct {
+	PlayerRoundScoreID string        `db:"player_round_score_id"`
+	RoundID            string        `db:"round_id"`
+	GamePlayerID       string        `db:"game_player_id"`
+	BidAmount          sql.NullInt32 `db:"bid_amount"`
+	TricksTaken        sql.NullInt32 `db:"tricks_taken"`
+	RoundScore         int           `db:"round_score"`
+	BonusPointsApplied int           `db:"bonus_points_applied"`
+}
+
+type Round struct {
+	RoundID            string    `db:"round_id"`
+	GameID             string    `db:"game_id"`
+	RoundNumber        int       `db:"round_number"`
+	DealerGamePlayerID string    `db:"dealer_game_player_id"`
+	Status             string    `db:"status"`
+	IsTiebreakerRound  bool      `db:"is_tiebreaker_round"`
+	CreatedAt          time.Time `db:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at"`
+}
+
+// Composite struct to hold all data for a scorecard
+type FullScorecardData struct {
+	Game    Game
+	Players []GamePlayerDetails
+	Rounds  []Round
+	Scores  []PlayerRoundScoreDetails
+}
+
+type PlayerBidData struct {
+	GamePlayerID string
+	BidAmount    int
+}

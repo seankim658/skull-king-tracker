@@ -21,11 +21,14 @@ var (
 	// Friendship
 	ErrFriendshipSelf          = errors.New("cannot friend self")
 	ErrFriendshipAlreadyExists = errors.New("friendship already exists")
-	ErrFriendshipNotFound       = errors.New("friendship not found")
+	ErrFriendshipNotFound      = errors.New("friendship not found")
 	ErrFriendshipBlocked       = errors.New("friendship blocked")
 
 	// Game
 	ErrGameNotFound = errors.New("game not found")
+
+	// Round
+	ErrNoRoundsFound = errors.New("no rounds found for this game")
 
 	// Session
 	ErrSessionNotFound = errors.New("game session not found")

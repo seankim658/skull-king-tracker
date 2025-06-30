@@ -41,3 +41,45 @@ type UpdateGameSettingsRequest struct {
 	OrderedPlayerIDs           []string `json:"ordered_player_ids" validate:"required"`
 	StartingDealerGamePlayerID string   `json:"starting_dealer_game_player_id" validate:"required"`
 }
+
+// Contains all player data for a single round
+type PlayerRoundData struct {
+	GamePlayerID string `json:"game_player_id"`
+	BidAmount    *int   `json:"bid_amount,omitempty"`
+	TricksTaken  *int   `json:"tricks_taken,omitempty"`
+	RoundScore   *int   `json:"round_score,omitempty"`
+	BonusPoints  *int   `json:"bonus_points,omitempty"`
+}
+
+// Main object for rendering the scorecard
+type RoundScorecard struct {
+	RoundNumber  int               `json:"round_number"`
+	Status       string            `json:"status"`
+	PlayerScores []PlayerRoundData `json:"player_scores"`
+}
+
+type ScorecardResponse struct {
+	GameID       string               `json:"game_id"`
+	GameStatus   string               `json:"game_status"`
+	Players      []GamePlayerResponse `json:"players"`
+	Rounds       []RoundScorecard     `json:"rounds"`
+	CurrentRound int                  `json:"current_round"`
+}
+
+type PlayerBid struct {
+	GamePlayerID string `json:"game_player_id" validate:"required"`
+	BidAmount    int    `json:"bid_amount" validate:"gte=0"`
+}
+
+// Payload for submitting all bids for a round
+type SubmitBidsRequest struct {
+	Bids []PlayerBid `json:"bids" validate:"required,min=1,dive"`
+}
+
+// Payload for submitting all tricks taken for a round
+type SubmitTricksRequest struct {
+	Tricks []struct {
+		GamePlayerID string `json:"game_player_id" validate:"required"`
+		TricksTaken  int    `json:"tricks_taken" validate:"gte=0"`
+	} `json:"tricks" validate:"required,min=1,dive"`
+}

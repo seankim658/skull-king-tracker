@@ -14,7 +14,7 @@ import (
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
 )
 
-const settingsHandlerComponent = "handlers-settings"
+const settingsComponent = "handlers-settings"
 
 type SettingsHandler struct {
 	Cfg *cf.Config
@@ -31,7 +31,7 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleUpdateUserTheme",
 	)
 
@@ -88,7 +88,7 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleUpdateUserProfile",
 	)
 
@@ -201,7 +201,7 @@ func (sh *SettingsHandler) HandleGetLinkedAccounts(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleGetLinkedAccounts",
 	)
 
@@ -245,7 +245,7 @@ func (sh *SettingsHandler) HandleUnlinkAccount(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleUnlinkAccount",
 	)
 
