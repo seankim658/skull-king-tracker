@@ -21,6 +21,7 @@ import type {
 import { RotateCcw } from "lucide-react";
 import { useSubmit } from "@/hooks/use-submit";
 import { gameAPI } from "@/lib/api/service/game";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 
 interface ScorecardInputDrawerProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export function ScorecardInputDrawer({
   players,
 }: ScorecardInputDrawerProps) {
   const { gameId } = useParams<{ gameId: string }>();
+  const queryClient = useQueryClient();
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [bids, setBids] = useState<Record<string, number>>({});
   const [tricks, setTricks] = useState<Record<string, number>>({});
@@ -65,7 +67,10 @@ export function ScorecardInputDrawer({
     gameAPI.submitBids,
     {
       actionVerb: "Submitting bids",
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
+        onOpenChange(false);
+      },
     },
   );
 
@@ -73,7 +78,10 @@ export function ScorecardInputDrawer({
     gameAPI.submitTricks,
     {
       actionVerb: "Submitting scores",
-      onSuccess: () => onOpenChange(false),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
+        onOpenChange(false);
+      },
     },
   );
 

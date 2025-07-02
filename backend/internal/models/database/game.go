@@ -96,3 +96,9 @@ type PlayerBidData struct {
 	GamePlayerID string
 	BidAmount    int
 }
+
+type PlayerScoreData struct {
+	GamePlayerID string
+	TricksTaken  int
+	BonusPoints  int
+}

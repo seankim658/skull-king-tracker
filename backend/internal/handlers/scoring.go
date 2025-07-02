@@ -199,6 +199,87 @@ func (sh *ScoringHandler) HandleSubmitBids(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// Handles submitting the tricks taken and bonus points for a round
+func (sh *ScoringHandler) HandleSubmitTricks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		scoringComponent,
+		"HandleSubmitTricks",
+	)
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	roundNumber, ok := PathVarInt(w, r, "round_number")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.GameIDKey, gameID).Int(l.RoundKey, roundNumber).Logger()
+
+	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !authOk {
+		return
+	}
+
+	_, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger)
+	if !authorized {
+		return
+	}
+
+	var req apiModels.SubmitTricksRequest
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to submit scores")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	currentRound, err := db.GetCurrentRoundInfo(ctx, tx, gameID)
+	if err != nil {
+		opErr = err
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve current round information")
+		responseSent = true
+		return
+	}
+
+	if currentRound.Status != "playing" {
+		opErr = fmt.Errorf("cannot submit scores for a round with status '%s'", currentRound.Status)
+		ErrorResponse(w, r, http.StatusConflict, opErr.Error())
+		responseSent = true
+		return
+	}
+
+	scores := make([]dbModels.PlayerScoreData, len(req.Tricks))
+	for i, tricksData := range req.Tricks {
+		scores[i] = dbModels.PlayerScoreData{
+			GamePlayerID: tricksData.GamePlayerID,
+			TricksTaken:  tricksData.TricksTaken,
+			BonusPoints:  tricksData.BonusPoints,
+		}
+	}
+
+	opErr = db.SubmitScoresAndUpdateRound(ctx, tx, currentRound.RoundID, scores)
+	if opErr != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save scores to the database")
+		responseSent = true
+		return
+	}
+
+	go broadcastScorecardUpdate(sh.SSEHub, gameID, logger)
+
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Scores submitted successfully")
+		responseSent = true
+	}
+}
+
 // Helper function to broadcast scorecard updates via SSE
 func broadcastScorecardUpdate(sseHub *sse.Hub, gameID string, logger zerolog.Logger) {
 	broadcastCtx := l.NewContextWithLogger(context.Background(), logger)

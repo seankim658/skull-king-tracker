@@ -138,6 +138,7 @@ func (hg *GameHandler) HandleCreateGame(w http.ResponseWriter, r *http.Request) 
 	if createdGame.SessionID.Valid {
 		apiGameResponse.SessionID = &createdGame.SessionID.String
 	}
+
 	Respond(w, r, http.StatusCreated, apiGameResponse, "Game created successfully")
 	responseSent = true
 }
