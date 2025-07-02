@@ -1,14 +1,15 @@
 import { client } from "../client";
-import type {
-  ApiResponse,
-  CreateGamePayload,
-  GameResponse,
-  AddPlayerToGamePayload,
-  GamePlayerResponse,
-  UpdateGameSettingsPayload,
-  ScorecardResponse,
-  SubmitBidsPayload,
-  SubmitTricksPayload,
+import {
+  type ApiResponse,
+  type CreateGamePayload,
+  type GameResponse,
+  type AddPlayerToGamePayload,
+  type GamePlayerResponse,
+  type UpdateGameSettingsPayload,
+  type ScorecardResponse,
+  type SubmitBidsPayload,
+  type SubmitTricksPayload,
+  type ActiveGameResponse,
 } from "../types";
 
 export const gameAPI = {
@@ -142,4 +143,10 @@ export const gameAPI = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  /**
+   * Fetches all active games for the current user.
+   */
+  getActiveGames: (): Promise<ApiResponse<ActiveGameResponse[]>> =>
+    client<ActiveGameResponse[]>("/games/active", { method: "GET" }),
 };

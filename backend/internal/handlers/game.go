@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -659,4 +660,52 @@ func (gh *GameHandler) HandleUpdateGameSettings(w http.ResponseWriter, r *http.R
 		Respond(w, r, http.StatusOK, nil, "Game settings updated successfully")
 		responseSent = true
 	}
+}
+
+// Handles fetching active games for the authenticated user
+// Path: /games/active
+// Method: GET
+func (gh *GameHandler) HandleGetActiveGames(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"HandleGetActiveGames",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	dbGames, err := db.GetActiveGamesByUserID(ctx, nil, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get active games from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve active games")
+		return
+	}
+
+	apiGames := make([]apiModels.ActiveGameResponse, 0, len(dbGames))
+	for _, dbGame := range dbGames {
+		var players []apiModels.ActiveGamePlayer
+		if err := json.Unmarshal(dbGame.PlayersJSON, &players); err != nil {
+			logger.Error().Err(err).Str(l.GameIDKey, dbGame.GameID).Msg("Failed to unmarshal players JSON")
+			continue
+		}
+
+		apiGame := apiModels.ActiveGameResponse{
+			GameID:          dbGame.GameID,
+			ScorekeeperName: dbGame.ScorekeeperName.String,
+			IsScorekeeper:   dbGame.IsScorekeeper,
+			CreatedAt:       dbGame.CreatedAt,
+			CurrentRound:    int(dbGame.CurrentRound.Int32),
+			Players:         players,
+		}
+		if dbGame.SessionName.Valid {
+			apiGame.SessionName = &dbGame.SessionName.String
+		}
+		apiGames = append(apiGames, apiGame)
+	}
+
+	Respond(w, r, http.StatusOK, apiGames, "Active games retrieved successfully")
 }

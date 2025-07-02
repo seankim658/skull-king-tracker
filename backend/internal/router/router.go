@@ -68,6 +68,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	gameHandler := h.NewGameHandler(cfg)
 	gameSubRouter := apiRouter.PathPrefix("/games").Subrouter()
 	gameSubRouter.HandleFunc("", gameHandler.HandleCreateGame).Methods(http.MethodPost)
+	gameSubRouter.HandleFunc("/active", gameHandler.HandleGetActiveGames).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/details", gameHandler.HandleGetGameDetails).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleAddPlayerToGame).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleGetGamePlayers).Methods(http.MethodGet)

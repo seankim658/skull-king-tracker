@@ -89,3 +89,20 @@ type PlayerTrickData struct {
 	TricksTaken  int    `json:"tricks_taken" validate:"gte=0"`
 	BonusPoints  int    `json:"bonus_points" validate:"gte=0"`
 }
+
+// Represetns a single player within an active game card
+type ActiveGamePlayer struct {
+	DisplayName string  `json:"display_name"`
+	AvatarURL   *string `json:"avatar_url,omitempty"`
+}
+
+// Represents a single active game for the dashboard list
+type ActiveGameResponse struct {
+	GameID          string             `json:"game_id"`
+	SessionName     *string            `json:"session_name,omitempty"`
+	ScorekeeperName string             `json:"scorekeeper_name"`
+	IsScorekeeper   bool               `json:"is_scorekeeper"`
+	CreatedAt       time.Time          `json:"created_at"`
+	CurrentRound    int                `json:"current_round"`
+	Players         []ActiveGamePlayer `json:"players"`
+}

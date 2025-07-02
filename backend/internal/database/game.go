@@ -638,3 +638,90 @@ func IsUserInGame(ctx context.Context, tx *sql.Tx, userID, gameID string) (bool,
 	}
 	return exists, nil
 }
+
+type ActiveGameDetails struct {
+	GameID          string
+	SessionName     sql.NullString
+	ScorekeeperName sql.NullString
+	IsScorekeeper   bool
+	CreatedAt       time.Time
+	CurrentRound    sql.NullInt32
+	PlayersJSON     []byte
+}
+
+// Retrieves all active games a user is participating in
+func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]ActiveGameDetails, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetActiveGamesByUserID",
+	).With().Str(l.UserIDKey, userID).Logger()
+
+	query := `
+  WITH GamePlayers AS (
+    SELECT
+      g.game_id,
+      json_agg(json_build_object(
+        'display_name', COALESCE(u.display_name, u.username, gp_guest.display_name),
+        'avatar_url', u.avatar_url
+      )) AS players
+    FROM games g
+    JOIN game_players gp ON g.game_id = gp.game_id
+    LEFT JOIN users u ON gp.user_id = u.user_id
+    LEFT JOIN guest_players gp_guest ON gp.guest_player_id = gp_guest.guest_player_id
+    WHERE g.status = 'active'
+    GROUP BY g.game_id
+  )
+  SELECT
+    g.game_id,
+    gs.session_name,
+    COALESCE(u_sk.display_name, u_sk.username) AS scorekeeper_name,
+    (g.current_scorekeeper_user_id = $1) AS is_scorekeeper,
+    g.created_at,
+    (SELECT MAX(r.round_number) FROM rounds r WHERE r.game_id = g.game_id) AS current_round,
+    gp.players
+  FROM games g
+  JOIN GamePlayers gp ON g.game_id = gp.game_id
+  LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
+  LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
+  WHERE g.status = 'active'
+  AND EXISTS (
+    SELECT 1
+    FROM game_players gp_check
+    WHERE gp_check.game_id = g.game_id AND gp_check.user_id = $1
+  )
+  ORDER BY g.updated_at DESC;
+  `
+
+	rows, err := querier.QueryContext(ctx, query, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query for active games")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var games []ActiveGameDetails
+	for rows.Next() {
+		var game ActiveGameDetails
+		if err := rows.Scan(
+			&game.GameID,
+			&game.SessionName,
+			&game.ScorekeeperName,
+			&game.IsScorekeeper,
+			&game.CreatedAt,
+			&game.CurrentRound,
+			&game.PlayersJSON,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan active game row")
+			return nil, err
+		}
+		games = append(games, game)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return games, nil
+}

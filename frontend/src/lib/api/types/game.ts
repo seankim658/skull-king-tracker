@@ -114,3 +114,24 @@ export interface PlayerTricks {
 export interface SubmitTricksPayload {
   tricks: PlayerTricks[];
 }
+
+/**
+ * Represents a single player with an active game card for the dashboard.
+ */
+export interface ActiveGamePlayer {
+  display_name: string;
+  avatar_url?: string | null;
+}
+
+/**
+ * Represents a single active game card for the dashboard list.
+ */
+export interface ActiveGameResponse {
+  game_id: string;
+  session_name?: string | null;
+  scorekeeper_name: string;
+  is_scorekeeper: boolean;
+  created_at: string;
+  current_round: number;
+  players: ActiveGamePlayer[];
+}
