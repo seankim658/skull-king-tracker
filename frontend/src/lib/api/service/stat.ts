@@ -6,7 +6,7 @@ export const statsAPI = {
    * Fetches the site-wide summary statistics.
    */
   getSiteSummaryStats: (): Promise<ApiResponse<SiteSummaryStatsResponse>> =>
-    client<ApiResponse<SiteSummaryStatsResponse>>("/stats/summary", {
+    client<SiteSummaryStatsResponse>("/stats/summary", {
       method: "GET",
     }),
 };

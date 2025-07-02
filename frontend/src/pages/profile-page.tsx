@@ -1,52 +1,37 @@
-import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { userAPI } from "@/lib/api/service/user";
-import type { UserProfileResponse } from "@/lib/api/types";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import { ProfileStatsSummary } from "@/components/profile/profile-stats-summary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
-import { errorExtract } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const { user: authenticatedUser, isLoadingAuth } = useAuth();
-  const [profileData, setProfileData] = useState<UserProfileResponse | null>(
-    null,
-  );
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchProfile = useCallback(async () => {
-    if (!userId) {
-      setError("User ID is missing");
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await userAPI.getUserProfile(userId);
-      if (response.success && response.data) {
-        setProfileData(response.data);
-      } else {
-        setError(response.message || "Failed to load profile");
-        setProfileData(null);
+  const {
+    data: profileData,
+    isLoading,
+    isError,
+    error,
+    refetch: fetchProfile,
+  } = useQuery({
+    queryKey: ["userProfile", userId],
+    queryFn: async () => {
+      if (!userId) {
+        throw new Error("User ID is required");
       }
-    } catch (e) {
-      setError(errorExtract(e, "An error occurred fetching the user profile"));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+      const response = await userAPI.getUserProfile(userId);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch user profile");
+      }
+      return response.data;
+    },
+    enabled: !!userId,
+  });
 
   if (isLoading || isLoadingAuth) {
     return (
@@ -61,13 +46,13 @@ export function ProfilePage() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="container mx-auto p-4 md:p-6">
         <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       </div>
     );

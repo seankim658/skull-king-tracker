@@ -1,76 +1,72 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "../ui/card";
+import { Card } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
-import { toast } from "sonner";
 import { sessionAPI } from "@/lib/api/service/session";
 import { gameAPI } from "@/lib/api/service/game";
-import type { ActiveSessionResponse } from "@/lib/api/types";
-import { errorExtract } from "@/lib/utils";
 import { useConfirm } from "@/hooks/use-confirm";
+import { useSubmit } from "@/hooks/use-submit";
+import type { ActiveSessionResponse, GameResponse } from "@/lib/api/types";
+import { SessionDetailsModal } from "./session-details-modal";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function ActiveSessions() {
   const navigate = useNavigate();
   const confirm = useConfirm();
-  const [activeSessions, setActiveSessions] = useState<ActiveSessionResponse[]>(
-    [],
+  const queryClient = useQueryClient();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null,
   );
-  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
 
-  const fetchActiveSessions = async () => {
-    setIsLoadingSessions(true);
-    try {
+  const { data: activeSessions, isLoading: isLoadingSessions } = useQuery({
+    queryKey: ["activeSessions"],
+    queryFn: async () => {
       const response = await sessionAPI.getActiveSessionsForUser();
-      if (response.success && response.data) {
-        setActiveSessions(response.data);
-      } else {
-        toast.error(response.message || "Failed to load active sessions");
-        setActiveSessions([]);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch active sessions");
       }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not fetch active sessions");
-      toast.error(errMsg);
-      console.error(errMsg);
-      setActiveSessions([]);
-    } finally {
-      setIsLoadingSessions(false);
-    }
-  };
+      return response.data;
+    },
+  });
 
-  useEffect(() => {
-    fetchActiveSessions();
-  }, []);
+  const { submit: startGame, isLoading: isStartingGame } = useSubmit(
+    gameAPI.createGame,
+    {
+      actionVerb: "Starting game",
+      successMessage: "New game started",
+      onSuccess: (data: GameResponse | undefined) => {
+        queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
+        if (data?.game_id) {
+          navigate(`/game${data.game_id}/add-players`);
+        }
+      },
+    },
+  );
 
-  const handleStartGameFromSession = async (
-    sessionId: string,
-    sessionName?: string,
-  ) => {
-    const toastId = toast.loading(
-      `Starting new game in session "${sessionName || sessionId}"...`,
-    );
-    try {
-      const response = await gameAPI.createGame({ session_id: sessionId });
-      if (response.success && response.data?.game_id) {
-        toast.success("New game started", { id: toastId });
-        // TODO : navigate to add players page
-      } else {
-        toast.error(response.message || "Failed to start new game in session", {
-          id: toastId,
-        });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to start new game in session");
-      toast.error(errMsg);
-      console.error(errMsg);
+  const { submit: completeSession, isLoading: isCompletingSession } = useSubmit(
+    sessionAPI.completeSession,
+    {
+      actionVerb: "Completing session",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
+      },
+    },
+  );
+
+  const handleStartNewGameClick = async (session: ActiveSessionResponse) => {
+    if (session.has_active_game || session.has_pending_game) {
+      const isConfirmed = await confirm({
+        title: "In-progress game exists",
+        description:
+          "This session already has an active/pending game. Are you sure you want to start a new one?",
+        confirmText: "Start New Game",
+      });
+      if (!isConfirmed) return;
     }
+    startGame({ session_id: session.session_id });
   };
 
   const handleCompleteSession = async (
@@ -79,73 +75,40 @@ export function ActiveSessions() {
   ) => {
     const isConfirmed = await confirm({
       title: "Are you sure?",
-      description: `Do you want to makr the session "${sessionName || sessionId}" as completed? This action cannot be undone.`,
+      description: `Do you want to mark the session "${sessionName || sessionId}" as completed? This action cannot be undone.`,
       confirmText: "Complete Session",
     });
-    if (!isConfirmed) {
-      return;
+    if (isConfirmed) {
+      completeSession(sessionId);
     }
-    const toastId = toast.loading(
-      `Completing session "${sessionName || sessionId}"...`,
-    );
-    try {
-      const response = await sessionAPI.completeSession(sessionId);
-      if (response.success) {
-        toast.success(
-          `Session "${sessionName || sessionId}" marked as completed`,
-          { id: toastId },
-        );
-        setActiveSessions((prevSessions) =>
-          prevSessions.filter((s) => s.session_id !== sessionId),
-        );
-      } else {
-        toast.error(response.message || "Failed to complete session", {
-          id: toastId,
-        });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not complete session");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    }
+  };
+
+  const handleCardClick = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    setIsModalOpen(true);
   };
 
   if (isLoadingSessions) {
     return (
       <section>
         <h2 className="text-2xl font-semibold mb-4">Your Active Sessions</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-1/2 mt-1" />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </CardContent>
-              <CardFooter className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Skeleton className="h-10 w-full sm:flex-1" />
-                <Skeleton className="h-10 w-full sm:flex-1" />
-              </CardFooter>
-            </Card>
+        <div className="flex flex-col gap-4">
+          {[...Array(2)].map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
       </section>
     );
   }
 
-  if (activeSessions.length === 0) {
+  if (!activeSessions || activeSessions.length === 0) {
     return (
       <section>
         <h2 className="text-2xl font-semibold mb-4">Your Active Sessions</h2>
-        <Card>
-          <CardContent>
-            <p className="text-center text-muted-foreground">
-              No active sessions.
-            </p>
-          </CardContent>
+        <Card className="flex items-center justify-center p-12">
+          <p className="text-center text-muted-foreground">
+            No active sessions. Start a new one from the sidebar!
+          </p>
         </Card>
       </section>
     );
@@ -154,63 +117,83 @@ export function ActiveSessions() {
   return (
     <section>
       <h2 className="text-2xl font-semibold mb-6">Your Active Sessions</h2>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col gap-4">
         {activeSessions.map((session) => (
           <Card
             key={session.session_id}
-            className="flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300"
+            className="flex flex-col sm:flex-row items-center justify-center p-4 gap-4 transition-all hover:shadow-md cursor-pointer"
+            onClick={() => handleCardClick(session.session_id)}
           >
-            <CardHeader>
-              <CardTitle className="truncate text-xl">
-                {session.session_name || "Unnamed Session"}
-              </CardTitle>
-              <CardDescription>
-                ID: {session.session_id.substring(0, 8)}...
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-2">
-              <p className="text-sm">
-                Status:{" "}
-                <span className="font-medium capitalize text-primary">
-                  {session.status}
-                </span>
-              </p>
+            <div className="flex flex-grow items-center gap-4 w-full">
               {session.has_active_game && (
-                <p className="text-sm text-orange-500 font-semibold">
-                  A game is currently in progress
-                </p>
+                <div className="w-3 h-3">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  </span>
+                </div>
               )}
-            </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4 border-t mt-auto">
+              <div className="flex-grow">
+                <h3 className="text-lg font-bold">
+                  {session.session_name || "Unnamed Session"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Created by{" "}
+                  <span className="font-medium text-foreground">
+                    {session.creator_name || "Unknown"}
+                  </span>
+                  {" on "}
+                  {new Date(session.created_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row flex-shrink-0 gap-2 w-full sm:w-auto">
               <Button
-                onClick={() =>
-                  handleStartGameFromSession(
-                    session.session_id,
-                    session.session_name,
-                  )
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartNewGameClick(session);
+                }}
+                disabled={
+                  session.has_active_game ||
+                  session.has_pending_game ||
+                  isStartingGame ||
+                  isCompletingSession
                 }
-                disabled={session.has_active_game}
-                className="w-full sm:flex-1"
+                className="w-full sm:flex-1 cursor-pointer"
                 variant="default"
               >
-                {session.has_active_game ? "Game Active" : "Start New Game"}
+                Start New Game
               </Button>
               <Button
                 variant="outline"
-                onClick={() =>
+                onClick={(e) => {
+                  e.stopPropagation();
                   handleCompleteSession(
                     session.session_id,
                     session.session_name,
-                  )
-                }
-                className="w-full sm:flex-1"
+                  );
+                }}
+                disabled={isStartingGame || isCompletingSession}
+                className="w-full sm:flex-1 cursor-pointer"
               >
                 Complete Session
               </Button>
-            </CardFooter>
+            </div>
           </Card>
         ))}
       </div>
+      <SessionDetailsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        sessionId={selectedSessionId}
+      />
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Bell, MailOpen, Mail } from "lucide-react";
 import { Button } from "./button";
@@ -21,111 +21,193 @@ import { Badge } from "./badge";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { notificationAPI } from "@/lib/api/service/notification";
 import { friendshipAPI } from "@/lib/api/service/friendship";
-import type { Notification } from "@/lib/api/types";
-import {
-  getFullAvatarURL,
-  getAvatarFallback,
-  errorExtract,
-  cn,
-} from "@/lib/utils";
+import type {
+  Notification,
+  SSEEvent,
+  SSEDeletedNotificationPayload,
+} from "@/lib/api/types";
+import { getFullAvatarURL, getAvatarFallback, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
-import { Skeleton } from "./skeleton";
+import { useSubmit } from "@/hooks/use-submit";
+import { SkeletonList } from "./skeleton-list";
+import { useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 export function NotificationBell() {
-  const { isAuthenticated } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { isAuthenticated, user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const fetchNotifications = useCallback(async () => {
-    if (!isAuthenticated) return;
-    if (notifications.length === 0) {
-      setIsLoading(true);
-    }
-    try {
+  const { data: notifications, isLoading: isLoadingInitial } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
       const response = await notificationAPI.getNotifications();
-      if (response.success && response.data) {
-        setNotifications(response.data);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch notifications");
       }
-    } catch (e) {
-      const errMsg = `Failed to fetch notifications: ${e}`;
-      console.error(errMsg);
-      toast.error(errMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated, notifications.length]);
+      return response.data;
+    },
+    enabled: !!isAuthenticated,
+    staleTime: 1000 * 60,
+  });
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
-
-  const handleResponse = async (
-    notification: Notification,
-    response: "accept" | "decline",
-  ) => {
-    if (!notification.friendship_id) {
-      console.log(notification); // TODO
-      const errMsg = "Cannot respond: friendship ID is missing";
-      toast.error(errMsg);
-      console.error(errMsg);
+    if (!isAuthenticated) {
       return;
     }
 
-    const originalNotifications = [...notifications];
-    setNotifications(
-      notifications.filter(
-        (n) => n.notification_id !== notification.notification_id,
-      ),
-    );
+    const eventsUrl = `${import.meta.env.VITE_SSE_BASE_URL}/notifications/events`;
+    console.log("Attempting to connect to SSE:", eventsUrl);
 
-    const toastId = toast.loading(`Responding to friend request...`);
-    try {
+    const eventSource = new EventSource(eventsUrl, { withCredentials: true });
+
+    eventSource.onopen = (event) => {
+      console.log("SSE connection opened:", event);
+    };
+
+    eventSource.onmessage = (event) => {
+      console.log("SSE message received:", event.data);
+      try {
+        const sseEvent: SSEEvent = JSON.parse(event.data);
+
+        switch (sseEvent.event) {
+          case "notification_created": {
+            const newNotification = sseEvent.payload as Notification;
+            toast.info(
+              <span>
+                New notification from{" "}
+                <b>
+                  {newNotification.actor.display_name ||
+                    newNotification.actor.username}
+                </b>
+              </span>,
+            );
+
+            queryClient.setQueryData(
+              ["notifications"],
+              (oldData: Notification[] | undefined) => {
+                if (!oldData) return [newNotification];
+                if (
+                  oldData.some(
+                    (n) =>
+                      n.notification_id === newNotification.notification_id,
+                  )
+                )
+                  return oldData;
+                return [newNotification, ...oldData];
+              },
+            );
+            break;
+          }
+
+          case "notification_deleted": {
+            const { notification_id } =
+              sseEvent.payload as SSEDeletedNotificationPayload;
+            queryClient.setQueryData(
+              ["notifications"],
+              (oldData: Notification[] | undefined) => {
+                if (!oldData) return [];
+                return oldData.filter(
+                  (n) => n.notification_id !== notification_id,
+                );
+              },
+            );
+            break;
+          }
+
+          default:
+            console.warn(`Unknown SSE event type: ${sseEvent.event}`);
+            break;
+        }
+      } catch (e) {
+        console.error("Failed to parse SSE notification data:", e);
+      }
+    };
+
+    eventSource.onerror = (event) => {
+      console.error("SSE connection error", event);
+      console.log(`EventSource readystate:`, eventSource.readyState);
+      console.log(`EventSource url:`, eventSource.url);
+
+      if (eventSource.readyState === EventSource.CONNECTING) {
+        console.log(`SSE is reconnecting...`);
+      } else if (eventSource.readyState === EventSource.CLOSED) {
+        console.log(`SSE connection closed`);
+      }
+    };
+
+    eventSource.addEventListener("connected", (event) => {
+      console.log("SSE connected event received:", event.data);
+    });
+
+    return () => {
+      console.log("Closing SSE connection");
+      eventSource.close();
+    };
+  }, [isAuthenticated, queryClient]);
+
+  const { submit: markAsRead, isLoading: isMarkingRead } = useSubmit(
+    notificationAPI.markAsRead,
+    {
+      actionVerb: "Marking as read",
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+    },
+  );
+  const { submit: markAsUnread, isLoading: isMarkingUnread } = useSubmit(
+    notificationAPI.markAsUnread,
+    {
+      actionVerb: "Marking as unread",
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+    },
+  );
+
+  const handleUpdateReadStatus = (notification: Notification) => {
+    if (notification.is_read) {
+      markAsUnread(notification.notification_id);
+    } else {
+      markAsRead(notification.notification_id);
+    }
+  };
+
+  const respondAndMarkRead = useCallback(
+    async (notification: Notification, response: "accept" | "decline") => {
+      if (!notification.friendship_id) {
+        throw new Error("Cannot respond: friendship ID is missing");
+      }
       await friendshipAPI.respondToRequest(
         notification.friendship_id,
         response,
       );
-      await notificationAPI.markAsRead(notification.notification_id);
-      toast.success(`Friend request ${response}`, { id: toastId });
-    } catch (e) {
-      toast.error(errorExtract(e, "Failed to respond to request"), {
-        id: toastId,
-      });
-      setNotifications(originalNotifications);
-    }
-  };
+      return { success: true };
+    },
+    [],
+  );
 
-  const handleUpdateReadStatus = async (notification: Notification) => {
-    const isCurrentlyRead = notification.is_read;
-    const originalNotifications = [...notifications];
-
-    setNotifications(
-      notifications.map((n) =>
-        n.notification_id === notification.notification_id
-          ? { ...n, is_read: !isCurrentlyRead }
-          : n,
-      ),
-    );
-
-    try {
-      if (isCurrentlyRead) {
-        await notificationAPI.markAsUnread(notification.notification_id);
-      } else {
-        await notificationAPI.markAsRead(notification.notification_id);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to update notification status");
-      toast.error(errMsg);
-      console.error(errMsg);
-      setNotifications(originalNotifications);
-    }
-  };
+  const { submit: handleResponse, isLoading: isResponding } = useSubmit(
+    respondAndMarkRead,
+    {
+      actionVerb: "Responding to friend request",
+      onSuccess: (_data, notification, response) => {
+        toast.success(`Friend request ${response}`);
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        queryClient.invalidateQueries({
+          queryKey: ["userProfile", notification.actor.user_id],
+        });
+        if (user) {
+          queryClient.invalidateQueries({
+            queryKey: ["userProfile", user.user_id],
+          });
+        }
+      },
+    },
+  );
 
   if (!isAuthenticated) return null;
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications?.filter((n) => !n.is_read).length || 0;
+  const isActionLoading = isMarkingRead || isMarkingUnread || isResponding;
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -150,25 +232,15 @@ export function NotificationBell() {
         <DropdownMenuContent align="end" className="w-96">
           <DropdownMenuLabel>Notifications</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {isLoading ? (
-            <div className="p-2 space-y-2">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="flex items-center space-x-3 p-2">
-                  <Skeleton className="h-9 w-9 rounded-full" />
-                  <div className="space-y-1.5 flex-1">
-                    <Skeleton className="h-4 w-4/5" />
-                    <Skeleton className="h-3 w-2/5" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : notifications.length === 0 ? (
+          {isLoadingInitial && !notifications ? (
+            <SkeletonList count={2} />
+          ) : notifications?.length === 0 ? (
             <p className="p-4 text-sm text-center text-muted-foreground">
               You have no new notifications.
             </p>
           ) : (
             <div className="max-h-[60vh] overflow-y-auto">
-              {notifications.map((notif, index) => (
+              {notifications?.map((notif, index) => (
                 <React.Fragment key={notif.notification_id}>
                   <DropdownMenuItem
                     key={notif.notification_id}
@@ -216,6 +288,7 @@ export function NotificationBell() {
                               size="icon"
                               className="h-7 w-7 cursor-pointer"
                               onClick={() => handleUpdateReadStatus(notif)}
+                              disabled={isActionLoading}
                             >
                               {notif.is_read ? (
                                 <Mail className="h-4 w-4" />
@@ -240,6 +313,7 @@ export function NotificationBell() {
                           size="sm"
                           className="cursor-pointer"
                           onClick={() => handleResponse(notif, "accept")}
+                          disabled={isActionLoading}
                         >
                           Accept
                         </Button>
@@ -248,6 +322,7 @@ export function NotificationBell() {
                           variant="outline"
                           className="cursor-pointer"
                           onClick={() => handleResponse(notif, "decline")}
+                          disabled={isActionLoading}
                         >
                           Decline
                         </Button>

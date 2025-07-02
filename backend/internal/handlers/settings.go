@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"runtime/debug"
 	"strings"
 
 	cf "github.com/seankim658/skullking/internal/config"
@@ -15,7 +14,7 @@ import (
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
 )
 
-const settingsHandlerComponent = "handlers-settings"
+const settingsComponent = "handlers-settings"
 
 type SettingsHandler struct {
 	Cfg *cf.Config
@@ -32,7 +31,7 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleUpdateUserTheme",
 	)
 
@@ -46,7 +45,6 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 	if !ParseJSON(w, r, &payload) {
 		return
 	}
-
 	if !RequireFields(w, r, map[string]string{
 		"ui_theme":    payload.UITheme,
 		"color_theme": payload.ColorTheme,
@@ -60,21 +58,8 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 	}
 
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().
-				Interface(l.PanicKey, p).
-				Bytes(l.StackTraceKey, debug.Stack()).
-				Msg("Panic recovered during theme update")
-			_ = tx.Rollback()
-		} else if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction due to error in handler logic")
-			rbErr := tx.Rollback()
-			if rbErr != nil {
-				logger.Error().Err(rbErr).Msg("Transaction rollback failed after handler error")
-			}
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	opErr = db.UpdateUserThemeSettings(ctx, tx, userID, payload.UITheme, payload.ColorTheme)
 	if opErr != nil {
@@ -83,27 +68,17 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update theme settings")
 		}
+		responseSent = true
 		return
 	}
 
-	commitErr := tx.Commit()
-	if commitErr != nil {
-		opErr = commitErr
-		logger.Error().Err(opErr).Msg("Transaction commit failed for theme update")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save theme settings")
-		return
+	if !responseSent {
+		FetchUserAndRespond(
+			w, r, nil, userID, logger, http.StatusOK,
+			"Theme settings updated successfully",
+		)
+		responseSent = true
 	}
-	logger.Debug().Msg("Transaction committed successfully for theem update")
-
-	FetchUserAndRespond(
-		w,
-		r,
-		nil,
-		userID,
-		logger,
-		http.StatusOK,
-		"Theme settings updated successfully",
-	)
 }
 
 // Updates the user's profile information
@@ -113,7 +88,7 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleUpdateUserProfile",
 	)
 
@@ -147,9 +122,7 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 			// User provided a new external URL for manual avatar update
 			logger.Info().Msg("User provided an external avatar URL for manual update")
 			localPath, processErr := i.ProcessAndStoreAvatar(
-				ctx,
-				originalReqAvatarURL,
-				userID,
+				ctx, originalReqAvatarURL, userID,
 				sh.Cfg.AvatarStoragePath,
 				i.AvatarWebPrefixPath,
 				i.AvatarImgSize,
@@ -161,26 +134,29 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 					Str(l.PathKey, localPath).
 					Msg("Successfully localized and set manually provided avatar")
 			} else {
-				ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("Failed to process the provided avatar URL: %v", processErr))
+				ErrorResponse(
+					w, r, http.StatusBadRequest,
+					fmt.Sprintf("Failed to process the provided avatar URL: %v", processErr),
+				)
 				return
 			}
 		} else if originalReqAvatarURL == "" {
-      // User wants to remove their avatar
-      updates["avatar_url"] = ""
-      updates["avatar_source"] = ""
-      logger.Info().Msg("User reqeusted to remove avatar")
-    } else {
-      // User might be re-submitting an existing local path or providing non-URL data,
-      // for simplicity, if it's not HTTP and not empty, don't change the avatar_url
-      if strings.HasPrefix(originalReqAvatarURL, i.AvatarWebPrefixPath) {
-        updates["avatar_url"] = originalReqAvatarURL
-        updates["avatar_source"] = i.AvatarManualKey
-      } else {
-        logger.Warn().
-          Str("avatar_url_payload", originalReqAvatarURL).
-          Msg("Received non-HTTP avatar URL in profile update, not an expected local path. Ignoring avatar update.")
-      }
-    }
+			// User wants to remove their avatar
+			updates["avatar_url"] = ""
+			updates["avatar_source"] = ""
+			logger.Info().Msg("User reqeusted to remove avatar")
+		} else {
+			// User might be re-submitting an existing local path or providing non-URL data,
+			// for simplicity, if it's not HTTP and not empty, don't change the avatar_url
+			if strings.HasPrefix(originalReqAvatarURL, i.AvatarWebPrefixPath) {
+				updates["avatar_url"] = originalReqAvatarURL
+				updates["avatar_source"] = i.AvatarManualKey
+			} else {
+				logger.Warn().
+					Str("avatar_url_payload", originalReqAvatarURL).
+					Msg("Received non-HTTP avatar URL in profile update, not an expected local path. Ignoring avatar update.")
+			}
+		}
 	}
 
 	if len(updates) == 0 {
@@ -195,15 +171,8 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 	}
 
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().Interface(l.PanicKey, p).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic recovered during profile update")
-			_ = tx.Rollback()
-		} else if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction due to error in profile update handler logic")
-			_ = tx.Rollback()
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	opErr = db.UpdateUserProfile(ctx, tx, userID, updates)
 	if opErr != nil {
@@ -215,19 +184,14 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update profile information")
 		}
+		responseSent = true
 		return
 	}
 
-	commitErr := tx.Commit()
-	if commitErr != nil {
-		opErr = commitErr
-		logger.Error().Err(opErr).Msg("Transaction commit failed for profile update")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save profile changes")
-		return
+	if !responseSent {
+		FetchUserAndRespond(w, r, nil, userID, logger, http.StatusOK, "Profile updated successfully")
+		responseSent = true
 	}
-	logger.Info().Msg("Transaction for profile update committed successfully")
-
-	FetchUserAndRespond(w, r, nil, userID, logger, http.StatusOK, "Profile updated successfully")
 }
 
 // Retrieves the list of OAuth accounts linked to the current user
@@ -237,7 +201,7 @@ func (sh *SettingsHandler) HandleGetLinkedAccounts(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleGetLinkedAccounts",
 	)
 
@@ -281,14 +245,14 @@ func (sh *SettingsHandler) HandleUnlinkAccount(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		settingsHandlerComponent,
+		settingsComponent,
 		"HandleUnlinkAccount",
 	)
 
-  providerName, ok := PathVar(w, r, "provider")
-  if !ok {
-    return
-  }
+	providerName, ok := PathVar(w, r, "provider")
+	if !ok {
+		return
+	}
 	logger = logger.With().Str(l.ProviderKey, providerName).Logger()
 
 	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
@@ -303,47 +267,34 @@ func (sh *SettingsHandler) HandleUnlinkAccount(w http.ResponseWriter, r *http.Re
 	}
 
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().
-				Interface(l.PanicKey, p).
-				Bytes(l.StackTraceKey, debug.Stack()).
-				Msg("Panic recovered during unlink account")
-			_ = tx.Rollback()
-		} else if opErr != nil {
-			logger.Warn().
-				Err(opErr).
-				Msg("Rolling back transaction due to error in unlink account handler logic")
-			_ = tx.Rollback()
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	opErr = db.DeleteUserProviderIdentity(ctx, tx, userID, providerName)
 	if opErr != nil {
 		logger.Error().Err(opErr).Msg("Failed to delete provider identity from database")
 		if errors.Is(opErr, db.ErrUserProviderIdentityNotFound) {
-			ErrorResponse(w, r, http.StatusNotFound, "The specified account to unlink was not found for your user.")
+			ErrorResponse(
+				w, r, http.StatusNotFound,
+				"The specified account to unlink was not found for your user",
+			)
 		} else if errors.Is(opErr, db.ErrDeleteLastProviderIdentity) {
-			ErrorResponse(w, r, http.StatusBadRequest, "Cannot unlink the last authentication method. Please link another account first or ensure you have an alternative login method.")
+			ErrorResponse(
+				w, r, http.StatusBadRequest,
+				"Cannot unlink the last authentication method. Please link another account first or ensure you have an alternative login method",
+			)
 		} else {
-			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to unlink account.")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to unlink account")
 		}
+		responseSent = true
 		return
 	}
 
-	commitErr := tx.Commit()
-	if commitErr != nil {
-		opErr = commitErr
-		logger.Error().Err(opErr).Msg("Transaction commit failed for unlinking account")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize unlinking account.")
-		return
+	if !responseSent {
+		Respond(
+			w, r, http.StatusOK, nil,
+			fmt.Sprintf("Account with provider '%s' unlinked successfully.", providerName),
+		)
+		responseSent = true
 	}
-	logger.Info().Msg("Transaction for unlinking account committed successfully.")
-
-	Respond(
-		w, r,
-		http.StatusOK,
-		nil,
-		fmt.Sprintf("Account with provider '%s' unlinked successfully.", providerName),
-	)
 }

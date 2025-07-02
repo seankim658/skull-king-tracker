@@ -6,7 +6,7 @@ export const notificationAPI = {
    * Fetches the current user's notifications.
    */
   getNotifications: (): Promise<ApiResponse<Notification[]>> =>
-    client<ApiResponse<Notification[]>>("/notifications", {
+    client<Notification[]>("/notifications", {
       method: "GET",
     }),
 
@@ -15,7 +15,7 @@ export const notificationAPI = {
    * @param notificationId - The ID of the notification to mark as read
    */
   markAsRead: (notificationId: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/notifications/${notificationId}/read`, {
+    client<null>(`/notifications/${notificationId}/read`, {
       method: "PUT",
     }),
 
@@ -24,7 +24,7 @@ export const notificationAPI = {
    * @param notificationId - The ID of the notification to mark as unread
    */
   markAsUnread: (notificationId: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/notifications/${notificationId}/read`, {
+    client<null>(`/notifications/${notificationId}/read`, {
       method: "DELETE",
     }),
 };

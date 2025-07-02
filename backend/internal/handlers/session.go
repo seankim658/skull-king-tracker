@@ -3,9 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
-	"runtime/debug"
 	"time"
 
 	cf "github.com/seankim658/skullking/internal/config"
@@ -14,7 +12,7 @@ import (
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 )
 
-const sessionHandlerComponent = "handlers-session"
+const sessionComponent = "handlers-session"
 
 type SessionHandler struct {
 	Cfg *cf.Config
@@ -25,11 +23,13 @@ func NewSessionHandler(cfg *cf.Config) *SessionHandler {
 }
 
 // Retrieves active game sessions for the authenticated user
+// Path: /sessions/active
+// Method: GET
 func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		sessionHandlerComponent,
+		sessionComponent,
 		"HandleGetActiveSessionsForUser",
 	)
 
@@ -41,7 +41,7 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 
 	dbSessionsWithActivity, err := db.GetActiveSessionsByUserID(ctx, nil, userID)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to retrive active sessions for user")
+		logger.Error().Err(err).Msg("Failed to retrieve active sessions for user")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve active sessions")
 		return
 	}
@@ -49,17 +49,21 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 	apiSessions := make([]apiModels.ActiveSessionResponse, 0, len(dbSessionsWithActivity))
 	for _, dbSess := range dbSessionsWithActivity {
 		apiSess := apiModels.ActiveSessionResponse{
-			SessionID:     dbSess.SessionID,
-			Status:        dbSess.Status,
-			HasActiveGame: dbSess.HasActiveGame,
-			CreatedAt:     dbSess.CreatedAt,
-			UpdatedAt:     dbSess.UpdatedAt,
+			SessionID:      dbSess.SessionID,
+			Status:         dbSess.Status,
+			HasActiveGame:  dbSess.HasActiveGame,
+			HasPendingGame: dbSess.HasPendingGame,
+			CreatedAt:      dbSess.CreatedAt,
+			UpdatedAt:      dbSess.UpdatedAt,
 		}
 		if dbSess.SessionName.Valid {
 			apiSess.SessionName = &dbSess.SessionName.String
 		}
 		if dbSess.CompletedAt.Valid {
 			apiSess.CompletedAt = &dbSess.CompletedAt.Time
+		}
+		if dbSess.CreatorName.Valid {
+			apiSess.CreatorName = &dbSess.CreatorName.String
 		}
 		apiSessions = append(apiSessions, apiSess)
 	}
@@ -68,18 +72,20 @@ func (sh *SessionHandler) HandleGetActiveSessionsForUser(w http.ResponseWriter, 
 }
 
 // Marks a session as completed
+// Path: /api/sessions/{session_id}/complete
+// Method: PUT
 func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		sessionHandlerComponent,
+		sessionComponent,
 		"HandleCompleteSession",
 	)
 
-  sessionID, ok := PathVar(w, r, "session_id")
-  if !ok {
-    return
-  }
+	sessionID, ok := PathVar(w, r, "session_id")
+	if !ok {
+		return
+	}
 	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
 
 	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
@@ -88,7 +94,23 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 	}
 	logger = logger.With().Str(l.UserIDKey, userID).Logger()
 
-	// TODO : Check if the current user can complete this session
+	session, err := db.GetGameSessionByID(ctx, nil, sessionID)
+	if err != nil {
+		if errors.Is(err, db.ErrSessionNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Session not found")
+		} else {
+			logger.Error().Err(err).Msg("Failed to get session for auth check")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to verify session access")
+		}
+		return
+	}
+	if !session.CreatedByUserID.Valid || session.CreatedByUserID.String != userID {
+		logger.Warn().
+			Str("creator_id", session.CreatedByUserID.String).
+			Msg("User is not the creator of the session")
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to complete this session")
+		return
+	}
 
 	tx, txOk := StartTx(ctx, w, r, logger, "Failed to complete session")
 	if !txOk {
@@ -96,15 +118,8 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 	}
 
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			logger.Error().Interface(l.PanicKey, p).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic recovered")
-			_ = tx.Rollback()
-		} else if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction due to error in handler logic")
-			_ = tx.Rollback()
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	completedTime := sql.NullTime{Time: time.Now(), Valid: true}
 	opErr = db.UpdateSessionStatus(ctx, tx, sessionID, "completed", completedTime)
@@ -114,14 +129,103 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update session status")
 		}
+		responseSent = true
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for completing session: %w", err)
-		logger.Error().Err(opErr).Msg("Transaction commit failed")
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Session marked as completed sucessfully")
+		responseSent = true
+	}
+}
+
+// Handles fetching the details of a single session, including its games and user-specific statistics
+// Path: /sessions/{session_id}
+// Method: GET
+func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"HandleGetSessionDetails",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.UserIDKey, userID).Logger()
+
+	sessionID, ok := PathVar(w, r, "session_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
+
+	participated, err := db.CheckUserParticipatedInSession(ctx, nil, userID, sessionID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to check user participation for auth")
+		return
+	}
+	if !participated {
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to view this session's details")
 		return
 	}
 
-	Respond(w, r, http.StatusOK, nil, "Session marked as completed sucessfully")
+	dbSession, err := db.GetGameSessionByID(ctx, nil, sessionID)
+	if err != nil {
+		if errors.Is(err, db.ErrSessionNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Session not found")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve session details")
+		}
+		return
+	}
+
+	dbGames, err := db.GetGamesBySessionID(ctx, nil, sessionID, userID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve games for the session")
+		return
+	}
+
+	dbUserStats, err := db.GetUserSessionStats(ctx, nil, userID, sessionID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve user stats for the session")
+		return
+	}
+
+	apiGames := make([]apiModels.SessionGame, len(dbGames))
+	for i, dbGame := range dbGames {
+		apiGames[i] = apiModels.SessionGame{
+			GameID:        dbGame.GameID,
+			Status:        dbGame.Status,
+			CreatedAt:     dbGame.CreatedAt,
+			IsScorekeeper: dbGame.IsViewerScorekeeper,
+		}
+		if dbGame.CompletedAt.Valid {
+			completedAtStr := dbGame.CompletedAt.Time.String()
+			apiGames[i].CompletedAt = &completedAtStr
+		}
+		if dbGame.WinningPlayer.Valid {
+			apiGames[i].WinningPlayer = &dbGame.WinningPlayer.String
+		}
+		if dbGame.ScorekeeperName.Valid {
+			apiGames[i].ScorekeeperName = &dbGame.ScorekeeperName.String
+		}
+	}
+
+	apiResponse := apiModels.SessionDetailResponse{
+		SessionID: dbSession.SessionID,
+		Status:    dbSession.Status,
+		Games:     apiGames,
+		UserSummary: apiModels.SessionUserSummary{
+			TotalGames: dbUserStats.TotalGamesPlayed,
+			Wins:       dbUserStats.TotalWins,
+		},
+	}
+	if dbSession.SessionName.Valid {
+		apiResponse.SessionName = &dbSession.SessionName.String
+	}
+
+	Respond(w, r, http.StatusOK, apiResponse, "Session details retrived successfully")
 }

@@ -422,25 +422,84 @@ func UnblockUser(ctx context.Context, tx *sql.Tx, unblockerID, unblockedID strin
 		Str(l.UnblockedIDKey, unblockedID).
 		Logger()
 
-  query := `
+	query := `
   DELETE FROM user_friendships
   WHERE requester_id = $1 AND addressee_id = $2 AND status = 'blocked';
   `
-  result, err := querier.ExecContext(ctx, query, unblockerID, unblockedID)
-  if err != nil {
-    logger.Error().Err(err).Msg("Failed to execute unblock query")
-    return fmt.Errorf("error unblocking user: %s: %w", unblockedID, err)
+	result, err := querier.ExecContext(ctx, query, unblockerID, unblockedID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute unblock query")
+		return fmt.Errorf("error unblocking user: %s: %w", unblockedID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error checking rows affected for unblock: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrFriendshipNotFound
+	}
+
+	logger.Info().Msg("User unblocked successfully")
+	return nil
+}
+
+// Retrieves a list of all accepted friends for a given user
+func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbModels.UserSearchResult, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"GetFriendsByUserID",
+	).With().Str(l.UserIDKey, userID).Logger()
+
+	query := `
+  SELECT
+    u.user_id,
+    u.username,
+    u.display_name,
+    u.avatar_url
+  FROM user_friendships f
+  JOIN users u ON
+    CASE
+      WHEN f.requester_id = $1 THEN u.user_id = f.addressee_id
+      ELSE u.user_id = f.requester_id
+    END
+  WHERE
+    (f.requester_id = $1 OR f.addressee_id = $1)
+    AND f.status = 'accepted'
+  ORDER BY u.username ASC;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get friends by user ID")
+
+	rows, err := querier.QueryContext(ctx, query, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query user's friends")
+		return nil, fmt.Errorf("error querying friends for user %s: %w", userID, err)
+	}
+	defer rows.Close()
+
+	var friends []dbModels.UserSearchResult
+	for rows.Next() {
+		var friend dbModels.UserSearchResult
+		if err := rows.Scan(
+			&friend.UserID,
+			&friend.Username,
+			&friend.DisplayName,
+			&friend.AvatarURL,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan friend row")
+      return nil, fmt.Errorf("error scanning friend data for user %s: %w", userID, err)
+		}
+    friends = append(friends, friend)
+	}
+
+  if err = rows.Err(); err != nil {
+    logger.Error().Err(err).Msg("Error iterating over friend rows")
+    return nil, fmt.Errorf("error iterating friend rows for user %s: %w", userID, err)
   }
 
-  rowsAffected, err := result.RowsAffected()
-  if err != nil {
-    return fmt.Errorf("error checking rows affected for unblock: %w", err)
-  }
-
-  if rowsAffected == 0 {
-    return ErrFriendshipNotFound
-  }
-
-  logger.Info().Msg("User unblocked successfully")
-  return nil
+  logger.Info().Int(l.CountKey, len(friends)).Msg("Friends list retrieved successfully")
+  return friends, nil
 }

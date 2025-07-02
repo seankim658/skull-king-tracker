@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	"github.com/seankim658/skullking/internal/router"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
 func main() {
@@ -32,22 +34,28 @@ func main() {
 	defer database.Close()
 
 	if err := auth.InitAuth(cfg); err != nil {
-		log.Error().Err(err).Msg("Failed to initialize authentication providers. Some OAuth logins may not be available or app may not function correctly.")
+		log.Error().
+			Err(err).
+			Msg("Failed to initialize authentication providers. Some OAuth logins may not be available or app may not function correctly.")
 	}
+
+	sseHub := sse.NewHub()
 
 	log.Info().Msg("Application components initialized")
 
-	r := router.New(cfg)
+	r := router.New(cfg, sseHub)
 
-	log.Info().Str("port", cfg.APIPort).Str("app_base_url", cfg.AppBaseURL).Msgf("Starting server on port %s", cfg.APIPort)
+	log.Info().
+		Str("port", cfg.APIPort).
+		Str("app_base_url", cfg.AppBaseURL).
+		Msgf("Starting server on port %s", cfg.APIPort)
 
 	server := &http.Server{
-		Addr:    ":" + cfg.APIPort,
-		Handler: r,
-		// TODO
-		// ReadTimeout
-		// WriteTimeout
-		//IdleTimeout
+		Addr:         ":" + cfg.APIPort,
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 0,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {
@@ -61,5 +69,5 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-  log.Info().Msg("Shutting down server...")
+	log.Info().Msg("Shutting down server...")
 }

@@ -1,5 +1,5 @@
 import { client } from "../client";
-import type { ApiResponse } from "../types";
+import type { UserSearchItem, ApiResponse } from "../types";
 
 export const friendshipAPI = {
   /**
@@ -7,7 +7,7 @@ export const friendshipAPI = {
    * @param addresseeId - The user_id of the user to send the request to
    */
   sendRequest: (addresseeId: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>("/friends/request", {
+    client<null>("/friends/request", {
       method: "POST",
       body: JSON.stringify({ addressee_id: addresseeId }),
     }),
@@ -21,7 +21,7 @@ export const friendshipAPI = {
     friendshipId: string,
     response: "accept" | "decline",
   ): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/friends/request/${friendshipId}`, {
+    client<null>(`/friends/request/${friendshipId}`, {
       method: "PUT",
       body: JSON.stringify({ response }),
     }),
@@ -31,7 +31,7 @@ export const friendshipAPI = {
    * @param friendId - The user_id of the user to unfriend
    */
   unfriend: (friendId: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/friends/${friendId}`, {
+    client<null>(`/friends/${friendId}`, {
       method: "DELETE",
     }),
 
@@ -40,7 +40,7 @@ export const friendshipAPI = {
    * @param addresseeId - The user_id of the user the request was sent to
    */
   cancelRequest: (addresseeId: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/friends/request/cancel/${addresseeId}`, {
+    client<null>(`/friends/request/cancel/${addresseeId}`, {
       method: "DELETE",
     }),
 
@@ -49,7 +49,7 @@ export const friendshipAPI = {
    * @param userIdToBlock - The user_id of the user to block
    */
   blockUser: (userIdToBlock: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/friends/block/${userIdToBlock}`, {
+    client<null>(`/friends/block/${userIdToBlock}`, {
       method: "POST",
     }),
 
@@ -58,7 +58,15 @@ export const friendshipAPI = {
    * @param userIdToUnblock - The user_id of the user to unblock
    */
   unblockUser: (userIdToUnblock: string): Promise<ApiResponse<null>> =>
-    client<ApiResponse<null>>(`/friends/block/${userIdToUnblock}`, {
+    client<null>(`/friends/block/${userIdToUnblock}`, {
       method: "DELETE",
+    }),
+
+  /**
+   * Fetches the current user's list of accepted friends.
+   */
+  getFriends: (): Promise<ApiResponse<UserSearchItem[]>> =>
+    client<UserSearchItem[]>("/friends", {
+      method: "GET",
     }),
 };

@@ -1,28 +1,34 @@
 package handlers
 
 import (
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"runtime/debug"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
+	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
 const friendshipComponent = "handlers-friendship"
 
 type FriendshipHandler struct {
-	Cfg *cf.Config
+	Cfg    *cf.Config
+	SSEHub *sse.Hub
 }
 
-func NewFriendshipHandler(cfg *cf.Config) *FriendshipHandler {
-	return &FriendshipHandler{Cfg: cfg}
+func NewFriendshipHandler(cfg *cf.Config, sseHub *sse.Hub) *FriendshipHandler {
+	return &FriendshipHandler{Cfg: cfg, SSEHub: sseHub}
 }
 
 // Handles a user's request to friend another user
+// Path: /friends/request
+// Method: POST
 func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -57,28 +63,23 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		return
 	}
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			opErr = fmt.Errorf("panic recovered: %v", p)
-			logger.Error().Err(opErr).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic in HandleSendFriendRequest")
-		}
-		if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction")
-			if rbErr := tx.Rollback(); rbErr != nil {
-				logger.Error().Err(rbErr).Msg("Transaction rollback failed")
-			}
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	friendshipID, opErr := db.CreateFriendship(ctx, tx, requesterID, req.AddresseeID)
-	if opErr != nil {
+	friendshipID, err := db.CreateFriendship(ctx, tx, requesterID, req.AddresseeID)
+	if err != nil {
+		opErr = err
 		if errors.Is(opErr, db.ErrFriendshipAlreadyExists) {
-			ErrorResponse(w, r, http.StatusConflict, "A pending or accepted friendship already exists with this user")
+			ErrorResponse(
+				w, r, http.StatusConflict,
+				"A pending or accepted friendship already exists with this user",
+			)
 		} else if errors.Is(opErr, db.ErrFriendshipBlocked) {
 			ErrorResponse(w, r, http.StatusForbidden, "Cannot send a friend request to this user")
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to send friend request")
 		}
+		responseSent = true
 		return
 	}
 
@@ -86,6 +87,7 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 	if err != nil {
 		opErr = fmt.Errorf("failed to get actor for notification: %w", err)
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not send friend request")
+		responseSent = true
 		return
 	}
 
@@ -94,30 +96,33 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		actorDisplayName = actor.DisplayName.String
 	}
 	message := fmt.Sprintf("%s wants to be your friend", actorDisplayName)
-	_, opErr = db.CreateNotification(
-		ctx,
-		tx,
-		req.AddresseeID,
-		requesterID,
+
+	createdNotificationID, err := db.CreateNotification(
+		ctx, tx, req.AddresseeID, requesterID,
 		apiModels.NotificationTypeFriendRequest,
-		message,
-		&friendshipID,
+		message, &friendshipID,
 	)
-	if opErr != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "Friend reqeust sent, but failed to create a notification")
+	if err != nil {
+		opErr = err
+		ErrorResponse(
+			w, r, http.StatusInternalServerError,
+			"Friend reqeust sent, but failed to create a notification",
+		)
+		responseSent = true
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for friend request: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save friend request")
-		return
-	}
+	broadcastNotification(ctx, tx, fh.SSEHub, createdNotificationID, req.AddresseeID, logger)
 
-	Respond(w, r, http.StatusCreated, nil, "Friendship request sent successfully")
+	if !responseSent {
+		Respond(w, r, http.StatusCreated, nil, "Friendship request sent successfully")
+		responseSent = true
+	}
 }
 
 // Handles accepting or declining a friend request
+// Path: /friends/request/{friendship_id}
+// Method: PUT
 func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -142,23 +147,13 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		return
 	}
 
-	tx, txOk := StartTx(ctx, w, r, logger, "Clould not process friend request transaction")
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not process friend request transaction")
 	if !txOk {
 		return
 	}
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			opErr = fmt.Errorf("panic recovered: %v", p)
-			logger.Error().Err(opErr).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic in HandleSendFriendRequest")
-		}
-		if opErr != nil {
-			logger.Warn().Err(opErr).Msg("Rolling back transaction")
-			if rbErr := tx.Rollback(); rbErr != nil {
-				logger.Error().Err(rbErr).Msg("Transaction rollback failed")
-			}
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	friendship, err := db.GetFriendshipByID(ctx, tx, friendshipID)
 	if err != nil {
@@ -168,18 +163,24 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not process request")
 		}
+		responseSent = true
 		return
 	}
 
 	if friendship.AddresseeID != addresseeID {
 		opErr = errors.New("user not authorized to respond to this friend request")
-		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to response to this friend request")
+		ErrorResponse(
+			w, r, http.StatusForbidden,
+			"You are not authorized to respond to this friend request",
+		)
+		responseSent = true
 		return
 	}
 
 	if friendship.Status != "pending" {
 		opErr = errors.New("friend request already actioned")
 		ErrorResponse(w, r, http.StatusConflict, "This friend request has already been actioned")
+		responseSent = true
 		return
 	}
 
@@ -192,16 +193,22 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 	}
 	logger = logger.With().Str("response_action", newStatus).Logger()
 
-	opErr = db.UpdateFriendshipStatus(ctx, tx, friendshipID, newStatus)
-	if opErr != nil {
+	err = db.UpdateFriendshipStatus(ctx, tx, friendshipID, newStatus)
+	if err != nil {
+		opErr = err
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to respond to friend request")
+		responseSent = true
 		return
 	}
 
-	opErr = db.DeleteNotificationByFriendshipID(ctx, tx, friendshipID, apiModels.NotificationTypeFriendRequest)
-	if opErr != nil {
-		logger.Error().Err(opErr).Msg("Failed to delete original friend request notification, but proceeding")
-		opErr = nil
+	err = db.DeleteNotificationByFriendshipID(
+		ctx, tx, friendshipID,
+		apiModels.NotificationTypeFriendRequest,
+	)
+	if err != nil {
+		logger.Error().
+			Err(opErr).
+			Msg("Failed to delete original friend request notification, but proceeding")
 	}
 
 	if newStatus == "accepted" {
@@ -209,6 +216,7 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		if userErr != nil {
 			opErr = fmt.Errorf("failed to get actor for accepted notificaiton: %w", userErr)
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not send acceptance notification")
+			responseSent = true
 			return
 		}
 
@@ -218,31 +226,26 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		}
 		message := fmt.Sprintf("%s accepted your friend request", actorDisplayName)
 
-		_, opErr = db.CreateNotification(
-			ctx,
-			tx,
-			friendship.RequesterID,
-			addresseeID,
-			"friend_accepted",
-			message,
-			&friendshipID,
+		acceptedNotificationID, err := db.CreateNotification(
+			ctx, tx, friendship.RequesterID, addresseeID,
+			"friend_accepted", message, &friendshipID,
 		)
-		if opErr != nil {
-			logger.Error().Err(opErr).Msg("Failed to create 'friend_accepted' notification")
-			opErr = nil
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to create 'friend_accepted' notification")
+		} else {
+			broadcastNotification(ctx, tx, fh.SSEHub, acceptedNotificationID, friendship.RequesterID, logger)
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for friend response: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save friend request")
-		return
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, fmt.Sprintf("Friend request %s", newStatus))
+		responseSent = true
 	}
-
-	Respond(w, r, http.StatusOK, nil, fmt.Sprintf("Friend request %s", newStatus))
 }
 
 // Handles removing a friendship
+// Path: /friends/{user_id}
+// Method: DELETE
 func (fh *FriendshipHandler) HandleUnfriend(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -266,22 +269,33 @@ func (fh *FriendshipHandler) HandleUnfriend(w http.ResponseWriter, r *http.Reque
 		Str("friend_to_remove", friendToRemoveID).
 		Logger()
 
-		// TODO : we should probably create a transaction for this
-	err := db.DeleteFriendship(ctx, nil, removerID, friendToRemoveID)
-	if err != nil {
-		if errors.Is(err, db.ErrFriendshipNotFound) {
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not processs unfriend request")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.DeleteFriendship(ctx, tx, removerID, friendToRemoveID)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrFriendshipNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "Friendship not found")
 		} else {
-			logger.Error().Err(err).Msg("Failed to unfriend user")
+			logger.Error().Err(opErr).Msg("Failed to unfriend user")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not process unfriend request")
 		}
+		responseSent = true
 		return
 	}
 
 	Respond(w, r, http.StatusOK, nil, "Friendship removed successfully")
+	responseSent = true
 }
 
 // Allows a user to cancel a request they have sent
+// Path: /friends/request/cancel/{addressee_id}
+// Method: DELETE
 func (fh *FriendshipHandler) HandleCancelFriendRequest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -305,17 +319,10 @@ func (fh *FriendshipHandler) HandleCancelFriendRequest(w http.ResponseWriter, r 
 		return
 	}
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			opErr = fmt.Errorf("panic recovered: %v", p)
-			logger.Error().Err(opErr).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic in HandleCancelFriendRequest")
-		}
-		if opErr != nil {
-			logger.Error().Err(opErr).Msg("Rolling back transaction")
-			_ = tx.Rollback()
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
+	// 1. Find the pending friendship to get its ID
 	pendingFriendship, err := db.GetPendingFriendshipByUsers(ctx, tx, requesterID, addresseeID)
 	if err != nil {
 		opErr = err
@@ -324,30 +331,61 @@ func (fh *FriendshipHandler) HandleCancelFriendRequest(w http.ResponseWriter, r 
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Error finding friend request")
 		}
+		responseSent = true
 		return
 	}
 
-	opErr = db.DeleteNotificationByFriendshipID(ctx, tx, pendingFriendship.FriendshipID, apiModels.NotificationTypeFriendRequest)
-	if opErr != nil {
-		logger.Error().Err(opErr).Msg("Failed to delete notification for canceled request")
-		opErr = nil
+	// 2. Find the notification associated with this request to get its ID for the SSE event
+	notificationToCancel, err := db.GetNotificationByUsersAndType(
+		ctx, tx, addresseeID, requesterID,
+		apiModels.NotificationTypeFriendRequest,
+	)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		logger.Error().Err(err).Msg("Could not find notifiaction to broadcast")
 	}
 
+	// 3. Broadcast deletion via SSE
+	if notificationToCancel != nil {
+		ssePayload := apiModels.SSEEvent{
+			Event: "notification_deleted",
+			Payload: apiModels.SSEDeletedNotificationPayload{
+				NotificationID: notificationToCancel.NotificationID,
+			},
+		}
+		jsonPayload, jsonErr := json.Marshal(ssePayload)
+		if jsonErr != nil {
+			logger.Error().Err(jsonErr).Msg("Failed to marshal SSE deletion event payload")
+		} else {
+			fh.SSEHub.Broadcast(addresseeID, string(jsonPayload))
+			logger.Info().Str(l.RecipientIDKey, addresseeID).Msg("Broadcasted 'notification_deleted' event via SSE")
+		}
+	}
+
+	// 4. Delete the notification from the database
+	if err := db.DeleteNotificationByFriendshipID(
+		ctx, tx, pendingFriendship.FriendshipID,
+		apiModels.NotificationTypeFriendRequest,
+	); err != nil {
+		logger.Error().Err(opErr).Msg("Failed to delete notification for canceled request")
+	}
+
+	// 5. Delete the friendship record
 	opErr = db.DeleteFriendshipByID(ctx, tx, pendingFriendship.FriendshipID)
 	if opErr != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to cancel friend request")
+		responseSent = true
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transaction for friend request cancellation: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save cancellation")
-		return
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Friend request cancelled")
+		responseSent = true
 	}
-	Respond(w, r, http.StatusOK, nil, "Friend request cancelled")
 }
 
 // Handles blocking a user
+// Path: /friends/block/{user_id_to_block}
+// Method: POST
 func (fh *FriendshipHandler) HandleBlockUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -375,40 +413,30 @@ func (fh *FriendshipHandler) HandleBlockUser(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var opErr error
-	defer func() {
-		if p := recover(); p != nil {
-			opErr = fmt.Errorf("panic recovered: %v", p)
-			logger.Error().Err(opErr).Bytes(l.StackTraceKey, debug.Stack()).Msg("Panic in HandleBlockUser")
-		}
-		if opErr != nil {
-			logger.Error().Err(opErr).Msg("Rolling back transaction")
-			_ = tx.Rollback()
-		}
-	}()
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	opErr = db.BlockUser(ctx, tx, blockerID, userToBlockID)
 	if opErr != nil {
 		logger.Error().Err(opErr).Msg("Failed to block user")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not process block request")
+		responseSent = true
 		return
 	}
 
-	opErr = db.DeleteFriendRequestNotification(ctx, tx, blockerID, userToBlockID)
-	if opErr != nil {
+	if err := db.DeleteFriendRequestNotification(ctx, tx, blockerID, userToBlockID); err != nil {
 		logger.Error().Err(opErr).Msg("Failed to clean up pending notification during block, proceeding")
-		opErr = nil
 	}
 
-	if err := tx.Commit(); err != nil {
-		opErr = fmt.Errorf("failed to commit transcation for blocking user: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save block action")
-		return
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "User blocked successfully")
+		responseSent = true
 	}
-
-	Respond(w, r, http.StatusOK, nil, "User blocked successfully")
 }
 
 // Handles unblocking a user
+// Path: /friends/block/{user_id_to_block}
+// Method: DELETE
 func (fh *FriendshipHandler) HandleUnblockUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
@@ -431,16 +459,63 @@ func (fh *FriendshipHandler) HandleUnblockUser(w http.ResponseWriter, r *http.Re
 		Str(l.UnblockedIDKey, userToUnblockID).
 		Logger()
 
-	err := db.UnblockUser(ctx, nil, unblockerID, userToUnblockID)
-	if err != nil {
-		if errors.Is(err, db.ErrFriendshipNotFound) {
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not process unblock request")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.UnblockUser(ctx, tx, unblockerID, userToUnblockID)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrFriendshipNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "No block record found for this user")
 		} else {
-			logger.Error().Err(err).Msg("Failed to unblock user")
+			logger.Error().Err(opErr).Msg("Failed to unblock user")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not process unblock request")
 		}
+		responseSent = true
 		return
 	}
 
 	Respond(w, r, http.StatusOK, nil, "User unblocked successfully")
+	responseSent = true
+}
+
+// Handles fetching the authenticated user's list of friends
+// Path: /friends
+// Method: GET
+func (fh *FriendshipHandler) HandleGetFriends(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"HandleGetFriends",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.UserIDKey, userID).Logger()
+
+	dbFriends, err := db.GetFriendsByUserID(ctx, nil, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get friends from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve your friends list")
+		return
+	}
+
+	apiFriends := make(apiModels.UserSearchResponse, 0, len(dbFriends))
+	for _, dbFriend := range dbFriends {
+		apiFriend, convErr := modelConverters.DBUserSearchResultToAPISearchItem(&dbFriend)
+		if convErr != nil {
+			logger.Error().Err(convErr).Msg("Failed to convert DB friend to API model")
+			continue
+		}
+		apiFriends = append(apiFriends, *apiFriend)
+	}
+
+	Respond(w, r, http.StatusOK, apiFriends, "Friends list retrived successfully")
 }

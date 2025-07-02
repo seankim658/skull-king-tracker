@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -26,15 +26,14 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { userAPI } from "@/lib/api/service/user";
-import type {
-  UpdateUserProfilePayload,
-  User,
-  LinkedAccount,
-} from "@/lib/api/types";
+import type { UpdateUserProfilePayload, User } from "@/lib/api/types";
+import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "sonner";
-import { errorExtract, getFullAvatarURL } from "@/lib/utils";
+import { getFullAvatarURL } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api/client";
 import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
+import { useSubmit } from "@/hooks/use-submit";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 type StatsPrivacy = User["stats_privacy"];
 const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
@@ -44,130 +43,81 @@ const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
 ];
 
 export function SettingsPage() {
+  const queryClient = useQueryClient();
   const confirm = useConfirm();
   const { user, checkAuthStatus, isLoadingAuth } = useAuth();
-  const [displayName, setDisplayName] = useState(
-    user?.display_name || user?.username || "",
-  );
 
-  const [avatarInputDisplayUrl, setAvatarInputDisplayUrl] = useState("");
-  const [initialAvatarInputValue, setInitialAvatarInputValue] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [statsPrivacy, setStatsPrivacy] = useState<StatsPrivacy>("public");
 
-  const [statsPrivacy, setStatsPrivacy] = useState<StatsPrivacy>(
-    user?.stats_privacy || "public",
-  );
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[] | null>(
-    null,
-  );
-  const [isLoadingLinkedAccounts, setIsLoadingLinkedAccounts] = useState(true);
-
-  useEffect(() => {
-    if (user && !linkedAccounts && isLoadingLinkedAccounts) {
-      const fetchAccounts = async () => {
-        setIsLoadingLinkedAccounts(true);
-        try {
-          const response = await userAPI.getLinkedAccounts();
-          if (response.success && response.data) {
-            setLinkedAccounts(response.data);
-          } else {
-            toast.error(response.error || "Failed to load linked accounts");
-            setLinkedAccounts([]);
-          }
-        } catch (e) {
-          toast.error(errorExtract(e, "Could not fetch linked accounts"));
-          setLinkedAccounts([]);
-        } finally {
-          setIsLoadingLinkedAccounts(false);
+  const { data: linkedAccounts, isLoading: isLoadingLinkedAccounts } = useQuery(
+    {
+      queryKey: ["linkedAccounts"],
+      queryFn: async () => {
+        const response = await userAPI.getLinkedAccounts();
+        if (!response.success || !response.data) {
+          throw new Error(
+            response.message || "Could not fetch linked accounts",
+          );
         }
-      };
-      fetchAccounts();
-    }
-  }, [user, linkedAccounts, isLoadingLinkedAccounts]);
+        return response.data;
+      },
+      enabled: !!user,
+    },
+  );
+
+  const { submit: updateProfile, isLoading: isSavingProfile } = useSubmit(
+    userAPI.updateUserProfile,
+    {
+      actionVerb: "Saving profile",
+      successMessage: "Profile updated successfully",
+      onSuccess: () => {
+        if (user) {
+          queryClient.invalidateQueries({
+            queryKey: ["userProfile", user.user_id],
+          });
+        }
+        checkAuthStatus();
+      },
+    },
+  );
+
+  const { submit: disconnectProvider, isLoading: isDisconnecting } = useSubmit(
+    userAPI.unlinkAccount,
+    {
+      actionVerb: "Disconnecting account",
+      successMessage: "Account unlinked successfully",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["linkedAccounts"] });
+      },
+    },
+  );
 
   useEffect(() => {
     if (user) {
       setDisplayName(user.display_name || user.username || "");
-      setStatsPrivacy(user.stats_privacy || "public");
-
-      let determinedInputUrl = "";
-      if (
-        user.avatar_source &&
-        user.avatar_source !== "manual" &&
-        linkedAccounts
-      ) {
-        // Avatar is from a provider
-        const providerAccount = linkedAccounts.find(
-          (acc) => acc.provider_name === user.avatar_source,
-        );
-        if (providerAccount && providerAccount.provider_avatar_url) {
-          determinedInputUrl = providerAccount.provider_avatar_url;
-        }
-      } else if (user.avatar_source === "manual") {
-        // Avatar was manually uploaded and localized
-        determinedInputUrl = "";
-      }
-
-      setAvatarInputDisplayUrl(determinedInputUrl);
-      setInitialAvatarInputValue(determinedInputUrl);
+      setAvatarUrl(user.avatar_url || "");
+      setStatsPrivacy(user.stats_privacy);
     }
-  }, [user, linkedAccounts]);
+  }, [user]);
 
   const handleProfileSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
-    setIsSavingProfile(true);
 
     const payload: UpdateUserProfilePayload = {};
-    let changesMade = false;
-
-    const currentDisplayName = user.display_name || user.username || "";
-    if (displayName.trim() !== currentDisplayName) {
+    if (displayName.trim() !== (user.display_name || ""))
       payload.display_name = displayName.trim();
-      changesMade = true;
-    }
-
-    if (avatarInputDisplayUrl !== initialAvatarInputValue) {
-      payload.avatar_url = avatarInputDisplayUrl;
-      changesMade = true;
-    }
-
-    const currentStatsPrivacy = user.stats_privacy || "public";
-    if (statsPrivacy !== currentStatsPrivacy) {
+    if (avatarUrl !== (user.avatar_url || "")) payload.avatar_url = avatarUrl;
+    if (statsPrivacy !== user.stats_privacy)
       payload.stats_privacy = statsPrivacy;
-      changesMade = true;
-    }
 
-    if (!changesMade) {
+    if (Object.keys(payload).length === 0) {
       toast.info("No changes to save");
-      setIsSavingProfile(false);
       return;
     }
-
-    try {
-      const response = await userAPI.updateUserProfile(payload);
-      if (response.success && response.data?.user) {
-        toast.success("Profile updated successfully");
-        await checkAuthStatus();
-      } else {
-        throw new Error(response.error || "Failed to update profile");
-      }
-    } catch (e) {
-      toast.error(
-        errorExtract(e, "An error occurred while updating your profile"),
-      );
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  const currentDisplayableAvatar = useMemo(() => {
-    return user ? getFullAvatarURL(user.avatar_url) : "";
-  }, [user]);
-
-  const handleConnectProvider = (providerId: string) => {
-    window.location.href = `${API_BASE_URL}/auth/initiate-link/${providerId}`;
+    updateProfile(payload);
   };
 
   const handleDisconnectProvider = async (
@@ -179,33 +129,19 @@ export function SettingsPage() {
       description: `Are you sure you want to disconnect your ${providerName} account?`,
       confirmText: "Disconnect",
     });
-    if (!isConfirmed) {
-      return;
-    }
-
-    try {
-      const response = await userAPI.unlinkAccount(providerId);
-      if (response.success) {
-        toast.success(`${providerName} account unlinked successfully`);
-        const updatedAccountResponse = await userAPI.getLinkedAccounts();
-        if (updatedAccountResponse.success && updatedAccountResponse.data) {
-          setLinkedAccounts(updatedAccountResponse.data);
-        } else {
-          setLinkedAccounts(
-            (prev) =>
-              prev?.filter((acc) => acc.provider_name !== providerId) || [],
-          );
-          toast.warning("Could not refresh linked accounts list automatically");
-        }
-      } else {
-        toast.error(
-          response.error || `Failed to unlink ${providerName} account`,
-        );
-      }
-    } catch (e) {
-      toast.error(errorExtract(e, `Could not unlink ${providerName} account`));
+    if (isConfirmed) {
+      disconnectProvider(providerId);
     }
   };
+
+  const handleConnectProvider = (providerId: string) => {
+    window.location.href = `${API_BASE_URL}/auth/initiate-link/${providerId}`;
+  };
+
+  const currentDisplayableAvatar = useMemo(
+    () => getFullAvatarURL(user?.avatar_url),
+    [user],
+  );
 
   if (isLoadingAuth || !user) {
     return (
@@ -218,10 +154,10 @@ export function SettingsPage() {
 
   return (
     <div className="container mx-auto max-w-3xl space-y-8 p-4 py-8 md:p-6 lg:py-12">
-      <h1 className="text-3xl font-bold tracking-tight mb-2">Settings</h1>
-      <p className="text-muted-foreground">
-        Manage your account and theme preferences
-      </p>
+      <PageHeader
+        title="Settings"
+        description="Manage your account and theme preferences"
+      />
 
       <Separator />
 
@@ -289,8 +225,8 @@ export function SettingsPage() {
                   <Input
                     id="avatarUrl"
                     type="url"
-                    value={avatarInputDisplayUrl}
-                    onChange={(e) => setAvatarInputDisplayUrl(e.target.value)}
+                    value={avatarUrl}
+                    onChange={(e) => setAvatarUrl(e.target.value)}
                     placeholder="https://example.com/avatar.png"
                     className="flex-1"
                   />
@@ -392,7 +328,7 @@ export function SettingsPage() {
                             availableProvider.name,
                           )
                         }
-                        disabled={isOnlyAccount}
+                        disabled={isOnlyAccount || isDisconnecting}
                         className="w-full sm:w-auto"
                       >
                         Disconnect

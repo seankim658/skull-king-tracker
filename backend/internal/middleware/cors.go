@@ -32,12 +32,23 @@ func CorsMiddleware(cfg *cf.Config) func(http.Handler) http.Handler {
 		"Authorization",
 		"X-Requested-With",
 		"X-CRSF-Token",
+		"Cache-Control",
+		"Accept",
+		"Accept-Encoding",
+		"Accept-Language",
+	}
+
+	exposedHeaders := []string{
+		"Content-Type",
+		"Cache-Control",
+		"Connection",
 	}
 
 	corsMiddleware := handlers.CORS(
 		handlers.AllowedOrigins(allowedOrigins),
 		handlers.AllowedMethods(allowedMethods),
 		handlers.AllowedHeaders(allowedHeaders),
+		handlers.ExposedHeaders(exposedHeaders),
 		handlers.AllowCredentials(),
 	)
 

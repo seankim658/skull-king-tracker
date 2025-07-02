@@ -15,3 +15,11 @@ type GameSession struct {
 	UpdatedAt       time.Time      `db:"updated_at"`
 	CompletedAt     sql.NullTime   `db:"completed_at"`
 }
+
+// Helper struct to include session details along with game flow activity
+type GameSessionWithActivity struct {
+	GameSession
+	HasActiveGame  bool           `db:"has_active_game"`
+	HasPendingGame bool           `db:"has_pending_game"`
+	CreatorName    sql.NullString `db:"creator_name"`
+}

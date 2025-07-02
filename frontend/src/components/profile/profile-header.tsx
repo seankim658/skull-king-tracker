@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import type { UserProfile } from "@/lib/api/types";
+import type { FriendshipStatus, UserProfile } from "@/lib/api/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
@@ -13,14 +12,15 @@ import {
   getFullAvatarURL,
   getAvatarFallback,
   formatFriendshipStatus,
-  errorExtract,
 } from "@/lib/utils";
 import { MoreVertical, UserCheck } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useConfirm } from "@/hooks/use-confirm";
 import { CalendarDays, Users, Edit3, UserPlus, UserX } from "lucide-react";
 import { friendshipAPI } from "@/lib/api/service/friendship";
-import { toast } from "sonner";
+import { useSubmit } from "@/hooks/use-submit";
+
+const friendButtonIconStyling = "mr-2 h-4 w-4";
 
 interface ProfileHeaderProps {
   profile: UserProfile;
@@ -34,14 +34,6 @@ export function ProfileHeader({
   onActionSuccess,
 }: ProfileHeaderProps) {
   const confirm = useConfirm();
-  const [friendshipStatus, setFriendshipStatus] = useState(
-    profile.friendship_status_with_viewer,
-  );
-  const [isFriendActionLoading, setIsFriendActionLoading] = useState(false);
-
-  useEffect(() => {
-    setFriendshipStatus(profile.friendship_status_with_viewer);
-  }, [profile.friendship_status_with_viewer]);
 
   const avatarUrl = getFullAvatarURL(profile.avatar_url);
   const displayName = profile.display_name || profile.username;
@@ -51,162 +43,99 @@ export function ProfileHeader({
     day: "numeric",
   });
 
-  const handleFriendRequest = async () => {
-    if (!profile || !profile.user_id) return;
+  const { submit: sendFriendRequest, isLoading: isSendingRequest } = useSubmit(
+    friendshipAPI.sendRequest,
+    {
+      actionVerb: "Sending friend request",
+      successMessage: "Friend request sent",
+      onSuccess: onActionSuccess,
+    },
+  );
 
-    setIsFriendActionLoading(true);
-    const toastId = toast.loading("Sending friend request...");
-    try {
-      const response = await friendshipAPI.sendRequest(profile.user_id);
-      if (response.success) {
-        toast.success("Friend request sent", { id: toastId });
-        setFriendshipStatus("pending_sent_to_profile");
-      } else {
-        const errMsg = "Failed to send friend request";
-        toast.error(errMsg);
-        console.error(`${errMsg}: ${response.message}`);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to send friend request");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    } finally {
-      setIsFriendActionLoading(false);
-    }
-  };
+  const { submit: unfriendUser, isLoading: isUnfriending } = useSubmit(
+    friendshipAPI.unfriend,
+    {
+      actionVerb: "Submitting unfriend request",
+      successMessage: `You are no longer friends with ${displayName}`,
+      onSuccess: onActionSuccess,
+    },
+  );
 
-  const handleUnfriendRequest = async () => {
-    if (!profile || !profile.user_id) return;
+  const { submit: cancelFriendRequest, isLoading: isCancelling } = useSubmit(
+    friendshipAPI.cancelRequest,
+    {
+      actionVerb: "Canelling friend request",
+      successMessage: "Friend request cancelled",
+      onSuccess: onActionSuccess,
+    },
+  );
 
-    const isConfirmed = await confirm({
-      title: "Unfriend User?",
-      description: `Are you sure you want to unfriend ${displayName}?`,
+  const { submit: blockUser, isLoading: isBlocking } = useSubmit(
+    friendshipAPI.blockUser,
+    {
+      actionVerb: "Blocking user",
+      successMessage: `Blocked ${displayName}`,
+      onSuccess: onActionSuccess,
+    },
+  );
+
+  const { submit: unblockUser, isLoading: isUnblocking } = useSubmit(
+    friendshipAPI.unblockUser,
+    {
+      actionVerb: "Unblocking user",
+      successMessage: `Unblocked ${displayName}`,
+      onSuccess: onActionSuccess,
+    },
+  );
+
+  const friendshipStatus: FriendshipStatus =
+    profile.friendship_status_with_viewer;
+
+  const handleUnfriend = async () => {
+    const ok = await confirm({
+      title: "Unfriend user?",
+      description: `Are you sure you want to unfriend ${displayName}`,
     });
-    if (!isConfirmed) {
-      return;
-    }
-
-    setIsFriendActionLoading(true);
-    const toastId = toast.loading("Unfriending...");
-    try {
-      const response = await friendshipAPI.unfriend(profile.user_id);
-      if (response.success) {
-        toast.success(`You are no longer friends with ${displayName}`, {
-          id: toastId,
-        });
-        setFriendshipStatus("not_friends");
-      } else {
-        const errMsg = response.message || "Failed to unfriend";
-        toast.error(errMsg, { id: toastId });
-        console.error(errMsg);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to unfriend user");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    } finally {
-      setIsFriendActionLoading(false);
-    }
+    if (ok) unfriendUser(profile.user_id);
   };
 
-  const handleCancelRequest = async () => {
-    if (!profile || !profile.user_id) return;
-
-    setIsFriendActionLoading(true);
-    const toastId = toast.loading("Canceling friend request...");
-    try {
-      const response = await friendshipAPI.cancelRequest(profile.user_id);
-      if (response.success) {
-        toast.success("Friend request canceled", { id: toastId });
-        setFriendshipStatus("not_friends");
-      } else {
-        const errMsg = response.message || "Failed to cancel friend request";
-        toast.error(errMsg);
-        console.error(errMsg);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to cancel friend request");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    } finally {
-      setIsFriendActionLoading(false);
-    }
-  };
-
-  const handleBlockUser = async () => {
-    if (!profile || !profile.user_id) return;
-
-    const isConfirmed = await confirm({
-      title: "Block User?",
+  const handleBlock = async () => {
+    const ok = await confirm({
+      title: "Block user?",
       description: `Are you sure you want to block ${displayName}?`,
     });
-    if (!isConfirmed) {
-      return;
-    }
-
-    setIsFriendActionLoading(true);
-    const toastId = toast.loading("Blocking user...");
-    try {
-      const response = await friendshipAPI.blockUser(profile.user_id);
-      if (response.success) {
-        toast.success(`Blocked ${displayName}`, { id: toastId });
-        setFriendshipStatus("blocked_by_viewer");
-      } else {
-        const errMsg = response.message || "Failed to block user";
-        toast.error(errMsg, { id: toastId });
-        console.error(errMsg);
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to block user");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    } finally {
-      setIsFriendActionLoading(false);
-    }
+    if (ok) blockUser(profile.user_id);
   };
 
-  const handleUnblockUser = async () => {
-    if (!profile || !profile.user_id) return;
-
-    setIsFriendActionLoading(true);
-    const toastId = toast.loading("Unblocking user...");
-    try {
-      const response = await friendshipAPI.unblockUser(profile.user_id);
-      if (response.success) {
-        toast.success(`Unblocked ${displayName}`, { id: toastId });
-        setFriendshipStatus("not_friends");
-      } else {
-        const errMsg = response.message || "Failed to unblock user";
-        toast.error(errMsg, { id: toastId });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Failed to unblock user");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    } finally {
-      setIsFriendActionLoading(false);
-    }
+  const handleUnblock = () => {
+    unblockUser(profile.user_id);
   };
+
+  const isLoading =
+    isSendingRequest ||
+    isUnfriending ||
+    isCancelling ||
+    isBlocking ||
+    isUnblocking;
 
   const friendButton = () => {
     switch (friendshipStatus) {
       case "not_friends":
         return (
           <Button
-            onClick={handleFriendRequest}
-            disabled={isFriendActionLoading}
+            onClick={() => sendFriendRequest(profile.user_id)}
+            disabled={isLoading}
             className="cursor-pointer"
           >
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Friend
+            <UserPlus className={friendButtonIconStyling} /> Add Friend
           </Button>
         );
       case "pending_sent_to_profile":
         return (
           <Button
             variant="outline"
-            onClick={handleCancelRequest}
-            disabled={isFriendActionLoading}
+            onClick={() => cancelFriendRequest(profile.user_id)}
+            disabled={isLoading}
             className="cursor-pointer"
           >
             Cancel Request
@@ -218,24 +147,22 @@ export function ProfileHeader({
         return (
           <Button
             variant="destructive"
-            onClick={handleUnfriendRequest}
-            disabled={isFriendActionLoading}
+            onClick={handleUnfriend}
+            disabled={isLoading}
             className="cursor-pointer"
           >
-            <UserX className="mr-2 h-4 w-4" />
-            Unfriend
+            <UserX className={friendButtonIconStyling} /> Unfriend
           </Button>
         );
       case "blocked_by_viewer":
         return (
           <Button
-            variant="outline"
-            onClick={handleUnblockUser}
-            disabled={isFriendActionLoading}
+            variant="destructive"
+            onClick={handleUnfriend}
+            disabled={isLoading}
             className="cursor-pointer"
           >
-            <UserCheck className="mr-2 h-4 w-4" />
-            Unblock
+            <UserCheck className={friendButtonIconStyling} /> Unblock
           </Button>
         );
       default:
@@ -255,13 +182,13 @@ export function ProfileHeader({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {friendshipStatus === "blocked_by_viewer" ? (
-                <DropdownMenuItem onSelect={handleUnblockUser}>
+                <DropdownMenuItem onSelect={handleUnblock}>
                   Unblock User
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem
                   className="text-destructive cursor-pointer"
-                  onSelect={handleBlockUser}
+                  onSelect={handleBlock}
                 >
                   Block User
                 </DropdownMenuItem>

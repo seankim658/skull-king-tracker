@@ -1,11 +1,8 @@
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 import { Users, Swords, CalendarDays, UserPlus } from "lucide-react";
 import { statsAPI } from "@/lib/api/service/stat";
-import type { SiteSummaryStatsResponse } from "@/lib/api/types";
-import { toast } from "sonner";
-import { errorExtract } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 
 const outerDivStyle = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
 const summaryStatStyle = "text-2xl font-bold";
@@ -15,29 +12,21 @@ const cardHeaderStyle =
 const cardTitleStyle = "text-sm font-medium min-h-[50px]";
 
 export function SiteSummaryStats() {
-  const [summaryStats, setSummaryStats] =
-    useState<SiteSummaryStatsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchSummary = async () => {
-      setIsLoading(true);
-      try {
-        const response = await statsAPI.getSiteSummaryStats();
-        if (response.success && response.data) {
-          setSummaryStats(response.data);
-        } else {
-          toast.error(response.message || "Failed to load site summary stats");
-        }
-      } catch (e) {
-        toast.error(errorExtract(e, "Could not load site summary stats"));
-        console.error(e);
-      } finally {
-        setIsLoading(false);
+  const {
+    data: summaryStats,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["SiteSummaryStats"],
+    queryFn: async () => {
+      const response = await statsAPI.getSiteSummaryStats();
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch size stats");
       }
-    };
-    fetchSummary();
-  }, []);
+      return response.data;
+    },
+    staleTime: 1000 * 60 * 15,
+  });
 
   if (isLoading) {
     return (
@@ -58,7 +47,7 @@ export function SiteSummaryStats() {
     );
   }
 
-  if (!summaryStats) {
+  if (isError || !summaryStats) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -74,7 +63,9 @@ export function SiteSummaryStats() {
     <div className={outerDivStyle}>
       <Card>
         <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>Total Skull King Players</CardTitle>
+          <CardTitle className={cardTitleStyle}>
+            Total Skull King Players
+          </CardTitle>
           <Users className={iconStyle} />
         </CardHeader>
         <CardContent>

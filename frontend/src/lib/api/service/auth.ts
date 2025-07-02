@@ -17,7 +17,7 @@ export const authAPI = {
    * @returns Promise resolving to the user's data if authenticated
    */
   getCurrentUser: (): Promise<ApiResponse<AuthenticatedUserResponse>> =>
-    client<ApiResponse<AuthenticatedUserResponse>>("/auth/me", {
+    client<AuthenticatedUserResponse>("/auth/me", {
       method: "GET",
     }),
 
@@ -26,7 +26,7 @@ export const authAPI = {
    * @returns Promise resolving to a success message.
    */
   logout: (): Promise<ApiResponse<LogoutResponse>> =>
-    client<ApiResponse<LogoutResponse>>("/auth/logout", {
+    client<LogoutResponse>("/auth/logout", {
       method: "POST",
     }),
 };

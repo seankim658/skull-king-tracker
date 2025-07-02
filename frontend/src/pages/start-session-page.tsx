@@ -11,14 +11,30 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { gameAPI } from "@/lib/api/service/game";
-import { errorExtract } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useSubmit } from "@/hooks/use-submit";
+import type { GameResponse } from "@/lib/api/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function StartSessionPage() {
   const [sessionName, setSessionName] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const { submit: createSessionAndGame, isLoading } = useSubmit(
+    gameAPI.createGame,
+    {
+      actionVerb: "Creating session",
+      onSuccess: (data: GameResponse | undefined) => {
+        toast.success(`Session "${sessionName.trim()} created`);
+        queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
+        if (data?.game_id) {
+          navigate(`/game/${data.game_id}/add-players`);
+        }
+      },
+    },
+  );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,31 +43,7 @@ export function StartSessionPage() {
       toast.error("Session name cannot be empty");
       return;
     }
-    setIsLoading(true);
-    const toastId = toast.loading("Starting new session...");
-
-    try {
-      const response = await gameAPI.createGame({
-        session_name: trimmedSessionName,
-      });
-      if (response.success && response.data?.game_id) {
-        toast.success(
-          `Session "${sessionName}" created and first game started`,
-          { id: toastId },
-        );
-        // TODO : Navigate to add players page
-      } else {
-        toast.error(response.message || "Failed to start session", {
-          id: toastId,
-        });
-      }
-    } catch (e) {
-      const errMsg = errorExtract(e, "Could not start session and game");
-      toast.error(errMsg, { id: toastId });
-      console.error(errMsg);
-    } finally {
-      setIsLoading(false);
-    }
+    createSessionAndGame({ session_name: trimmedSessionName });
   };
 
   return (
@@ -79,7 +71,11 @@ export function StartSessionPage() {
             </div>
           </CardContent>
           <CardFooter className="pt-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full cursor-pointer"
+              disabled={isLoading}
+            >
               {isLoading ? "Starting Session..." : "Create Session"}
             </Button>
           </CardFooter>
