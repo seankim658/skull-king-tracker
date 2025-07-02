@@ -143,7 +143,7 @@ export function SessionDetailsModal({
                       Game {index + 1}{" "}
                       <Badge
                         variant={
-                          game.status === "active" ? "destructive" : "secondary"
+                          game.status === "active" ? "default" : "secondary"
                         }
                         className={cn("ml-2 capitalize", {
                           "animate-pulse": game.status === "active",

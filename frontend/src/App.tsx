@@ -28,6 +28,7 @@ import { ProfilePage } from "./pages/profile-page";
 import { ExplorePage } from "./pages/explore-page";
 import { AddPlayersPage } from "./pages/add-players-page";
 import { GameSetupPage } from "./pages/game-setup-page";
+import { GameScorecardPage } from "./pages/game-scorecard-page";
 
 function AppContent() {
   const { isLoadingAuth } = useAuth();
@@ -57,7 +58,11 @@ function AppContent() {
             path="/game/:gameId/add-players"
             element={<AddPlayersPage />}
           />
-        <Route path="/game/:gameId/setup" element={<GameSetupPage />} />
+          <Route path="/game/:gameId/setup" element={<GameSetupPage />} />
+          <Route
+            path="/game/:gameId/scorecard"
+            element={<GameScorecardPage />}
+          />
         </Route>
       </Route>
 

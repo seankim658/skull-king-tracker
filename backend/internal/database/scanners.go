@@ -22,7 +22,7 @@ func scanUser(row RowScanner) (*dbModels.User, error) {
 		&user.Email,
 		&user.DisplayName,
 		&user.AvatarURL,
-    &user.AvatarSource,
+		&user.AvatarSource,
 		&user.StatsPrivacy,
 		&user.UITheme,
 		&user.ColorTheme,
@@ -74,6 +74,8 @@ func scanGame(row RowScanner) (*dbModels.Game, error) {
 		&g.CreatedAt,
 		&g.UpdatedAt,
 		&g.CompletedAt,
+		&g.SessionName,
+		&g.ScorekeeperName,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

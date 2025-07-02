@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// Maps to the `games` table
 type Game struct {
 	GameID                       string         `db:"game_id"`
 	SessionID                    sql.NullString `db:"session_id"`
@@ -17,6 +16,9 @@ type Game struct {
 	CreatedAt                    time.Time      `db:"created_at"`
 	UpdatedAt                    time.Time      `db:"updated_at"`
 	CompletedAt                  sql.NullTime   `db:"completed_at"`
+
+	SessionName     sql.NullString `db:"session_name"`
+	ScorekeeperName sql.NullString `db:"scorekeeper_name"`
 }
 
 // Maps to the `game_players` table

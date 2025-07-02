@@ -5,7 +5,7 @@ import (
 	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
 
-func DBScorecaredToAPIResponse(data *dbModels.FullScorecardData) *apiModels.ScorecardResponse {
+func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.ScorecardResponse {
 	scoresMap := make(map[string]map[string]dbModels.PlayerRoundScoreDetails)
 	for _, score := range data.Scores {
 		if _, ok := scoresMap[score.RoundID]; !ok {
@@ -50,13 +50,22 @@ func DBScorecaredToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Scor
 		}
 	}
 
-	return &apiModels.ScorecardResponse{
-		GameID:       data.Game.GameID,
-		GameStatus:   data.Game.Status,
-		Players:      buildGamePlayerResponses(data.Players),
-		Rounds:       apiRounds,
-		CurrentRound: currentRoundNum,
+	response := &apiModels.ScorecardResponse{
+		GameID:                   data.Game.GameID,
+		GameStatus:               data.Game.Status,
+		CurrentScoreKeeperUserID: data.Game.CurrentScorekeeperUserID.String,
+		Players:                  buildGamePlayerResponses(data.Players),
+		Rounds:                   apiRounds,
+		CurrentRound:             currentRoundNum,
 	}
+	if data.Game.SessionName.Valid {
+		response.SessionName = &data.Game.SessionName.String
+	}
+	if data.Game.ScorekeeperName.Valid {
+		response.ScorekeeperName = data.Game.ScorekeeperName.String
+	}
+
+	return response
 }
 
 // Private helper to convert DB player details to API player responses

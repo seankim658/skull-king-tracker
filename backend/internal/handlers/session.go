@@ -78,7 +78,7 @@ func (sh *SessionHandler) HandleCompleteSession(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		sessionHandlerComponent,
+		sessionComponent,
 		"HandleCompleteSession",
 	)
 
@@ -146,7 +146,7 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
-		sessionHandlerComponent,
+		sessionComponent,
 		"HandleGetSessionDetails",
 	)
 

@@ -49,3 +49,68 @@ export interface UpdateGameSettingsPayload {
   ordered_player_ids: string[];
   starting_dealer_game_player_id: string;
 }
+
+/**
+ * Holds the score details for a single player in a single round.
+ */
+export interface PlayerRoundData {
+  game_player_id: string;
+  bid_amount: number | null;
+  tricks_taken: number | null;
+  round_score: number | null;
+  bonus_points: number | null;
+}
+
+/**
+ *  Contains all player data for a single round of the scorecard.
+ */
+export interface RoundScorecard {
+  round_number: number;
+  status: "bidding" | "playing" | "completed";
+  player_scores: PlayerRoundData[];
+}
+
+/**
+ * The main object for fetching and rendering the entire scorecard.
+ */
+export interface ScorecardResponse {
+  game_id: string;
+  game_status: string;
+  players: GamePlayerResponse[];
+  rounds: RoundScorecard[];
+  current_round: number;
+  session_name?: string | null;
+  current_scorekeeper_user_id: string;
+  scorekeeper_name: string;
+}
+
+/**
+ * Defines the structure for a single player's bid submission.
+ */
+export interface PlayerBid {
+  game_player_id: string;
+  bid_amount: number;
+}
+
+/**
+ * Payload for submitting all bids for a round.
+ */
+export interface SubmitBidsPayload {
+  bids: PlayerBid[];
+}
+
+/**
+ * Defines the structure for a single player's trick submission.
+ */
+export interface PlayerTricks {
+  game_player_id: string;
+  tricks_taken: number;
+  bonus_points: number;
+}
+
+/**
+ * Payload for submitting all tricks taken for a round.
+ */
+export interface SubmitTricksPayload {
+  tricks: PlayerTricks[];
+}

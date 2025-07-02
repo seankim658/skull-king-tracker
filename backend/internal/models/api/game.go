@@ -59,11 +59,14 @@ type RoundScorecard struct {
 }
 
 type ScorecardResponse struct {
-	GameID       string               `json:"game_id"`
-	GameStatus   string               `json:"game_status"`
-	Players      []GamePlayerResponse `json:"players"`
-	Rounds       []RoundScorecard     `json:"rounds"`
-	CurrentRound int                  `json:"current_round"`
+	GameID                   string               `json:"game_id"`
+	GameStatus               string               `json:"game_status"`
+	Players                  []GamePlayerResponse `json:"players"`
+	Rounds                   []RoundScorecard     `json:"rounds"`
+	CurrentRound             int                  `json:"current_round"`
+	SessionName              *string              `json:"session_name,omitempty"`
+	CurrentScoreKeeperUserID string               `json:"current_scorekeeper_user_id"`
+	ScorekeeperName          string               `json:"scorekeeper_name"`
 }
 
 type PlayerBid struct {
@@ -78,8 +81,11 @@ type SubmitBidsRequest struct {
 
 // Payload for submitting all tricks taken for a round
 type SubmitTricksRequest struct {
-	Tricks []struct {
-		GamePlayerID string `json:"game_player_id" validate:"required"`
-		TricksTaken  int    `json:"tricks_taken" validate:"gte=0"`
-	} `json:"tricks" validate:"required,min=1,dive"`
+	Tricks []PlayerTrickData `json:"tricks" validate:"required,min=1,dive"`
+}
+
+type PlayerTrickData struct {
+	GamePlayerID string `json:"game_player_id" validate:"required"`
+	TricksTaken  int    `json:"tricks_taken" validate:"gte=0"`
+	BonusPoints  int    `json:"bonus_points" validate:"gte=0"`
 }

@@ -184,10 +184,28 @@ export function GameSetupPage() {
     },
   );
 
-  const { submit: startGame, isLoading: isStarting } = useSubmit(
-    gameAPI.startGame,
+  const { submit: saveAndStart, isLoading: isStarting } = useSubmit(
+    async (
+      gameId: string,
+      payload: {
+        scorekeeper_user_id: string;
+        ordered_player_ids: string[];
+        starting_dealer_game_player_id: string;
+      },
+    ) => {
+      const settingsResponse = await gameAPI.updateGameSettings(
+        gameId,
+        payload,
+      );
+      if (!settingsResponse.success) {
+        throw new Error(
+          settingsResponse.message || "Failed to save game settings",
+        );
+      }
+      return gameAPI.startGame(gameId);
+    },
     {
-      actionVerb: "Starting game",
+      actionVerb: "Saving and starting game",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
         navigate(`/game/${gameId}/scorecard`);
@@ -262,22 +280,16 @@ export function GameSetupPage() {
       toast.error("A game requires at least 2 players to proceed");
       return;
     }
-    if (!gameId) {
-      toast.error("Game ID is missing, cannot start the game");
-      return;
-    }
-
-    if (!scorekeeperId || !startingDealerId || players.length === 0) {
+    if (!gameId || !scorekeeperId || !startingDealerId) {
       toast.error("Cannot start game: missing required information");
       return;
     }
-    const orderedPlayerIds = players.map((p) => p.game_player_id);
-    saveSettings(gameId, {
+
+    saveAndStart(gameId, {
       scorekeeper_user_id: scorekeeperId,
-      ordered_player_ids: orderedPlayerIds,
+      ordered_player_ids: players.map((p) => p.game_player_id),
       starting_dealer_game_player_id: startingDealerId,
     });
-    startGame(gameId);
   };
 
   const registeredPlayers = players.filter((p) => p.user_id);
@@ -419,7 +431,7 @@ export function GameSetupPage() {
         <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6">
           <Button
             onClick={handleSaveSettings}
-            disabled={isSaving || !isCurrentUserScorekeeper}
+            disabled={isSaving || isStarting || !isCurrentUserScorekeeper}
             size="lg"
             className="w-full sm:w-auto cursor-pointer"
           >

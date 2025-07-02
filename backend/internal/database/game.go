@@ -213,11 +213,15 @@ func GetGameByID(ctx context.Context, tx *sql.Tx, gameID string) (*dbModels.Game
 
 	query := `
   SELECT
-    game_id, session_id, created_by_user_id, current_scorekeeper_user_id, 
-    status, starting_dealer_game_player_id, player_seating_order_randomized, 
-    created_at, updated_at, completed_at
-  FROM games
-  WHERE game_id = $1;
+    g.game_id, g.session_id, g.created_by_user_id, g.current_scorekeeper_user_id,
+    g.status, g.starting_dealer_game_player_id, g.player_seating_order_randomized,
+    g.created_at, g.updated_at, g.completed_at,
+    gs.session_name,
+    COALESCE(u.display_name, u.username) as scorekeeper_name
+  FROM games g
+  LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
+  LEFT JOIN users u ON g.current_scorekeeper_user_id = u.user_id
+  WHERE g.game_id = $1;
   `
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get game by ID")
 

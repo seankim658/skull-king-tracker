@@ -77,7 +77,7 @@ func (sh *ScoringHandler) HandleGetScorecardState(w http.ResponseWriter, r *http
 		return
 	}
 
-	apiResponse := modelConverters.DBScorecaredToAPIResponse(scorecardData)
+	apiResponse := modelConverters.DBScorecardToAPIResponse(scorecardData)
 	Respond(w, r, http.StatusOK, apiResponse, "Scorecard state retrieved successfully")
 }
 
@@ -209,7 +209,7 @@ func broadcastScorecardUpdate(sseHub *sse.Hub, gameID string, logger zerolog.Log
 		return
 	}
 
-	apiResponse := modelConverters.DBScorecaredToAPIResponse(scorecardData)
+	apiResponse := modelConverters.DBScorecardToAPIResponse(scorecardData)
 
 	ssePayload := apiModels.SSEEvent{
 		Event:   "scorecard_updated",

@@ -372,6 +372,28 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !game.StartingDealerGamePlayerID.Valid {
+		opErr = errors.New("cannot start game without a starting dealer")
+		ErrorResponse(w, r, http.StatusBadRequest, "Game setup is incomplete. Please set a starting dealer")
+		responseSent = true
+		return
+	}
+
+	_, err := db.CreateRound(
+		ctx,
+		tx,
+		gameID,
+		game.StartingDealerGamePlayerID.String,
+		1, false,
+	)
+	if err != nil {
+		opErr = fmt.Errorf("failed to create the first round: %w", err)
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not create the first round to start the game")
+		responseSent = true
+		return
+	}
+	logger.Info().Msg("Successfully created round 1 for the game")
+
 	players, err := db.GetPlayersByGameID(ctx, tx, gameID)
 	if err != nil {
 		opErr = fmt.Errorf("failed to get players for game start: %w", err)
@@ -386,15 +408,17 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO : determine starting dealer
-
 	if err := db.UpdateGameStatus(ctx, nil, gameID, "active"); err != nil {
-		logger.Error().Err(err).Msg("Failed to update game status to active")
+		opErr = fmt.Errorf("failed to update game status to active: %w", err)
+		logger.Error().Err(opErr).Msg("Failed to update game status to active")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the game")
+		responseSent = true
 		return
 	}
 
-	Respond(w, r, http.StatusOK, nil, "Game started successfully")
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Game started successfully")
+	}
 }
 
 // Handles fetching all players for a specific game
