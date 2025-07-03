@@ -1,3 +1,5 @@
+import type { Pagination } from "./api";
+
 /**
  * Payload for creating a new game.
  */
@@ -134,4 +136,21 @@ export interface ActiveGameResponse {
   created_at: string;
   current_round: number;
   players: ActiveGamePlayer[];
+}
+
+export interface GameHistoryItem {
+  game_id: string;
+  session_name?: string | null;
+  game_date: string;
+  finishing_position: number;
+  total_points: number;
+  rounds_hit: number;
+  zero_differential: number;
+  total_players: number;
+  scorekeeper_name: string;
+}
+
+export interface PaginatedGameHistoryResponse {
+  games: GameHistoryItem[];
+  pagination: Pagination;
 }

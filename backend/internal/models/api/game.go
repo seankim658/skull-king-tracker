@@ -106,3 +106,22 @@ type ActiveGameResponse struct {
 	CurrentRound    int                `json:"current_round"`
 	Players         []ActiveGamePlayer `json:"players"`
 }
+
+// Represents a single row in the user's game history table
+type GameHistoryItem struct {
+	GameID            string    `json:"game_id"`
+	SessionName       *string   `json:"session_name,omitempty"`
+	GameDate          time.Time `json:"game_date"`
+	FinishingPosition int       `json:"finishing_position"`
+	TotalPoints       int       `json:"total_points"`
+	RoundsHit         int       `json:"rounds_hit"`
+	ZeroDifferential  int       `json:"zero_differential"`
+	TotalPlayers      int       `json:"total_players"`
+	ScorekeeperName   string    `json:"scorekeeper_name"`
+}
+
+// Represents the paginated response for the game history
+type PaginatedGameHistoryResponse struct {
+	Games      []GameHistoryItem `json:"games"`
+	Pagination Pagination        `json:"pagination"`
+}
