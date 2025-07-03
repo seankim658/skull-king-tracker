@@ -1,20 +1,11 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { GameHistoryItem } from "@/lib/api/types";
-import { Button } from "../ui/button";
-import { ArrowUpDown } from "lucide-react";
+import { SortableHeader } from "../ui/data-table-sortable-header";
 
 export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
   {
     accessorKey: "game_date",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Date
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Date" />,
     cell: ({ row }) => (
       <div>
         {new Date(row.original.game_date).toLocaleString("en-US", {
@@ -31,38 +22,18 @@ export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
   },
   {
     accessorKey: "finishing_position",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Position
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
+    header: ({ column }) => <SortableHeader column={column} title="Position" />,
   },
   {
     accessorKey: "total_points",
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Total Points
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+      <SortableHeader column={column} title="Total Points" />
     ),
   },
   {
     accessorKey: "rounds_hit",
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Rounds Hit
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+      <SortableHeader column={column} title="Rounds Hit" />
     ),
   },
   {
