@@ -18,10 +18,6 @@ func (h *Hub) AddClient(userID string, clientChan chan string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if existingChan, exists := h.clients[userID]; exists {
-		close(existingChan)
-	}
-
 	h.clients[userID] = clientChan
 }
 
