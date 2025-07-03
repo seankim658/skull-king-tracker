@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -724,4 +725,107 @@ func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]A
 	}
 
 	return games, nil
+}
+
+// Counts the total number of completed games for a user for pagination
+func CountUserGameHistory(ctx context.Context, tx *sql.Tx, userID string) (int64, error) {
+	querier := GetQuerier(tx)
+	query := `
+  SELECT COUNT(g.game_id)
+  FROM games g
+  JOIN game_players gp ON g.game_id = gp.game_id
+  WHERE g.status = 'completed' AND gp.user_id = $1;
+  `
+	var totalCount int64
+	err := querier.QueryRowContext(ctx, query, userID).Scan(&totalCount)
+	return totalCount, err
+}
+
+// Retrieves a paginated and sorted list of a user's completed games
+func GetUserGameHistory(
+	ctx context.Context,
+	tx *sql.Tx,
+	userID, sortBy, sortOrder string,
+	page,
+	pageSize int,
+) ([]dbModels.UserGameHistoryRow, error) {
+	querier := GetQuerier(tx)
+	offset := (page - 1) * pageSize
+
+	sortColumnMap := map[string]string{
+		"game_date":          "g.created_at",
+		"finishing_position": "gp.finishing_position",
+		"total_points":       "gp.final_score",
+		"rounds_hit":         "rounds_hit",
+		"zero_differential":  "zero_differential",
+		"total_players":      "total_players",
+	}
+
+	orderbyClause := "ORDER BY g.created_at DESC"
+	if validColumn, ok := sortColumnMap[sortBy]; ok {
+		orderDirection := "ASC"
+		if strings.ToUpper(sortOrder) == "DESC" {
+			orderDirection = "DESC"
+		}
+		orderbyClause = fmt.Sprintf("ORDER BY %s %s, g.created_at DESC", validColumn, orderDirection)
+	}
+
+	query := fmt.Sprintf(`
+  WITH UserGameStats AS (
+    SELECT
+      g.game_id,
+      gp.user_id,
+      SUM(CASE WHEN prs.bid_amount > 0 AND prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) as rounds_hit,
+      SUM(CASE WHEN prs.bid_amount = 0 THEN prs.round_score ELSE 0 END) as zero_differential
+    FROM games g
+    JOIN game_players gp ON g.game_id = gp.game_id
+    JOIN rounds r ON g.game_id = r.game_id
+    JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
+    WHERE gp.user_id = $1 AND g.status = 'completed'
+    GROUP BY g.game_id, gp.user_id
+  ),
+  GamePlayerCounts AS (
+    SELECT game_id, COUNT(*) as total_players
+    FROM game_players
+    GROUP BY game_id
+  )
+  SELECT
+    g.game_id,
+    gs.session_name,
+    g.created_at as game_date,
+    gp.finishing_position,
+    gp.final_score as total_points,
+    COALESCE(ugs.rounds_hit, 0) as rounds_hit,
+    COALESCE(ugs.zero_differential, 0) as zero_differential,
+    gpc.total_players,
+    COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name
+  FROM games g
+  JOIN game_players gp ON g.game_id = gp.game_id
+  LEFT JOIN UserGameStats ugs ON g.game_id = ugs.game_id AND gp.user_id = ugs.user_id
+  LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
+  LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
+  LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
+  WHERE g.status = 'completed' AND gp.user_id = $1
+  %s
+  LIMIT $2 OFFSET $3;
+  `, orderbyClause)
+	rows, err := querier.QueryContext(ctx, query, userID, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("error querying user game history: %w", err)
+	}
+	defer rows.Close()
+
+	var history []dbModels.UserGameHistoryRow
+	for rows.Next() {
+		var h dbModels.UserGameHistoryRow
+		if err := rows.Scan(
+			&h.GameID, &h.SessionName, &h.GameDate, &h.FinishingPosition,
+			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential,
+			&h.TotalPlayers, &h.ScorekeeperName,
+		); err != nil {
+			return nil, fmt.Errorf("error scanning game history row: %w", err)
+		}
+		history = append(history, h)
+	}
+	return history, rows.Err()
 }

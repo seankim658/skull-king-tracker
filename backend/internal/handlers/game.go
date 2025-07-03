@@ -709,3 +709,65 @@ func (gh *GameHandler) HandleGetActiveGames(w http.ResponseWriter, r *http.Reque
 
 	Respond(w, r, http.StatusOK, apiGames, "Active games retrieved successfully")
 }
+
+// Handles fetching a paginated list of a user's game history
+// Path: /games/history
+// Method: GET
+func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"HandleGetGameHistory",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	page, pageSize := GetPaginationParams(r)
+	sortBy := QueryParam(r, "sort_by")
+	sortOrder := QueryParam(r, "sort_order")
+
+	totalCount, err := db.CountUserGameHistory(ctx, nil, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count user game history")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve game history")
+		return
+	}
+
+	dbHistory, err := db.GetUserGameHistory(ctx, nil, userID, sortBy, sortOrder, page, pageSize)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get user game history from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve game history")
+		return
+	}
+
+	apiHistory := make([]apiModels.GameHistoryItem, 0, len(dbHistory))
+	for _, h := range dbHistory {
+		item := apiModels.GameHistoryItem{
+			GameID:            h.GameID,
+			GameDate:          h.GameDate,
+			FinishingPosition: int(h.FinishingPosition.Int32),
+			TotalPoints:       int(h.TotalPoints.Int32),
+			RoundsHit:         int(h.RoundsHit.Int32),
+			ZeroDifferential:  int(h.ZeroDifferential.Int32),
+			TotalPlayers:      int(h.TotalPlayers.Int32),
+			ScorekeeperName:   h.ScorekeeperName.String,
+		}
+		if h.SessionName.Valid {
+			item.SessionName = &h.SessionName.String
+		}
+		apiHistory = append(apiHistory, item)
+	}
+
+	pagination := CalculatePagination(totalCount, page, pageSize)
+
+	response := apiModels.PaginatedGameHistoryResponse{
+		Games:      apiHistory,
+		Pagination: pagination,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Game history retrieved successfully")
+}

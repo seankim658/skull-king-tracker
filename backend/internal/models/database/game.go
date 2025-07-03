@@ -102,3 +102,15 @@ type PlayerScoreData struct {
 	TricksTaken  int
 	BonusPoints  int
 }
+
+type UserGameHistoryRow struct {
+	GameID            string
+	SessionName       sql.NullString
+	GameDate          time.Time
+	FinishingPosition sql.NullInt32
+	TotalPoints       sql.NullInt32
+	RoundsHit         sql.NullInt32
+	ZeroDifferential  sql.NullInt32
+	TotalPlayers      sql.NullInt32
+	ScorekeeperName   sql.NullString
+}

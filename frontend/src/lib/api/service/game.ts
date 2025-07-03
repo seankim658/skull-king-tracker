@@ -1,15 +1,16 @@
 import { client } from "../client";
-import {
-  type ApiResponse,
-  type CreateGamePayload,
-  type GameResponse,
-  type AddPlayerToGamePayload,
-  type GamePlayerResponse,
-  type UpdateGameSettingsPayload,
-  type ScorecardResponse,
-  type SubmitBidsPayload,
-  type SubmitTricksPayload,
-  type ActiveGameResponse,
+import type {
+  ApiResponse,
+  CreateGamePayload,
+  GameResponse,
+  AddPlayerToGamePayload,
+  GamePlayerResponse,
+  UpdateGameSettingsPayload,
+  ScorecardResponse,
+  SubmitBidsPayload,
+  SubmitTricksPayload,
+  ActiveGameResponse,
+  PaginatedGameHistoryResponse,
 } from "../types";
 
 export const gameAPI = {
@@ -149,4 +150,25 @@ export const gameAPI = {
    */
   getActiveGames: (): Promise<ApiResponse<ActiveGameResponse[]>> =>
     client<ActiveGameResponse[]>("/games/active", { method: "GET" }),
+
+  /**
+   * Fetches a paginated history of a user's completed games.
+   */
+  getGameHistory: (
+    page: number,
+    pageSize: number,
+    sorting: { id: string; desc: boolean }[],
+  ): Promise<ApiResponse<PaginatedGameHistoryResponse>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    if (sorting.length > 0) {
+      params.append("sort_by", sorting[0].id);
+      params.append("sort_order", sorting[0].desc ? "desc" : "asc");
+    }
+    return client<PaginatedGameHistoryResponse>(
+      `/games/history?${params.toString()}`,
+    );
+  },
 };
