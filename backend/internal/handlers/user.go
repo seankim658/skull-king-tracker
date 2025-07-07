@@ -100,6 +100,14 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 		FriendCount:      friendCount,
 		FriendshipStatus: apiFriendshipStatus,
 	}
+	if isAuthenticated && viewerUserID != profileUserIDFromPath {
+		mutualCount, mfErr := db.CountMutualFriends(ctx, nil, viewerUserID, profileUserIDFromPath)
+		if mfErr != nil {
+			logger.Error().Err(mfErr).Msg("Database error counting mutual friends, proceeding without it")
+		} else {
+			apiProfile.MutualFriendCount = &mutualCount
+		}
+	}
 	finalResponse := apiModels.UserProfileResponse{
 		Profile: apiProfile,
 	}

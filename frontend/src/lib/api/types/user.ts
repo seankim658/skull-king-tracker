@@ -73,6 +73,7 @@ export interface UserProfile {
   stats_privacy: "private" | "friends_only" | "public";
   created_at: string;
   friend_count: number;
+  mutual_friend_count?: number | null;
   friendship_status_with_viewer: FriendshipStatus;
 }
 

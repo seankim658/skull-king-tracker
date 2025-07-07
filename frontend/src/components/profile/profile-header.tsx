@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { formatFriendshipStatus } from "@/lib/utils";
-import { MoreVertical, UserCheck } from "lucide-react";
+import { MoreVertical, UserCheck, Users2 } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useConfirm } from "@/hooks/use-confirm";
 import { CalendarDays, Users, Edit3, UserPlus, UserX } from "lucide-react";
@@ -209,6 +209,16 @@ export function ProfileHeader({
                 <Users className="mr-1.5 h-4 w-4" /> {profile.friend_count}{" "}
                 Friends
               </span>
+              {profile.mutual_friend_count &&
+                profile.mutual_friend_count > 0 && (
+                  <span className="flex items-center">
+                    <Users2 className="mr-1.5 h-4 w-4" />
+                    {
+                      profile.mutual_friend_count
+                    } mutual friend
+                    {profile.mutual_friend_count > 1 ? "s" : ""}
+                  </span>
+                )}
               <span className="flex items-center">
                 <CalendarDays className="mr-1.5 h-4 w-4" /> Joined on {joinDate}
               </span>
