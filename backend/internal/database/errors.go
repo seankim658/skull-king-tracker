@@ -39,4 +39,7 @@ var (
 	// Game player
 	ErrGamePlayerNotFound  = errors.New("game player not found")
 	ErrPlayerAlreadyInGame = errors.New("player is already in this game")
+
+	// Notification
+	ErrNotificationNotFound = errors.New("notification not found")
 )

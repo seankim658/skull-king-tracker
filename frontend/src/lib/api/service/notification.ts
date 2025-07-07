@@ -27,4 +27,21 @@ export const notificationAPI = {
     client<null>(`/notifications/${notificationId}/read`, {
       method: "DELETE",
     }),
+
+  /**
+   * Deletes a specific notification.
+   * @param notificationId - The ID of the notification to delete
+   */
+  deleteNotification: (notificationId: string): Promise<ApiResponse<null>> =>
+    client<null>(`/notifications/${notificationId}`, {
+      method: "DELETE",
+    }),
+
+  /**
+   * Deletes all notifications for the current user.
+   */
+  deleteAllNotifications: (): Promise<ApiResponse<null>> =>
+    client<null>("/notifications", {
+      method: "DELETE",
+    }),
 };

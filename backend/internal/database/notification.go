@@ -172,7 +172,7 @@ func DeleteNotificationByFriendshipID(
 	return nil
 }
 
-// Removes a friend request notifiaction
+// Removes a friend request notification
 func DeleteFriendRequestNotification(ctx context.Context, tx *sql.Tx, recipientID, actorID string) error {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
@@ -283,4 +283,64 @@ func GetNotificationByUsersAndType(
 		return nil, fmt.Errorf("error scanning notification for recipient %s / actor %s: %w", recipientID, actorID, err)
 	}
 	return &n, nil
+}
+
+// Deletes a single notification by ID
+func DeleteNotificationByID(ctx context.Context, tx *sql.Tx, notificationID, recipientID string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"DeleteNotificationByID",
+	).With().Str(l.NotificationIDKey, notificationID).Str(l.RecipientIDKey, recipientID).Logger()
+
+	query := "DELETE FROM user_notifications WHERE notification_id = $1 AND recipient_user_id = $2;"
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to delete notification by ID")
+
+	result, err := querier.ExecContext(ctx, query, notificationID, recipientID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute notification deletion")
+		return fmt.Errorf("error deleting notification %s: %w", notificationID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get rows affected for notification deletion")
+		return fmt.Errorf("error checking rows affected for notification deletion: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrNoRoundsFound
+	}
+
+	logger.Info().Msg("Notification deleted successfully")
+	return nil
+}
+
+// Deletes all notifications for a given user
+func DeleteAllNotificationsByUserID(ctx context.Context, tx *sql.Tx, recipientID string) (int64, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"DeleteAllNotificationsByUserID",
+	).With().Str(l.RecipientIDKey, recipientID).Logger()
+
+	query := "DELETE FROM user_notifications WHERE recipient_user_id = $1;"
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to delete all notifications")
+
+	result, err := querier.ExecContext(ctx, query, recipientID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute bulk notification deletion")
+		return 0, fmt.Errorf("error deleting all notifications for user %s: %w", recipientID, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get rows affected for bulk notification deletion")
+		return 0, fmt.Errorf("error checking rows affected for bulk notification deletion: %w", err)
+	}
+
+	logger.Info().Int64(l.CountKey, rowsAffected).Msg("All notifications for user deleted successfully")
+	return rowsAffected, nil
 }
