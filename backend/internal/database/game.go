@@ -246,9 +246,22 @@ func UpdateGameStatus(ctx context.Context, tx *sql.Tx, gameID, status string) er
 		"UpdateGameStatus",
 	).With().Str(l.GameIDKey, gameID).Str(l.GameStatusKey, status).Logger()
 
-	query := `UPDATE games SET status = $1, updated_at = NOW() WHERE game_id = $2;`
+	query := `UPDATE games SET status = $1, updated_at = NOW()`
+  args := []any{status}
+  argCounter := 2
+
+  if status == "completed" {
+    query += fmt.Sprintf(", completed_at = $%d", argCounter)
+    args = append(args, sql.NullTime{Time: time.Now(), Valid: true})
+    argCounter++
+  }
+
+  query += fmt.Sprintf(" WHERE game_id = $%d;", argCounter)
+  args = append(args, gameID)
+
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update game status")
-	result, err := querier.ExecContext(ctx, query, status, gameID)
+
+	result, err := querier.ExecContext(ctx, query, args...)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to update game status")
 		return fmt.Errorf("error updating game status for %s: %w", gameID, err)
