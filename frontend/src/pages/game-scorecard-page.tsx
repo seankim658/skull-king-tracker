@@ -11,6 +11,7 @@ import {
   ScorecardInputDrawer,
 } from "@/components/scorecard";
 import type {
+  GamePlayerResponse,
   ScorecardResponse,
   SSEEvent,
 } from "@/lib/api/types";
@@ -22,6 +23,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { gameAPI } from "@/lib/api/service/game";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useSubmit } from "@/hooks/use-submit";
+import { AddAsteriskDialog } from "@/components/scorecard/add-asterisk-dialog";
 
 export function GameScorecardPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -29,6 +32,10 @@ export function GameScorecardPage() {
   const queryClient = useQueryClient();
 
   const [isInputDrawerOpen, setIsInputDrawerOpen] = useState(false);
+
+  const [isAsteriskDialogOpen, setIsAsteriskDialogOpen] = useState(false);
+  const [selectedPlayerForAsterisk, setSelectedPlayerForAsterisk] =
+    useState<GamePlayerResponse | null>(null);
 
   const {
     data: scorecardData,
@@ -46,6 +53,39 @@ export function GameScorecardPage() {
     },
     enabled: !!gameId,
   });
+
+  const { data: asterisks } = useQuery({
+    queryKey: ["asterisks", gameId],
+    queryFn: async () => {
+      const response = await gameAPI.getAsterisks(gameId!);
+      if (!response.success) {
+        throw new Error(response.message || "Failed to fetch asterisks");
+      }
+      return response.data ?? [];
+    },
+    enabled: !!gameId,
+  });
+
+  const { submit: addAsterisk, isLoading: isAddingAterisk } = useSubmit(
+    gameAPI.addAsterisk,
+    {
+      actionVerb: "Adding asterisk",
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["asterisks", gameId] });
+        setIsAsteriskDialogOpen(false);
+        setSelectedPlayerForAsterisk(null);
+      },
+    },
+  );
+
+  const handleOpenAsteriskDialog = (player: GamePlayerResponse) => {
+    setSelectedPlayerForAsterisk(player);
+    setIsAsteriskDialogOpen(true);
+  };
+
+  const handleAddAsteriskSubmit = (playerId: string, reason: string) => {
+    addAsterisk(gameId!, playerId, { reason });
+  };
 
   useEffect(() => {
     if (!gameId) return;
@@ -140,6 +180,9 @@ export function GameScorecardPage() {
           <ScorecardTable
             players={scorecardData.players}
             rounds={scorecardData.rounds}
+            asterisks={asterisks || []}
+            isScorekeeper={isScorekeeper}
+            onAddAsterisk={handleOpenAsteriskDialog}
           />
         </CardContent>
 
@@ -167,6 +210,14 @@ export function GameScorecardPage() {
           players={scorecardData.players}
         />
       )}
+
+      <AddAsteriskDialog
+        player={selectedPlayerForAsterisk}
+        isOpen={isAsteriskDialogOpen}
+        onClose={() => setIsAsteriskDialogOpen(false)}
+        onSubmit={handleAddAsteriskSubmit}
+        isLoading={isAddingAterisk}
+      />
     </div>
   );
 }

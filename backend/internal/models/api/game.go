@@ -118,6 +118,7 @@ type GameHistoryItem struct {
 	RoundsHit         int       `json:"rounds_hit"`
 	ZeroDifferential  int       `json:"zero_differential"`
 	TotalPlayers      int       `json:"total_players"`
+	TotalAsterisks    int       `json:"total_asterisks"`
 	ScorekeeperName   string    `json:"scorekeeper_name"`
 }
 
@@ -125,4 +126,15 @@ type GameHistoryItem struct {
 type PaginatedGameHistoryResponse struct {
 	Games      []GameHistoryItem `json:"games"`
 	Pagination Pagination        `json:"pagination"`
+}
+
+type AddAsteriskRequest struct {
+	Reason string `json:"reason"`
+}
+
+type PlayerGameAsterisk struct {
+	PlayerGameAsteriskID string    `json:"player_game_asterisk_id"`
+	GamePlayerID         string    `json:"game_player_id"`
+	Reason               *string   `json:"reason,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
 }

@@ -112,5 +112,14 @@ type UserGameHistoryRow struct {
 	RoundsHit         sql.NullInt32
 	ZeroDifferential  sql.NullInt32
 	TotalPlayers      sql.NullInt32
+	TotalAsterisks    sql.NullInt32
 	ScorekeeperName   sql.NullString
+}
+
+type PlayerGameAsterisk struct {
+	PlayerGameAsteriskID string         `db:"player_game_asterisk_id"`
+	GamePlayerID         string         `db:"game_player_id"`
+	GameID               string         `db:"game_id"`
+	Reason               sql.NullString `db:"reason"`
+	CreatedAt            time.Time      `db:"created_at"`
 }

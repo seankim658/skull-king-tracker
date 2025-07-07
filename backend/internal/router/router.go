@@ -76,6 +76,8 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	gameSubRouter.HandleFunc("/{game_id}/players/{game_player_id}", gameHandler.HandleRemovePlayerFromGame).Methods(http.MethodDelete)
 	gameSubRouter.HandleFunc("/{game_id}/settings", gameHandler.HandleUpdateGameSettings).Methods(http.MethodPut)
 	gameSubRouter.HandleFunc("/{game_id}/start", gameHandler.HandleStartGame).Methods(http.MethodPut)
+	gameSubRouter.HandleFunc("/{game_id}/asterisks", gameHandler.HandleGetAsterisks).Methods(http.MethodGet)
+	gameSubRouter.HandleFunc("/{game_id}/players/{game_player_id}/asterisk", gameHandler.HandleAddAsterisk).Methods(http.MethodPost)
 
 	// Scoring routes
 	scoringHandler := h.NewScoringHandler(cfg, sseHub)

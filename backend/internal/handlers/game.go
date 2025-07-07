@@ -755,6 +755,7 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 			RoundsHit:         int(h.RoundsHit.Int32),
 			ZeroDifferential:  int(h.ZeroDifferential.Int32),
 			TotalPlayers:      int(h.TotalPlayers.Int32),
+			TotalAsterisks:    int(h.TotalAsterisks.Int32),
 			ScorekeeperName:   h.ScorekeeperName.String,
 		}
 		if h.SessionName.Valid {
@@ -771,4 +772,100 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 	}
 
 	Respond(w, r, http.StatusOK, response, "Game history retrieved successfully")
+}
+
+// Handles adding an asterisk to a player for a specific game
+// Path: /games/{game_id}/players/{game_player_id}/asterisk
+// Method: POST
+func (gh *GameHandler) HandleAddAsterisk(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"HandleAddAsterisk",
+	)
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	gamePlayerID, ok := PathVar(w, r, "game_player_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.GameIDKey, gameID).Str(l.GamePlayerIDKey, gamePlayerID).Logger()
+
+	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !authOk {
+		return
+	}
+
+	if _, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger); !authorized {
+		return
+	}
+
+	var req apiModels.AddAsteriskRequest
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to add asterisk")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.CreatePlayerAsterisk(ctx, tx, gameID, gamePlayerID, req.Reason)
+	if opErr != nil {
+		logger.Error().Err(opErr).Msg("Failed to create asterisk in database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not add asterisk")
+		responseSent = true
+		return
+	}
+
+	if !responseSent {
+		Respond(w, r, http.StatusCreated, nil, "Asterisk added successfully")
+		responseSent = true
+	}
+}
+
+// Handles retrieving all asterisks for a specific game
+// Path: /games/{game_id}/asterisks
+// Method: GET
+func (gh *GameHandler) HandleGetAsterisks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"HandleGetAsterisks",
+	)
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.GameIDKey, gameID).Logger()
+
+	dbAsterisks, err := db.GetAsterisksByGameID(ctx, nil, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get asterisks from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve asterisks")
+		return
+	}
+
+	apiAsterisks := make([]apiModels.PlayerGameAsterisk, len(dbAsterisks))
+	for i, a := range dbAsterisks {
+		apiAsterisks[i] = apiModels.PlayerGameAsterisk{
+			PlayerGameAsteriskID: a.PlayerGameAsteriskID,
+			GamePlayerID:         a.GamePlayerID,
+			CreatedAt:            a.CreatedAt,
+		}
+		if a.Reason.Valid {
+			apiAsterisks[i].Reason = &a.Reason.String
+		}
+	}
+
+	Respond(w, r, http.StatusOK, apiAsterisks, "Asterisks retrieved successfully")
 }

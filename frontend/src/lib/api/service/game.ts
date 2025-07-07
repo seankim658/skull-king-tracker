@@ -11,6 +11,8 @@ import type {
   SubmitTricksPayload,
   ActiveGameResponse,
   PaginatedGameHistoryResponse,
+  PlayerGameAsterisk,
+  AddAsteriskPayload,
 } from "../types";
 
 export const gameAPI = {
@@ -175,4 +177,29 @@ export const gameAPI = {
       `/games/history?${params.toString()}`,
     );
   },
+
+  /**
+   * Fetches all asterisks for a specific game.
+   * @param gameId - The ID of the game
+   */
+  getAsterisks: (gameId: string): Promise<ApiResponse<PlayerGameAsterisk[]>> =>
+    client<PlayerGameAsterisk[]>(`/games/${gameId}/asterisks`, {
+      method: "GET",
+    }),
+
+  /**
+   * Adds an asterisk to a player in a game.
+   * @param gameId - The ID of the game
+   * @param gamePlayerId - The ID of the player receiving the asterisk
+   * @param paylaod - The data for the asterisk
+   */
+  addAsterisk: (
+    gameId: string,
+    gamePlayerId: string,
+    payload: AddAsteriskPayload,
+  ): Promise<ApiResponse<null>> =>
+    client<null>(`/games/${gameId}/players/${gamePlayerId}/asterisk`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };
