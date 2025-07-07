@@ -358,12 +358,15 @@ export function GameSetupPage() {
           <div className="space-y-4">
             {/* Starting Dealer Section */}
             <div>
-              <Label
-                htmlFor="dealer-select"
-                className="text-lg font-semibold block mb-2"
-              >
-                Starting Dealer
-              </Label>
+              <div className="relative inline-flex items-center gap-1 mb-2">
+                <Label
+                  htmlFor="dealer-select"
+                  className="text-lg font-semibold"
+                >
+                  Starting Dealer
+                </Label>
+                <InfoTooltip content="The dealer position rotates clockwise to the next player each round. This settings determines who starts as the dealer in round 1." />
+              </div>
               <Select
                 value={startingDealerId}
                 onValueChange={handleDealerChange}

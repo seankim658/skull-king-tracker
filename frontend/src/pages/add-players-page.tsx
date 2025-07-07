@@ -22,6 +22,7 @@ import { useSubmit } from "@/hooks/use-submit";
 import { useConfirm } from "@/hooks/use-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -228,7 +229,10 @@ export function AddPlayersPage() {
             <Separator />
 
             <div>
-              <h3 className="text-lg font-semibold mb-2">Add a Guest</h3>
+              <div className="relative inline-flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-semibold">Add a Guest</h3>
+                <InfoTooltip content="Guests are for players who do not have an account. Their scores will be tracked for this game, but their long-term stats will not be saved and they cannot be made scorekeeper." />
+              </div>
               <form
                 onSubmit={handleAddGuest}
                 className="flex items-center gap-2"

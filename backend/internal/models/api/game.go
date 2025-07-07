@@ -31,6 +31,7 @@ type GamePlayerResponse struct {
 	UserID        *string `json:"user_id,omitempty"`
 	GuestPlayerID *string `json:"guest_player_id,omitempty"`
 	DisplayName   string  `json:"display_name"`
+	Username      *string `json:"username,omitempty"`
 	AvatarURL     *string `json:"avatar_url,omitempty"`
 	SeatingOrder  int     `json:"seating_order"`
 	FinalScore    int     `json:"final_score"`

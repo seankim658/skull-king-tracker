@@ -292,6 +292,7 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
     gp.user_id,
     gp.guest_player_id,
     COALESCE(u.display_name, u.username, g.display_name) AS display_name,
+    u.username,
     u.avatar_url,
     gp.seating_order,
     gp.final_score
@@ -319,6 +320,7 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
 			&p.UserID,
 			&p.GuestPlayerID,
 			&p.DisplayName,
+      &p.Username,
 			&p.AvatarURL,
 			&p.SeatingOrder,
 			&p.FinalScore,

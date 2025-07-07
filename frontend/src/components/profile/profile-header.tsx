@@ -15,6 +15,7 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { CalendarDays, Users, Edit3, UserPlus, UserX } from "lucide-react";
 import { friendshipAPI } from "@/lib/api/service/friendship";
 import { useSubmit } from "@/hooks/use-submit";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 
 const friendButtonIconStyling = "mr-2 h-4 w-4";
 
@@ -219,9 +220,20 @@ export function ProfileHeader({
           <span>
             {friendshipStatus !== "self" &&
               friendshipStatus !== "viewer_not_authenticated" && (
-                <Badge variant="secondary" className="mt-3">
-                  {formatFriendshipStatus(friendshipStatus)}
-                </Badge>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="secondary" className="mt-3">
+                      {formatFriendshipStatus(friendshipStatus)}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {friendshipStatus === "pending_sent_to_viewer"
+                        ? "This user sent you a friend request. Check your notifications to respond."
+                        : `Your friendship status with ${displayName}.`}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
               )}
           </span>
 

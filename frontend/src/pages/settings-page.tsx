@@ -282,9 +282,19 @@ export function SettingsPage() {
       <Separator />
 
       <section className="space-y-6">
-        <h2 id="linked-accounts-heading" className="text-xl font-semibold">
-          Linked Accounts
-        </h2>
+        <div className="relative inline-flex items-center gap-1">
+          <h2 id="linked-accounts-heading" className="text-xl font-semibold mr-2">
+            Linked Accounts
+          </h2>
+          <InfoTooltip
+            content={
+              <>
+                Link multiple providers to have flexible login options. You
+                cannot disconnect your last remaining authentication method.
+              </>
+            }
+          />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>Manage Authentication Methods</CardTitle>

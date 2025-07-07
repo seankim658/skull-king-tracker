@@ -33,6 +33,26 @@ export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
     ),
   },
   {
+    accessorKey: "rounds_hit",
+    header: ({ column }) => (
+      <SortableHeader
+        column={column}
+        title="Rounds Hit"
+        tooltipContent="The number of rounds where your bid exactly matched the number of tricks you took."
+      />
+    ),
+  },
+  {
+    accessorKey: "zero_differential",
+    header: ({ column }) => (
+      <SortableHeader
+        column={column}
+        title="Zero Bid Net"
+        tooltipContent="Your total net score from bidding zero."
+      />
+    ),
+  },
+  {
     accessorKey: "total_asterisks",
     header: ({ column }) => (
       <SortableHeader column={column} title="Asterisks" />
@@ -41,24 +61,6 @@ export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
       <div className="flex items-center justify-center gap-1">
         <Asterisk className="h-3.5 w-3.5 text-muted-foreground" />
         {row.original.total_asterisks}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "rounds_hit",
-    header: ({ column }) => (
-      <div className="flex items-center">
-        <SortableHeader column={column} title="Rounds Hit" />
-        <InfoTooltip content="The number of rounds where your bid exactly matched the number of tricks you took." />
-      </div>
-    ),
-  },
-  {
-    accessorKey: "zero_differential",
-    header: ({ column }) => (
-      <div className="flex items-center">
-        <span>Zero Bid Net</span>
-        <InfoTooltip content="Your total net score from bidding zero." />
       </div>
     ),
   },

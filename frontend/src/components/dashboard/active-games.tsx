@@ -19,7 +19,7 @@ export function ActiveGames() {
       }
       return response.data;
     },
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 60,
   });
 
   if (isLoading) {
@@ -39,19 +39,21 @@ export function ActiveGames() {
 
   return (
     <section>
-      <div className="flex items-start gap-1 mb-4">
-        <h2 className="text-2xl font-semibold">Your Active Games</h2>
-        <InfoTooltip
-          content={
-            <>
-              This section shows all games that are currently in progress.
-              <br />
-              <br />
-              If you are the <strong>scorekeeper</strong>, you can tap to resume
-              scoring. Otherwise, you can view the live scorecard.
-            </>
-          }
-        />
+      <div className="mb-4">
+        <div className="relative inline-block">
+          <h2 className="text-2xl font-semibold mr-2">Your Active Games</h2>
+          <InfoTooltip
+            content={
+              <>
+                This section shows all games that are currently in progress.
+                <br />
+                <br />
+                If you are the <strong>scorekeeper</strong>, you can tap to
+                resume scoring. Otherwise, you can view the live scorecard.
+              </>
+            }
+          />
+        </div>
       </div>
 
       <div className="grid gap-6">

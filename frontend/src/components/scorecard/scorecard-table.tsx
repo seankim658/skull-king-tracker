@@ -68,6 +68,7 @@ export function ScorecardTable({
                   key={player.game_player_id}
                   className="text-center p-2"
                 >
+                  {/* Avatar and Asterisks */}
                   <div className="flex flex-col items-center gap-2">
                     <div className="relative h-10 w-10">
                       <UserAvatar
@@ -97,9 +98,19 @@ export function ScorecardTable({
                     </div>
 
                     <div className="flex items-center gap-1">
-                      <span className="font-semibold text-foreground truncate max-w-24">
-                        {player.display_name}
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-semibold text-foreground truncate max-w-24">
+                              {player.display_name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>@{player.username || "guest"}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
                       {isScorekeeper && (
                         <Button
                           variant="ghost"
