@@ -148,10 +148,28 @@ export interface GameHistoryItem {
   rounds_hit: number;
   zero_differential: number;
   total_players: number;
+  total_asterisks: number;
   scorekeeper_name: string;
 }
 
 export interface PaginatedGameHistoryResponse {
   games: GameHistoryItem[];
   pagination: Pagination;
+}
+
+/**
+ * Payload for adding an asterisk to a player.
+ */
+export interface AddAsteriskPayload {
+  reason: string;
+}
+
+/**
+ * Represents a single player asterisk.
+ */
+export interface PlayerGameAsterisk {
+  player_game_asterisk_id: string;
+  game_player_id: string;
+  reason?: string | null;
+  created_at: string;
 }

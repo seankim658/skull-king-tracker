@@ -247,17 +247,17 @@ func UpdateGameStatus(ctx context.Context, tx *sql.Tx, gameID, status string) er
 	).With().Str(l.GameIDKey, gameID).Str(l.GameStatusKey, status).Logger()
 
 	query := `UPDATE games SET status = $1, updated_at = NOW()`
-  args := []any{status}
-  argCounter := 2
+	args := []any{status}
+	argCounter := 2
 
-  if status == "completed" {
-    query += fmt.Sprintf(", completed_at = $%d", argCounter)
-    args = append(args, sql.NullTime{Time: time.Now(), Valid: true})
-    argCounter++
-  }
+	if status == "completed" {
+		query += fmt.Sprintf(", completed_at = $%d", argCounter)
+		args = append(args, sql.NullTime{Time: time.Now(), Valid: true})
+		argCounter++
+	}
 
-  query += fmt.Sprintf(" WHERE game_id = $%d;", argCounter)
-  args = append(args, gameID)
+	query += fmt.Sprintf(" WHERE game_id = $%d;", argCounter)
+	args = append(args, gameID)
 
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update game status")
 
@@ -809,6 +809,7 @@ func GetUserGameHistory(
 		"rounds_hit":         "rounds_hit",
 		"zero_differential":  "zero_differential",
 		"total_players":      "total_players",
+		"total_asterisks":    "total_asterisks",
 	}
 
 	orderByClause := "ORDER BY g.created_at DESC"
@@ -849,6 +850,16 @@ func GetUserGameHistory(
       SELECT game_id, COUNT(*) as total_players
       FROM game_players
       GROUP BY game_id
+    ),
+    AsteriskCounts AS (
+      SELECT 
+        pga.game_id,
+        gp.user_id,
+        COUNT(pga.player_game_asterisk_id) as total_asterisks
+      FROM player_game_asterisks pga
+      JOIN game_players gp ON pga.game_player_id = gp.game_player_id
+      WHERE gp.user_id IS NOT NULL
+      GROUP BY pga.game_id, gp.user_id
     )
     SELECT
       g.game_id,
@@ -859,11 +870,13 @@ func GetUserGameHistory(
       COALESCE(ugs.rounds_hit, 0) as rounds_hit,
       COALESCE(ugs.zero_differential, 0) as zero_differential,
       gpc.total_players,
-      COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name
+      COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name,
+      COALESCE(ac.total_asterisks, 0) as total_asterisks
     FROM games g
     JOIN game_players gp ON g.game_id = gp.game_id
     LEFT JOIN UserGameStats ugs ON g.game_id = ugs.game_id AND gp.user_id = ugs.user_id
     LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
+    LEFT JOIN AsteriskCounts ac ON g.game_id = ac.game_id AND gp.user_id = ac.user_id
     LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
     LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
     WHERE %s
@@ -872,7 +885,7 @@ func GetUserGameHistory(
   `, whereClause, orderByClause, argCounter, argCounter+1)
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get user game history")
 
-  finalArgs := append(args, pageSize, offset)
+	finalArgs := append(args, pageSize, offset)
 	rows, err := querier.QueryContext(ctx, query, finalArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("error querying user game history: %w", err)
@@ -885,7 +898,7 @@ func GetUserGameHistory(
 		if err := rows.Scan(
 			&h.GameID, &h.SessionName, &h.GameDate, &h.FinishingPosition,
 			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential,
-			&h.TotalPlayers, &h.ScorekeeperName,
+			&h.TotalPlayers, &h.ScorekeeperName, &h.TotalAsterisks,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan game history row")
 			return nil, fmt.Errorf("error scanning game history row: %w", err)
@@ -899,4 +912,73 @@ func GetUserGameHistory(
 	}
 
 	return history, nil
+}
+
+// Inserts a new asterisk record for a player in a game
+func CreatePlayerAsterisk(ctx context.Context, tx *sql.Tx, gameID, gamePlayerID, reason string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"CreatePlayerAsterisk",
+	).With().Str(l.GameIDKey, gameID).Str(l.GamePlayerIDKey, gamePlayerID).Logger()
+
+	query := `
+  INSERT INTO player_game_asterisks (game_id, game_player_id, reason)
+  VALUES ($1, $2, $3);
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to create player game asterisk")
+
+	_, err := querier.ExecContext(ctx, query, gameID, gamePlayerID, reason)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to insert asterisk")
+		return fmt.Errorf("error creating asterisk: %w", err)
+	}
+
+	logger.Info().Msg("Player game asterisk created successfully")
+	return nil
+}
+
+// Retrieves all asterisks for a given name
+func GetAsterisksByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbModels.PlayerGameAsterisk, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetAsterisksByGameID",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	query := `
+  SELECT player_game_asterisk_id, game_player_id, game_id, reason, created_at
+  FROM player_game_asterisks
+  WHERE game_id = $1
+  ORDER BY created_at ASC;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get asterisks by game ID")
+
+	rows, err := querier.QueryContext(ctx, query, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query game asterisks")
+		return nil, fmt.Errorf("error querying asterisks for game %s: %w", gameID, err)
+	}
+	defer rows.Close()
+
+	var asterisks []dbModels.PlayerGameAsterisk
+	for rows.Next() {
+		var a dbModels.PlayerGameAsterisk
+		if err := rows.Scan(
+			&a.PlayerGameAsteriskID, &a.GamePlayerID, &a.GameID, &a.Reason, &a.CreatedAt,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan asterisk row")
+			return nil, fmt.Errorf("error scanning asterisk data for game %s: %w", gameID, err)
+		}
+		asterisks = append(asterisks, a)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over asterisk rows for game %s: %w", gameID, err)
+	}
+
+	logger.Info().Int(l.CountKey, len(asterisks)).Msg("Game asterisks retrieved successfully")
+	return asterisks, nil
 }

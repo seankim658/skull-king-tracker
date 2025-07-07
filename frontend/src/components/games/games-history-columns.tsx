@@ -1,6 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { GameHistoryItem } from "@/lib/api/types";
 import { SortableHeader } from "../ui/data-table-sortable-header";
+import { Asterisk } from "lucide-react";
 
 export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
   {
@@ -28,6 +29,18 @@ export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
     accessorKey: "total_points",
     header: ({ column }) => (
       <SortableHeader column={column} title="Total Points" />
+    ),
+  },
+  {
+    accessorKey: "total_asterisks",
+    header: ({ column }) => (
+      <SortableHeader column={column} title="Asterisks" />
+    ),
+    cell: ({ row }) => (
+      <div className="flex items-center justify-center gap-1">
+        <Asterisk className="h-3.5 w-3.5 text-muted-foreground" />
+        {row.original.total_asterisks}
+      </div>
     ),
   },
   {
