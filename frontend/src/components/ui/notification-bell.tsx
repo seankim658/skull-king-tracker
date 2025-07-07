@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import { Badge } from "./badge";
-import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
+import { UserAvatar } from "./user-avatar";
 import { notificationAPI } from "@/lib/api/service/notification";
 import { friendshipAPI } from "@/lib/api/service/friendship";
 import type {
@@ -26,7 +26,7 @@ import type {
   SSEEvent,
   SSEDeletedNotificationPayload,
 } from "@/lib/api/types";
-import { getFullAvatarURL, getAvatarFallback, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { useSubmit } from "@/hooks/use-submit";
@@ -261,17 +261,13 @@ export function NotificationBell() {
                         to={`/users/${notif.actor.user_id}`}
                         className="flex-grow flex items-center gap-3"
                       >
-                        <Avatar className="h-9 w-9">
-                          <AvatarImage
-                            src={getFullAvatarURL(notif.actor.avatar_url)}
-                            alt={notif.actor.username}
-                          />
-                          <AvatarFallback>
-                            {getAvatarFallback(
-                              notif.actor.display_name || notif.actor.username,
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                          displayName={
+                            notif.actor.display_name || notif.actor.username
+                          }
+                          avatarUrl={notif.actor.avatar_url}
+                          className="h-9 w-9"
+                        />
                         <div className="flex-1">
                           <p className="text-sm">{notif.message}</p>
                           <p className="text-xs text-muted-foreground">

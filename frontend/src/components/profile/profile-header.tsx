@@ -1,5 +1,5 @@
 import type { FriendshipStatus, UserProfile } from "@/lib/api/types";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { UserAvatar } from "../ui/user-avatar";
 import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
 import {
@@ -8,11 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import {
-  getFullAvatarURL,
-  getAvatarFallback,
-  formatFriendshipStatus,
-} from "@/lib/utils";
+import { formatFriendshipStatus } from "@/lib/utils";
 import { MoreVertical, UserCheck } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -35,7 +31,6 @@ export function ProfileHeader({
 }: ProfileHeaderProps) {
   const confirm = useConfirm();
 
-  const avatarUrl = getFullAvatarURL(profile.avatar_url);
   const displayName = profile.display_name || profile.username;
   const joinDate = new Date(profile.created_at).toLocaleDateString(undefined, {
     year: "numeric",
@@ -200,10 +195,11 @@ export function ProfileHeader({
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-row items-center gap-4">
-          <Avatar className="h-20 w-20 text-2xl flex-shrink-0">
-            <AvatarImage src={avatarUrl} alt={displayName} />
-            <AvatarFallback>{getAvatarFallback(displayName)}</AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            displayName={displayName}
+            avatarUrl={profile.avatar_url}
+            className="h-20 w-20 text-2xl flex-shrink-0"
+          />
           <div className="flex-grow text-left">
             <h1 className="text-2xl font-bold">{displayName}</h1>
             <p className="text-muted-foreground">@{profile.username}</p>

@@ -4,9 +4,9 @@ import { gameAPI } from "@/lib/api/service/game";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
+import { UserAvatar } from "../ui/user-avatar";
 import { NotebookPen, Calendar, Users, Rocket } from "lucide-react";
+import { InfoTooltip } from "../ui/info-tooltip";
 
 export function ActiveGames() {
   const navigate = useNavigate();
@@ -39,7 +39,21 @@ export function ActiveGames() {
 
   return (
     <section>
-      <h2 className="text-2xl font-semibold mb-4">Your Active Games</h2>
+      <div className="flex items-start gap-1 mb-4">
+        <h2 className="text-2xl font-semibold">Your Active Games</h2>
+        <InfoTooltip
+          content={
+            <>
+              This section shows all games that are currently in progress.
+              <br />
+              <br />
+              If you are the <strong>scorekeeper</strong>, you can tap to resume
+              scoring. Otherwise, you can view the live scorecard.
+            </>
+          }
+        />
+      </div>
+
       <div className="grid gap-6">
         {activeGames.map((game) => (
           <Card key={game.game_id} className="flex flex-col">
@@ -73,12 +87,11 @@ export function ActiveGames() {
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 {game.players.map((player, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8 border">
-                      <AvatarImage src={getFullAvatarURL(player.avatar_url)} />
-                      <AvatarFallback>
-                        {getAvatarFallback(player.display_name)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      displayName={player.display_name}
+                      avatarUrl={player.avatar_url}
+                      className="h-8 w-8 border"
+                    />
                     <span className="text-sm font-medium">
                       {player.display_name}
                     </span>

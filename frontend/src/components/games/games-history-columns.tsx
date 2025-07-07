@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { GameHistoryItem } from "@/lib/api/types";
 import { SortableHeader } from "../ui/data-table-sortable-header";
 import { Asterisk } from "lucide-react";
+import { InfoTooltip } from "../ui/info-tooltip";
 
 export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
   {
@@ -46,12 +47,20 @@ export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
   {
     accessorKey: "rounds_hit",
     header: ({ column }) => (
-      <SortableHeader column={column} title="Rounds Hit" />
+      <div className="flex items-center">
+        <SortableHeader column={column} title="Rounds Hit" />
+        <InfoTooltip content="The number of rounds where your bid exactly matched the number of tricks you took." />
+      </div>
     ),
   },
   {
     accessorKey: "zero_differential",
-    header: "Zero Bid Net",
+    header: ({ column }) => (
+      <div className="flex items-center">
+        <span>Zero Bid Net</span>
+        <InfoTooltip content="Your total net score from bidding zero." />
+      </div>
+    ),
   },
   {
     accessorKey: "total_players",

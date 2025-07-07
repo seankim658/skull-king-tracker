@@ -15,8 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { PlusCircle, UserPlus, X, Rocket } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useSubmit } from "@/hooks/use-submit";
@@ -147,15 +146,11 @@ export function AddPlayersPage() {
                     className="flex items-center justify-between bg-muted p-2 rounded-md"
                   >
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage
-                          src={getFullAvatarURL(player.avatar_url)}
-                          alt={player.display_name}
-                        />
-                        <AvatarFallback>
-                          {getAvatarFallback(player.display_name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        displayName={player.display_name}
+                        avatarUrl={player.avatar_url}
+                        className="h-9 w-9"
+                      />
                       <span className="font-medium">{player.display_name}</span>
                     </div>
                     <Button
@@ -194,17 +189,11 @@ export function AddPlayersPage() {
                       key={friend.user_id}
                       className="flex items-center gap-3"
                     >
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage
-                          src={getFullAvatarURL(friend.avatar_url)}
-                          alt={friend.username}
-                        />
-                        <AvatarFallback>
-                          {getAvatarFallback(
-                            friend.display_name || friend.username,
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        displayName={friend.display_name || friend.username}
+                        avatarUrl={friend.avatar_url}
+                        className="h-9 w-9"
+                      />
                       <div className="flex-grow">
                         <p className="text-sm font-medium">
                           {friend.display_name || friend.username}

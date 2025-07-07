@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { UserAvatar } from "../ui/user-avatar";
 import { SkeletonList } from "../ui/skeleton-list";
 import { userAPI } from "@/lib/api/service/user";
-import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
 import { Search } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useQuery } from "@tanstack/react-query";
@@ -68,15 +67,10 @@ export function UserSearch() {
                   onMouseDown={() => handleUserSelect(user.user_id)}
                 >
                   <div className="flex items-center space-x-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={getFullAvatarURL(user.avatar_url)}
-                        alt={user.username}
-                      />
-                      <AvatarFallback>
-                        {getAvatarFallback(user.display_name || user.username)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      displayName={user.avatar_url || user.username}
+                      avatarUrl={user.avatar_url}
+                    />
                     <div>
                       <p className="text-sm font-medium leading-none">
                         {user.display_name || user.username}

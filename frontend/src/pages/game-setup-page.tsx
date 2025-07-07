@@ -37,8 +37,7 @@ import {
   Rocket,
   AlertTriangle,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarFallback, getFullAvatarURL } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -51,6 +50,7 @@ import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -77,15 +77,10 @@ function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
         >
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </Button>
-        <Avatar className="h-10 w-10">
-          <AvatarImage
-            src={getFullAvatarURL(player.avatar_url)}
-            alt={player.display_name}
-          />
-          <AvatarFallback>
-            {getAvatarFallback(player.display_name)}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          displayName={player.display_name}
+          avatarUrl={player.avatar_url}
+        />
         <span className="font-medium">{player.display_name}</span>
       </div>
     </div>
@@ -392,12 +387,15 @@ export function GameSetupPage() {
 
             {/* Scorekeeper Section */}
             <div>
-              <Label
-                htmlFor="scorekeeper-select"
-                className="text-lg font-semibold block mb-2"
-              >
-                Scorekeeper
-              </Label>
+              <div className="flex items-start gap-1">
+                <Label
+                  htmlFor="scorekeeper-select"
+                  className="text-lg font-semibold block mb-2"
+                >
+                  Scorekeeper
+                </Label>
+                <InfoTooltip content="The scorekeeper is the only person who can edit the game state in any way (i.e. entering bids, entering tricks, completing the game, adding asterisks). You can transfer this role to another registered player, you cannot assign a guest player as scorekeeper." />
+              </div>
               <Select
                 value={scorekeeperId}
                 onValueChange={setScorekeeperId}

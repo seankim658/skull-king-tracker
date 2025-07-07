@@ -13,9 +13,9 @@ export function errorExtract(error: any, defaultMsg: string): string {
 
 export function getFullAvatarURL(
   avatarPath: string | null | undefined,
-): string {
+): string | undefined {
   if (!avatarPath) {
-    return "";
+    return undefined;
   }
   if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
     return avatarPath;
