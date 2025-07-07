@@ -14,6 +14,7 @@ const statsComponent = "database-stats"
 type ProfileStats struct {
 	TotalGamesPlayed int
 	TotalWins        int
+	Top3Finishes     int
 }
 
 // Retrieves the basic game statistics for a user
@@ -25,36 +26,38 @@ func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*Profile
 		"GetUserBasicStats",
 	).With().Str(l.UserIDKey, userID).Logger()
 
-	profStats := &ProfileStats{}
+	stats := &ProfileStats{}
 
-	queryGamesPlayed := `
-  SELECT COUNT(DISTINCT g.game_id)
-  FROM games g
-  JOIN game_players gp ON g.game_id = gp.game_id
+	query := `
+  WITH GamePlayerCounts AS (
+    SELECT game_id, COUNT(*) as total_players
+    FROM game_players
+    GROUP BY game_id
+  )
+  SELECT
+    COALESCE(COUNT(gp.game_id), 0),
+    COALESCE(SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN gp.finishing_position <= 3 AND gpc.total_players >= 4 THEN 1 ELSE 0 END), 0)
+  FROM game_players gp
+  JOIN games g ON gp.game_id = g.game_id
+  LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
   WHERE gp.user_id = $1 AND g.status = 'completed';
   `
-	logger.Debug().Str(l.QueryKey, queryGamesPlayed).Msg("Attempting to get total games played")
-	err := querier.QueryRowContext(ctx, queryGamesPlayed, userID).Scan(&profStats.TotalGamesPlayed)
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get user profile stats")
+
+	err := querier.QueryRowContext(ctx, query, userID).Scan(
+		&stats.TotalGamesPlayed,
+		&stats.TotalWins,
+		&stats.Top3Finishes,
+	)
+
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get total games played")
-		return nil, fmt.Errorf("error getting total games played for user %s: %w", userID, err)
+		logger.Error().Err(err).Msg("Failed to get user stats")
+		return nil, fmt.Errorf("error getting stats for user %s: %w", userID, err)
 	}
 
-	queryTotalWins := `
-  SELECT COUNT(DISTINCT g.game_id)
-  FROM games g
-  JOIN game_players gp ON g.game_id = gp.game_id
-  WHERE gp.user_id = $1 AND g.status = 'completed' AND gp.finishing_position = 1;
-  `
-	logger.Debug().Str(l.QueryKey, queryTotalWins).Msg("Attempting to get total wins")
-	err = querier.QueryRowContext(ctx, queryTotalWins, userID).Scan(&profStats.TotalWins)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get total wins")
-		return nil, fmt.Errorf("error getting total wins for user %s: %w", userID, err)
-	}
-
-	logger.Info().Interface("base_profile_stats", profStats).Msg("User basic stats retrieved successfully")
-	return profStats, nil
+	logger.Info().Interface("base_profile_stats", stats).Msg("User basic stats retrieved successfully")
+	return stats, nil
 }
 
 type SiteWideSummaryStats struct {
@@ -144,29 +147,32 @@ func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID stri
 
 	stats := &ProfileStats{}
 
-	queryGamesPlayed := `
-  SELECT COUNT(DISTINCT g.game_id)
-  FROM games g
-  JOIN game_players gp ON g.game_id = gp.game_id
+	query := `
+  WITH GamePlayerCounts AS (
+    SELECT game_id, COUNT(*) as total_players
+    FROM game_players
+    GROUP BY game_id
+  )
+  SELECT
+    COALESCE(COUNT(gp.game_id), 0),
+    COALESCE(SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN gp.finishing_position <= 3 AND gpc.total_players >= 4 THEN 1 ELSE 0 END), 0)
+  FROM game_players gp
+  JOIN games g ON gp.game_id = g.game_id
+  LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
   WHERE gp.user_id = $1 AND g.session_id = $2 AND g.status = 'completed';
   `
-	logger.Debug().Str(l.QueryKey, queryGamesPlayed).Msg("Attempting to query total games played in session")
-	err := querier.QueryRowContext(ctx, queryGamesPlayed, userID, sessionID).Scan(&stats.TotalGamesPlayed)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get total games in session")
-		return nil, fmt.Errorf("error getting total games played for user %s in session %s: %w", userID, sessionID, err)
-	}
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get consolidated user session stats")
 
-	queryTotalWins := `
-  SELECT COUNT(DISTINCT g.game_id)
-  FROM games g
-  JOIN game_players gp ON g.game_id = gp.game_id
-  WHERE gp.user_id = $1 AND g.session_id = $2 AND g.status = 'completed' AND gp.finishing_position = 1;
-  `
-	err = querier.QueryRowContext(ctx, queryTotalWins, userID, sessionID).Scan(&stats.TotalWins)
+	err := querier.QueryRowContext(ctx, query, userID, sessionID).Scan(
+		&stats.TotalGamesPlayed,
+		&stats.TotalWins,
+		&stats.Top3Finishes,
+	)
+
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get total wins in session")
-		return nil, fmt.Errorf("error gettign total wins for user %s in session %s: %w", userID, sessionID, err)
+		logger.Error().Err(err).Msg("Failed to get user session stats")
+		return nil, fmt.Errorf("error getting session stats for user %s in session %s: %w", userID, sessionID, err)
 	}
 
 	logger.Info().Interface("session_user_stats", stats).Msg("User session stats retrieved successfully")

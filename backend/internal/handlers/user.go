@@ -134,6 +134,7 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 			finalResponse.Stats = &apiModels.UserStats{
 				TotalGamesPlayed: dbUserStats.TotalGamesPlayed,
 				TotalWins:        dbUserStats.TotalWins,
+				Top3Finishes:     dbUserStats.Top3Finishes,
 				WinPercentage:    winPercentage,
 			}
 			logger.Debug().Interface("stats_data_for_api", finalResponse.Stats).Msg("Stats data prepared")

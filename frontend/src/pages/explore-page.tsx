@@ -13,7 +13,7 @@ export function ExplorePage() {
       <Separator />
 
       <div>
-        <h2 className="text-2xl font-semibold mb-4 text-center">
+        <h2 className="text-2xl font-semibold mb-2 text-center">
           Find Players
         </h2>
         <UserSearch />

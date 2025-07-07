@@ -3,6 +3,7 @@ package models
 type UserStats struct {
 	TotalGamesPlayed int     `json:"total_games_played"`
 	TotalWins        int     `json:"total_wins"`
+	Top3Finishes     int     `json:"top_3_finishes"`
 	WinPercentage    float64 `json:"win_percentage"`
 }
 
