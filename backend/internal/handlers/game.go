@@ -729,15 +729,16 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 	page, pageSize := GetPaginationParams(r)
 	sortBy := QueryParam(r, "sort_by")
 	sortOrder := QueryParam(r, "sort_order")
+	sessionId := QueryParam(r, "session_id")
 
-	totalCount, err := db.CountUserGameHistory(ctx, nil, userID)
+	totalCount, err := db.CountUserGameHistory(ctx, nil, userID, sessionId)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to count user game history")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve game history")
 		return
 	}
 
-	dbHistory, err := db.GetUserGameHistory(ctx, nil, userID, sortBy, sortOrder, page, pageSize)
+	dbHistory, err := db.GetUserGameHistory(ctx, nil, userID, sortBy, sortOrder, sessionId, page, pageSize)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to get user game history from database")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve game history")

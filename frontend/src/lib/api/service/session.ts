@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   ActiveSessionResponse,
   SessionDetailResponse,
+  PaginatedSessionHistoryResponse,
 } from "../types";
 
 export const sessionAPI = {
@@ -33,4 +34,25 @@ export const sessionAPI = {
     client<null>(`/sessions/${sessionId}/complete`, {
       method: "PUT",
     }),
+
+  /**
+   * Fetches a paginated history of a user's completed sessions.
+   */
+  getSessionHistory: (
+    page: number,
+    pageSize: number,
+    sorting: { id: string; desc: boolean }[],
+  ): Promise<ApiResponse<PaginatedSessionHistoryResponse>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    if (sorting.length > 0) {
+      params.append("sort_by", sorting[0].id);
+      params.append("sort_order", sorting[0].desc ? "desc" : "asc");
+    }
+    return client<PaginatedSessionHistoryResponse>(
+      `/sessions/history?${params.toString()}`,
+    );
+  },
 };

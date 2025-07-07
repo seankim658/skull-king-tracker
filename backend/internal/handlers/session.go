@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"math"
 	"net/http"
 	"time"
 
@@ -228,4 +229,72 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 	}
 
 	Respond(w, r, http.StatusOK, apiResponse, "Session details retrived successfully")
+}
+
+// Handles fetching a user's session history
+// Path: /sessions/history
+// Method: GET
+func (sh *SessionHandler) HandleGetUserSessionHistory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"HandleGetUserSessionHistory",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	page, pageSize := GetPaginationParams(r)
+	sortBy := QueryParam(r, "sort_by")
+	sortOrder := QueryParam(r, "sort_order")
+
+	totalCount, err := db.CountUserSessionHistory(ctx, nil, userID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve session count")
+		return
+	}
+
+	dbHistory, err := db.GetUserSessionHistory(ctx, nil, userID, sortBy, sortOrder, page, pageSize)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve session history")
+		return
+	}
+
+	apiHistory := make([]apiModels.SessionHistoryItem, 0, len(dbHistory))
+	for _, h := range dbHistory {
+		winPercentage := 0.0
+		if h.NumberOfGames > 0 {
+			winPercentage = math.Round((float64(h.YourWins)/float64(h.NumberOfGames))*10000) / 100
+		}
+
+		avgFinishingPos := 0.0
+		if h.NumberOfGames > 0 {
+			avgFinishingPos = float64(h.TotalFinishingPosition) / float64(h.NumberOfGames)
+		}
+
+		item := apiModels.SessionHistoryItem{
+			SessionID:                h.SessionID,
+			DateCompleted:            h.DateCompleted,
+			NumberOfGames:            h.NumberOfGames,
+			YourWins:                 h.YourWins,
+			WinPercentage:            winPercentage,
+			AverageFinishingPosition: avgFinishingPos,
+			SessionCreator:           h.SessionCreator.String,
+		}
+		if h.SessionName.Valid {
+			item.SessionName = &h.SessionName.String
+		}
+		apiHistory = append(apiHistory, item)
+	}
+
+	pagination := CalculatePagination(totalCount, page, pageSize)
+	response := apiModels.PaginatedSessionHistoryResponse{
+		Sessions:   apiHistory,
+		Pagination: pagination,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Session history retrieved successfully")
 }

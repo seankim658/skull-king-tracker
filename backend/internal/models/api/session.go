@@ -36,3 +36,19 @@ type SessionDetailResponse struct {
 	Games       []SessionGame      `json:"games"`
 	UserSummary SessionUserSummary `json:"user_summary"`
 }
+
+type SessionHistoryItem struct {
+	SessionID                string    `json:"session_id"`
+	SessionName              *string   `json:"session_name,omitempty"`
+	DateCompleted            time.Time `json:"date_completed"`
+	NumberOfGames            int       `json:"number_of_games"`
+	YourWins                 int       `json:"your_wins"`
+	WinPercentage            float64   `json:"win_percentage"`
+	AverageFinishingPosition float64   `json:"average_finishing_position"`
+	SessionCreator           string    `json:"session_creator"`
+}
+
+type PaginatedSessionHistoryResponse struct {
+	Sessions   []SessionHistoryItem `json:"sessions"`
+	Pagination Pagination           `json:"pagination"`
+}

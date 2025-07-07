@@ -21,7 +21,7 @@ import type {
 import { RotateCcw } from "lucide-react";
 import { useSubmit } from "@/hooks/use-submit";
 import { gameAPI } from "@/lib/api/service/game";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ScorecardInputDrawerProps {
   isOpen: boolean;
@@ -80,6 +80,8 @@ export function ScorecardInputDrawer({
       actionVerb: "Submitting scores",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["activeGames"] });
+        queryClient.invalidateQueries({ queryKey: ["gameHistory"] });
         onOpenChange(false);
       },
     },

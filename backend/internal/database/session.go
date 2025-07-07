@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -216,6 +217,12 @@ func CheckUserParticipatedInSession(
 	ctx context.Context, tx *sql.Tx, userID, sessionID string,
 ) (bool, error) {
 	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"CheckUserParticipatedInSession",
+	).With().Str(l.UserIDKey, userID).Str(l.SessionIDKey, sessionID).Logger()
+
 	query := `
   SELECT EXISTS (
     SELECT 1
@@ -224,14 +231,127 @@ func CheckUserParticipatedInSession(
     WHERE gp.user_id = $1 AND g.session_id = $2
   );
   `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to check if user participated in session")
 
 	var participated bool
 	err := querier.QueryRowContext(ctx, query, userID, sessionID).Scan(&participated)
 	if err != nil {
-		return false,
-			fmt.Errorf(
-				"error checking user participation for user %s in session %s: %w", userID, sessionID, err,
-			)
+		err = fmt.Errorf("error checking user participation for user %s in session %s: %w", userID, sessionID, err)
+		logger.Error().Err(err).Msg("Failed to check if user participated in session")
+		return false, err
 	}
 	return participated, nil
+}
+
+// Counts a user's completed sessions
+func CountUserSessionHistory(ctx context.Context, tx *sql.Tx, userID string) (int64, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"CountUserSessionHistory",
+	).With().Str(l.UserIDKey, userID).Logger()
+
+	query := `
+  SELECT COUNT(DISTINCT gs.session_id)
+  FROM game_sessions gs
+  JOIN games g ON gs.session_id = g.session_id
+  JOIN game_players gp ON g.game_id = gp.game_id
+  WHERE gs.status = 'completed' AND gp.user_id = $1;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to count user session history")
+
+	var totalCount int64
+	err := querier.QueryRowContext(ctx, query, userID).Scan(&totalCount)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count user session history")
+		return 0, fmt.Errorf("error counting history for user %s: %w", userID, err)
+	}
+	return totalCount, nil
+}
+
+// Retrieves a paginated list of a user's completed sessions with aggregated stats
+func GetUserSessionHistory(
+	ctx context.Context,
+	tx *sql.Tx,
+	userID, sortBy, sortOrder string,
+	page, pageSize int,
+) ([]dbModels.UserSessionHistoryRow, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"GetUserSessionHistory",
+	).With().
+		Str(l.UserIDKey, userID).
+		Str(l.SortByKey, sortBy).
+		Str(l.SortOrderKey, sortOrder).
+		Int(l.PageKey, page).
+		Int(l.PageSizeKey, pageSize).Logger()
+
+	offset := (page - 1) * pageSize
+
+	sortColumnMap := map[string]string{
+		"date_completed":             "gs.completed_at",
+		"number_of_games":            "number_of_games",
+		"your_wins":                  "your_wins",
+		"average_finishing_position": "avg_finishing_position",
+	}
+
+	orderByClause := "ORDER BY gs.completed_at DESC"
+	if validColumn, ok := sortColumnMap[sortBy]; ok {
+		orderDirection := "ASC"
+		if strings.ToUpper(sortOrder) == "DESC" {
+			orderDirection = "DESC"
+		}
+		orderByClause = fmt.Sprintf("ORDER BY %s %s", validColumn, orderDirection)
+	}
+
+	query := fmt.Sprintf(`
+    SELECT
+      gs.session_id,
+      gs.session_name,
+      gs.completed_at,
+      COALESCE(u_creator.display_name, u_creator.username) as session_creator,
+      COUNT(g.game_id) as number_of_games,
+      SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END) as your_wins,
+      COALESCE(AVG(gp.finishing_position), 0) as avg_finishing_position
+    FROM game_sessions gs
+    JOIN games g ON gs.session_id = g.session_id
+    JOIN game_players gp ON g.game_id = gp.game_id
+    LEFT JOIN users u_creator ON gs.created_by_user_id = u_creator.user_id
+    WHERE gs.status = 'completed' AND gp.user_id = $1
+    GROUP BY gs.session_id, u_creator.display_name, u_creator.username
+    %s
+    LIMIT $2 OFFSET $3;
+  `, orderByClause)
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get user session history")
+
+	rows, err := querier.QueryContext(ctx, query, userID, pageSize, offset)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query user session history")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var history []dbModels.UserSessionHistoryRow
+	for rows.Next() {
+		var h dbModels.UserSessionHistoryRow
+		var avgFinishingPos float64
+		if err := rows.Scan(
+			&h.SessionID, &h.SessionName, &h.DateCompleted, &h.SessionCreator,
+			&h.NumberOfGames, &h.YourWins, &avgFinishingPos,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan user session history row")
+			return nil, err
+		}
+		h.TotalFinishingPosition = int(avgFinishingPos * float64(h.NumberOfGames))
+		history = append(history, h)
+	}
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over session history rows")
+		return nil, fmt.Errorf("error iterating session history rows: %w", err)
+	}
+
+	return history, nil
 }

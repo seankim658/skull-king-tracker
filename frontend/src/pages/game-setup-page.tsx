@@ -208,6 +208,7 @@ export function GameSetupPage() {
       actionVerb: "Saving and starting game",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["activeGames"] });
         navigate(`/game/${gameId}/scorecard`);
       },
     },
