@@ -1,15 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardHeader } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 import { Users, Swords, CalendarDays, UserPlus } from "lucide-react";
 import { statsAPI } from "@/lib/api/service/stat";
 import { useQuery } from "@tanstack/react-query";
+import { StatCard } from "../ui/stat-card";
 
-const outerDivStyle = "grid gap-4 md:grid-cols-2 lg:grid-cols-4";
-const summaryStatStyle = "text-2xl font-bold";
-const iconStyle = "h-5 w-5 text-muted-foreground";
-const cardHeaderStyle =
-  "flex flex-row items-center justify-between space-y-0 pb-2";
-const cardTitleStyle = "text-sm font-medium min-h-[50px]";
+const outerDivStyle = "grid gap-4 grid-cols-2 lg:grid-cols-4";
 
 export function SiteSummaryStats() {
   const {
@@ -61,56 +57,26 @@ export function SiteSummaryStats() {
 
   return (
     <div className={outerDivStyle}>
-      <Card>
-        <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>
-            Total Skull King Players
-          </CardTitle>
-          <Users className={iconStyle} />
-        </CardHeader>
-        <CardContent>
-          <div className={summaryStatStyle}>{summaryStats.total_players}</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>
-            Sessions Played Last Month
-          </CardTitle>
-          <CalendarDays className={iconStyle} />
-        </CardHeader>
-        <CardContent>
-          <div className={summaryStatStyle}>
-            {summaryStats.sessions_this_month}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>
-            Games Played Last Month
-          </CardTitle>
-          <Swords className={iconStyle} />
-        </CardHeader>
-        <CardContent>
-          <div className={summaryStatStyle}>
-            {summaryStats.games_this_month}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className={cardHeaderStyle}>
-          <CardTitle className={cardTitleStyle}>
-            New Players Last Month
-          </CardTitle>
-          <UserPlus className={iconStyle} />
-        </CardHeader>
-        <CardContent>
-          <div className={summaryStatStyle}>
-            {summaryStats.new_users_this_month}
-          </div>
-        </CardContent>
-      </Card>
+      <StatCard
+        title="Total Skull King Players"
+        value={summaryStats.total_players}
+        icon={<Users className="h-5 w-5 text-muted-foreground" />}
+      />
+      <StatCard
+        title="Sessions Played Last Month"
+        value={summaryStats.sessions_this_month}
+        icon={<CalendarDays className="h-5 w-5 text-muted-foreground" />}
+      />
+      <StatCard
+        title="Games Played Last Month"
+        value={summaryStats.games_this_month}
+        icon={<Swords className="h-5 w-5 text-muted-foreground" />}
+      />
+      <StatCard
+        title="New Players Last Month"
+        value={summaryStats.new_users_this_month}
+        icon={<UserPlus className="h-5 w-5 text-muted-foreground" />}
+      />
     </div>
   );
 }
