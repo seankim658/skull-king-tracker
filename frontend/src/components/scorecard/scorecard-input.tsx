@@ -243,7 +243,7 @@ export function ScorecardInputDrawer({
                   </p>
                   <p className="text-xs text-muted-foreground">Tricks Won</p>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-5 gap-2">
                   <ActionButton
                     onClick={() =>
                       setTricks((p) => ({
@@ -274,6 +274,16 @@ export function ScorecardInputDrawer({
                     onClick={() =>
                       setTricks((p) => ({
                         ...p,
+                        [activePlayer.game_player_id]: 0,
+                      }))
+                    }
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </ActionButton>
+                  <ActionButton
+                    onClick={() =>
+                      setTricks((p) => ({
+                        ...p,
                         [activePlayer.game_player_id]: currentTricks + 1,
                       }))
                     }
@@ -298,9 +308,18 @@ export function ScorecardInputDrawer({
                   </p>
                   <p className="text-xs text-muted-foreground">Bonus Points</p>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant="outline"
+                <div className="grid grid-cols-5 gap-2">
+                  <ActionButton
+                    onClick={() =>
+                      setBonus((p) => ({
+                        ...p,
+                        [activePlayer.game_player_id]: 0,
+                      }))
+                    }
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </ActionButton>
+                  <ActionButton
                     onClick={() =>
                       setBonus((p) => ({
                         ...p,
@@ -309,9 +328,8 @@ export function ScorecardInputDrawer({
                     }
                   >
                     +10
-                  </Button>
-                  <Button
-                    variant="outline"
+                  </ActionButton>
+                  <ActionButton
                     onClick={() =>
                       setBonus((p) => ({
                         ...p,
@@ -320,9 +338,8 @@ export function ScorecardInputDrawer({
                     }
                   >
                     +20
-                  </Button>
-                  <Button
-                    variant="outline"
+                  </ActionButton>
+                  <ActionButton
                     onClick={() =>
                       setBonus((p) => ({
                         ...p,
@@ -331,9 +348,8 @@ export function ScorecardInputDrawer({
                     }
                   >
                     +40
-                  </Button>
-                  <Button
-                    variant="outline"
+                  </ActionButton>
+                  <ActionButton
                     onClick={() =>
                       setBonus((p) => ({
                         ...p,
@@ -342,19 +358,7 @@ export function ScorecardInputDrawer({
                     }
                   >
                     +50
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    className="col-span-2"
-                    onClick={() =>
-                      setBonus((p) => ({
-                        ...p,
-                        [activePlayer.game_player_id]: 0,
-                      }))
-                    }
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" /> Reset
-                  </Button>
+                  </ActionButton>
                 </div>
               </div>
             )}
