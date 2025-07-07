@@ -504,6 +504,7 @@ func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbMod
 	return friends, nil
 }
 
+// Gets the number of mutual friends between two users
 func CountMutualFriends(ctx context.Context, tx *sql.Tx, userIDOne, userIDTwo string) (int, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
@@ -533,13 +534,84 @@ func CountMutualFriends(ctx context.Context, tx *sql.Tx, userIDOne, userIDTwo st
   `
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to count mutual friends")
 
-  var count int
-  err := querier.QueryRowContext(ctx, query, userIDOne, userIDTwo).Scan(&count)
-  if err != nil {
-    logger.Error().Err(err).Msg("Failed to count mutual friends")
-    return 0, fmt.Errorf("error counting mutual friends between %s and %s: %w", userIDOne, userIDTwo, err)
-  }
+	var count int
+	err := querier.QueryRowContext(ctx, query, userIDOne, userIDTwo).Scan(&count)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count mutual friends")
+		return 0, fmt.Errorf("error counting mutual friends between %s and %s: %w", userIDOne, userIDTwo, err)
+	}
 
-  logger.Info().Int(l.CountKey, count).Msg("Mutual friends counted successfully")
-  return count, nil
+	logger.Info().Int(l.CountKey, count).Msg("Mutual friends counted successfully")
+	return count, nil
+}
+
+// Retrieves the friends of a profile user and determines the friendship
+func GetFriendshipWithViewerStatus(
+	ctx context.Context,
+	tx *sql.Tx,
+	profileUserID, viewerUserID string,
+) ([]dbModels.FriendshipWithViewerStatus, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"GetFriendshipWithViewerStatus",
+	).With().Str(l.ProfileUserIDKey, profileUserID).Str(l.ViewerUserIDKey, viewerUserID).Logger()
+
+	query := `
+  WITH profile_friends AS (
+    SELECT
+    CASE
+      WHEN f.requester_id = $1 THEN f.addressee_id
+      ELSE f.requester_id
+    END AS friend_user_id
+    FROM user_friendships f
+    WHERE (f.requester_id = $1 OR f.addressee_id = $1) AND f.status = 'accepted'
+  )
+  SELECT
+    u.user_id,
+    u.username,
+    u.display_name,
+    u.avatar_url,
+    COALESCE(vf.status, 'not_friends') AS friendship_status_with_viewer,
+    vf.requester_id
+  FROM profile_friends pf
+  JOIN users u ON pf.friend_user_id = u.user_id
+  LEFT JOIN user_friendships vf ON
+    (vf.requester_id = $2 AND vf.addressee_id = u.user_id) OR
+    (vf.requester_id = u.user_id AND vf.addressee_id = $2)
+  ORDER BY u.username;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to retrieve user friendship statuses with users")
+
+	rows, err := querier.QueryContext(ctx, query, profileUserID, viewerUserID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query friends with viewer status")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var friends []dbModels.FriendshipWithViewerStatus
+	for rows.Next() {
+		var friend dbModels.FriendshipWithViewerStatus
+		if err := rows.Scan(
+			&friend.UserID,
+			&friend.Username,
+			&friend.DisplayName,
+			&friend.AvatarURL,
+			&friend.FriendshipStatus,
+			&friend.RequesterID,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan friend with viewer status row")
+			return nil, err
+		}
+		friends = append(friends, friend)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over friend with viewer status rows")
+		return nil, err
+	}
+
+	return friends, nil
 }

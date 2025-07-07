@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"database/sql"
+	"time"
+)
 
 type Friendship struct {
 	FriendshipID string    `db:"friendship_id"`
@@ -25,3 +28,12 @@ const (
 	DBFriendshipStatusBlockedFirstBySecond     DBFriendshipStatus = "blocked_first_by_second"
 	DBFriendshipStatusUnknown                  DBFriendshipStatus = "unknown"
 )
+
+type FriendshipWithViewerStatus struct {
+	UserID           string         `db:"user_id"`
+	Username         string         `db:"username"`
+	DisplayName      sql.NullString `db:"display_name"`
+	AvatarURL        sql.NullString `db:"avatar_url"`
+	FriendshipStatus string         `db:"friendship_status_with_viewer"`
+	RequesterID      sql.NullString `db:"requester_id"`
+}

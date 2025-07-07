@@ -71,3 +71,11 @@ type UserSearchItem struct {
 }
 
 type UserSearchResponse []UserSearchItem
+
+type FriendListItem struct {
+	UserID           string           `json:"user_id"`
+	Username         string           `json:"username"`
+	DisplayName      *string          `json:"display_name,omitempty"`
+	AvatarURL        *string          `json:"avatar_url,omitempty"`
+	FriendshipStatus FriendshipStatus `json:"friendship_status_with_viewer"`
+}

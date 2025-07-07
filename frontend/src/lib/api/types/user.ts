@@ -90,3 +90,11 @@ export interface UserSearchItem {
 }
 
 export type UserSearchResponse = UserSearchItem[];
+
+export interface FriendListItem {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  friendship_status_with_viewer: FriendshipStatus;
+}

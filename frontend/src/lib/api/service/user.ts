@@ -7,6 +7,7 @@ import type {
   LinkedAccount,
   UserProfileResponse,
   UserSearchResponse,
+  FriendListItem,
 } from "../types";
 
 export const userAPI = {
@@ -87,4 +88,13 @@ export const userAPI = {
       method: "GET",
     });
   },
+
+  /**
+   * Retrieves a list of friends for a given user, including the viewer's friendship status with each.
+   * @param userId - The Id of the user whose friends to fetch
+   */
+  getFriendsList: (userId: string): Promise<ApiResponse<FriendListItem[]>> =>
+    client<FriendListItem[]>(`/users/${userId}/friends`, {
+      method: "GET",
+    }),
 };
