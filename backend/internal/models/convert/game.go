@@ -83,6 +83,9 @@ func buildGamePlayerResponses(dbPlayers []dbModels.GamePlayerDetails) []apiModel
 		if p.UserID.Valid {
 			apiPlayer.UserID = &p.UserID.String
 		}
+		if p.Username.Valid {
+			apiPlayer.Username = &p.Username.String
+		}
 		if p.GuestPlayerID.Valid {
 			apiPlayer.GuestPlayerID = &p.GuestPlayerID.String
 		}

@@ -10,8 +10,7 @@ import {
   DrawerDescription,
 } from "../ui/drawer";
 import { Button } from "../ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { getAvatarFallback, getFullAvatarURL } from "@/lib/utils";
+import { UserAvatar } from "../ui/user-avatar";
 import type {
   GamePlayerResponse,
   RoundScorecard,
@@ -161,12 +160,11 @@ export function ScorecardInputDrawer({
           </DrawerHeader>
 
           <div className="p-2 flex flex-col items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={getFullAvatarURL(activePlayer.avatar_url)} />
-              <AvatarFallback>
-                {getAvatarFallback(activePlayer.display_name)}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              displayName={activePlayer.display_name}
+              avatarUrl={activePlayer.avatar_url}
+              className="h-16 w-16"
+            />
 
             {phase === "bidding" ? (
               <div className="w-full space-y-4">

@@ -5,8 +5,7 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { getAvatarFallback, getFullAvatarURL } from "@/lib/utils";
+import { UserAvatar } from "../ui/user-avatar";
 import { ScorecardRow } from "./scorecard-row";
 import { ScorecardTotalsRow } from "./scorecard-total-row";
 import type {
@@ -69,16 +68,14 @@ export function ScorecardTable({
                   key={player.game_player_id}
                   className="text-center p-2"
                 >
+                  {/* Avatar and Asterisks */}
                   <div className="flex flex-col items-center gap-2">
                     <div className="relative h-10 w-10">
-                      <Avatar className="h-10 w-10 border-2">
-                        <AvatarImage
-                          src={getFullAvatarURL(player.avatar_url)}
-                        />
-                        <AvatarFallback>
-                          {getAvatarFallback(player.display_name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        displayName={player.display_name}
+                        avatarUrl={player.avatar_url}
+                        className="h-10 w-10 border-2"
+                      />
                       {playerAsterisks.map((asterisk, index) => (
                         <TooltipProvider key={asterisk.player_game_asterisk_id}>
                           <Tooltip>
@@ -101,9 +98,19 @@ export function ScorecardTable({
                     </div>
 
                     <div className="flex items-center gap-1">
-                      <span className="font-semibold text-foreground truncate max-w-24">
-                        {player.display_name}
-                      </span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-semibold text-foreground truncate max-w-24">
+                              {player.display_name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>@{player.username || "guest"}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
                       {isScorekeeper && (
                         <Button
                           variant="ghost"

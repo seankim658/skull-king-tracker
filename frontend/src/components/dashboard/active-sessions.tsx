@@ -10,6 +10,7 @@ import { useSubmit } from "@/hooks/use-submit";
 import type { ActiveSessionResponse, GameResponse } from "@/lib/api/types";
 import { SessionDetailsModal } from "./session-details-modal";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { InfoTooltip } from "../ui/info-tooltip";
 
 export function ActiveSessions() {
   const navigate = useNavigate();
@@ -118,7 +119,21 @@ export function ActiveSessions() {
 
   return (
     <section>
-      <h2 className="text-2xl font-semibold mb-6">Your Active Sessions</h2>
+      <div className="mb-4">
+        <div className="relative inline-block">
+          <h2 className="text-2xl font-semibold mr-2">Your Active Sessions</h2>
+          <InfoTooltip
+            content={
+              <>
+                A <strong>Session</strong> is a collection of multiple games,
+                perfect for tracking a group of games. You can start a new game
+                within a session here, or tap a session to see more details.
+              </>
+            }
+          />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-4">
         {activeSessions.map((session) => (
           <Card

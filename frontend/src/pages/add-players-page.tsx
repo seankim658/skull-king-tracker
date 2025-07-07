@@ -15,14 +15,14 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getFullAvatarURL, getAvatarFallback } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { PlusCircle, UserPlus, X, Rocket } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useSubmit } from "@/hooks/use-submit";
 import { useConfirm } from "@/hooks/use-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -147,15 +147,11 @@ export function AddPlayersPage() {
                     className="flex items-center justify-between bg-muted p-2 rounded-md"
                   >
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage
-                          src={getFullAvatarURL(player.avatar_url)}
-                          alt={player.display_name}
-                        />
-                        <AvatarFallback>
-                          {getAvatarFallback(player.display_name)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        displayName={player.display_name}
+                        avatarUrl={player.avatar_url}
+                        className="h-9 w-9"
+                      />
                       <span className="font-medium">{player.display_name}</span>
                     </div>
                     <Button
@@ -194,17 +190,11 @@ export function AddPlayersPage() {
                       key={friend.user_id}
                       className="flex items-center gap-3"
                     >
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage
-                          src={getFullAvatarURL(friend.avatar_url)}
-                          alt={friend.username}
-                        />
-                        <AvatarFallback>
-                          {getAvatarFallback(
-                            friend.display_name || friend.username,
-                          )}
-                        </AvatarFallback>
-                      </Avatar>
+                      <UserAvatar
+                        displayName={friend.display_name || friend.username}
+                        avatarUrl={friend.avatar_url}
+                        className="h-9 w-9"
+                      />
                       <div className="flex-grow">
                         <p className="text-sm font-medium">
                           {friend.display_name || friend.username}
@@ -239,7 +229,10 @@ export function AddPlayersPage() {
             <Separator />
 
             <div>
-              <h3 className="text-lg font-semibold mb-2">Add a Guest</h3>
+              <div className="relative inline-flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-semibold">Add a Guest</h3>
+                <InfoTooltip content="Guests are for players who do not have an account. Their scores will be tracked for this game, but their long-term stats will not be saved and they cannot be made scorekeeper." />
+              </div>
               <form
                 onSubmit={handleAddGuest}
                 className="flex items-center gap-2"

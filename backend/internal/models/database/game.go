@@ -39,6 +39,7 @@ type GamePlayerDetails struct {
 	UserID        sql.NullString `db:"user_id"`
 	GuestPlayerID sql.NullString `db:"guest_player_id"`
 	DisplayName   string         `db:"display_name"`
+	Username      sql.NullString `db:"username"`
 	AvatarURL     sql.NullString `db:"avatar_url"`
 	SeatingOrder  int            `db:"seating_order"`
 	FinalScore    int            `db:"final_score"`

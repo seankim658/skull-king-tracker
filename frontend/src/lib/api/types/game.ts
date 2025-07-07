@@ -38,6 +38,7 @@ export interface GamePlayerResponse {
   user_id?: string;
   guest_player_id?: string;
   display_name: string;
+  username?: string;
   avatar_url?: string;
   seating_order: number;
   final_score: number;

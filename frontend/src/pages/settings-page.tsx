@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -24,16 +24,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { userAPI } from "@/lib/api/service/user";
 import type { UpdateUserProfilePayload, User } from "@/lib/api/types";
 import { PageHeader } from "@/components/ui/page-header";
 import { toast } from "sonner";
-import { getFullAvatarURL } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api/client";
 import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
 import { useSubmit } from "@/hooks/use-submit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 type StatsPrivacy = User["stats_privacy"];
 const STATS_PRIVACY_OPTIONS: { value: StatsPrivacy; label: string }[] = [
@@ -138,11 +138,6 @@ export function SettingsPage() {
     window.location.href = `${API_BASE_URL}/auth/initiate-link/${providerId}`;
   };
 
-  const currentDisplayableAvatar = useMemo(
-    () => getFullAvatarURL(user?.avatar_url),
-    [user],
-  );
-
   if (isLoadingAuth || !user) {
     return (
       <div className="container mx-auto p-4 md:p-6">
@@ -211,17 +206,11 @@ export function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="avatarUrl">Avatar URL</Label>
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16">
-                    <AvatarImage
-                      src={currentDisplayableAvatar}
-                      alt={displayName}
-                    />
-                    <AvatarFallback>
-                      {displayName
-                        ? displayName.substring(0, 2).toUpperCase()
-                        : user.username.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    displayName={displayName || user.username}
+                    avatarUrl={user.avatar_url}
+                    className="h-16 w-16"
+                  />
                   <Input
                     id="avatarUrl"
                     type="url"
@@ -238,7 +227,25 @@ export function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="stats-privacy">Stats Privacy</Label>
+                <div className="flex items-start gap-1">
+                  <Label htmlFor="stats-privacy">Stats Privacy</Label>
+                  <InfoTooltip
+                    content={
+                      <>
+                        <p>
+                          <strong>Public:</strong> Anyone can see your stats.
+                        </p>
+                        <p>
+                          <strong>Friends Only:</strong> Only your accepted
+                          friends can see your stats.
+                        </p>
+                        <p>
+                          <strong>Private:</strong> Only you can see your stats.
+                        </p>
+                      </>
+                    }
+                  />
+                </div>
                 <Select
                   value={statsPrivacy}
                   onValueChange={(value: StatsPrivacy) =>
@@ -275,9 +282,19 @@ export function SettingsPage() {
       <Separator />
 
       <section className="space-y-6">
-        <h2 id="linked-accounts-heading" className="text-xl font-semibold">
-          Linked Accounts
-        </h2>
+        <div className="relative inline-flex items-center gap-1">
+          <h2 id="linked-accounts-heading" className="text-xl font-semibold mr-2">
+            Linked Accounts
+          </h2>
+          <InfoTooltip
+            content={
+              <>
+                Link multiple providers to have flexible login options. You
+                cannot disconnect your last remaining authentication method.
+              </>
+            }
+          />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle>Manage Authentication Methods</CardTitle>
