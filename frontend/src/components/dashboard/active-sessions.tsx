@@ -52,6 +52,7 @@ export function ActiveSessions() {
       actionVerb: "Completing session",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
+        queryClient.invalidateQueries({ queryKey: ["sessionHistory"] });
       },
     },
   );

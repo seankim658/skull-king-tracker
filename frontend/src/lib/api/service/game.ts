@@ -158,6 +158,7 @@ export const gameAPI = {
     page: number,
     pageSize: number,
     sorting: { id: string; desc: boolean }[],
+    sessionId?: string | null,
   ): Promise<ApiResponse<PaginatedGameHistoryResponse>> => {
     const params = new URLSearchParams({
       page: page.toString(),
@@ -166,6 +167,9 @@ export const gameAPI = {
     if (sorting.length > 0) {
       params.append("sort_by", sorting[0].id);
       params.append("sort_order", sorting[0].desc ? "desc" : "asc");
+    }
+    if (sessionId) {
+      params.append("session_id", sessionId);
     }
     return client<PaginatedGameHistoryResponse>(
       `/games/history?${params.toString()}`,

@@ -23,3 +23,13 @@ type GameSessionWithActivity struct {
 	HasPendingGame bool           `db:"has_pending_game"`
 	CreatorName    sql.NullString `db:"creator_name"`
 }
+
+type UserSessionHistoryRow struct {
+	SessionID              string
+	SessionName            sql.NullString
+	DateCompleted          time.Time
+	NumberOfGames          int
+	YourWins               int
+	TotalFinishingPosition int
+	SessionCreator         sql.NullString
+}

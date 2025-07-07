@@ -728,28 +728,65 @@ func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]A
 }
 
 // Counts the total number of completed games for a user for pagination
-func CountUserGameHistory(ctx context.Context, tx *sql.Tx, userID string) (int64, error) {
+func CountUserGameHistory(ctx context.Context, tx *sql.Tx, userID, sessionId string) (int64, error) {
 	querier := GetQuerier(tx)
-	query := `
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"CountUserGameHistory",
+	).With().Str(l.UserIDKey, userID).Logger()
+
+	queryBase := `
   SELECT COUNT(g.game_id)
   FROM games g
   JOIN game_players gp ON g.game_id = gp.game_id
-  WHERE g.status = 'completed' AND gp.user_id = $1;
+  WHERE g.status = 'completed' AND gp.user_id = $1
   `
+	args := []any{userID}
+	query := queryBase
+
+	if sessionId != "" {
+		logger = logger.With().Str(l.SessionIDKey, sessionId).Logger()
+		query += " AND g.session_id = $2"
+		args = append(args, sessionId)
+	}
+
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to count user game history")
+
 	var totalCount int64
-	err := querier.QueryRowContext(ctx, query, userID).Scan(&totalCount)
-	return totalCount, err
+	err := querier.QueryRowContext(ctx, query, args...).Scan(&totalCount)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to ocunt user game history")
+		return 0, fmt.Errorf("error counting game history for user %s: %w", userID, err)
+	}
+	return totalCount, nil
 }
 
 // Retrieves a paginated and sorted list of a user's completed games
 func GetUserGameHistory(
 	ctx context.Context,
 	tx *sql.Tx,
-	userID, sortBy, sortOrder string,
+	userID, sortBy, sortOrder, sessionId string,
 	page,
 	pageSize int,
 ) ([]dbModels.UserGameHistoryRow, error) {
 	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetUserGameHistory",
+	).With().
+		Str(l.UserIDKey, userID).
+		Str(l.SortByKey, sortBy).
+		Str(l.SortOrderKey, sortOrder).
+		Int(l.PageKey, page).
+		Int(l.PageSizeKey, pageSize).
+		Logger()
+
+	if sessionId != "" {
+		logger = logger.With().Str(l.SessionIDKey, sessionId).Logger()
+	}
+
 	offset := (page - 1) * pageSize
 
 	sortColumnMap := map[string]string{
@@ -761,55 +798,69 @@ func GetUserGameHistory(
 		"total_players":      "total_players",
 	}
 
-	orderbyClause := "ORDER BY g.created_at DESC"
+	orderByClause := "ORDER BY g.created_at DESC"
 	if validColumn, ok := sortColumnMap[sortBy]; ok {
 		orderDirection := "ASC"
 		if strings.ToUpper(sortOrder) == "DESC" {
 			orderDirection = "DESC"
 		}
-		orderbyClause = fmt.Sprintf("ORDER BY %s %s, g.created_at DESC", validColumn, orderDirection)
+		orderByClause = fmt.Sprintf("ORDER BY %s %s, g.created_at DESC", validColumn, orderDirection)
 	}
 
+	whereClauses := []string{"g.status = 'completed'", "gp.user_id = $1"}
+	args := []any{userID}
+	argCounter := 2
+
+	if sessionId != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("g.session_id = $%d", argCounter))
+		args = append(args, sessionId)
+		argCounter++
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+
 	query := fmt.Sprintf(`
-  WITH UserGameStats AS (
+    WITH UserGameStats AS (
+      SELECT
+        g.game_id,
+        gp.user_id,
+        SUM(CASE WHEN prs.bid_amount > 0 AND prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) as rounds_hit,
+        SUM(CASE WHEN prs.bid_amount = 0 THEN prs.round_score ELSE 0 END) as zero_differential
+      FROM games g
+      JOIN game_players gp ON g.game_id = gp.game_id
+      JOIN rounds r ON g.game_id = r.game_id
+      JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
+      WHERE gp.user_id = $1 AND g.status = 'completed'
+      GROUP BY g.game_id, gp.user_id
+    ),
+    GamePlayerCounts AS (
+      SELECT game_id, COUNT(*) as total_players
+      FROM game_players
+      GROUP BY game_id
+    )
     SELECT
       g.game_id,
-      gp.user_id,
-      SUM(CASE WHEN prs.bid_amount > 0 AND prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) as rounds_hit,
-      SUM(CASE WHEN prs.bid_amount = 0 THEN prs.round_score ELSE 0 END) as zero_differential
+      gs.session_name,
+      g.created_at as game_date,
+      gp.finishing_position,
+      gp.final_score as total_points,
+      COALESCE(ugs.rounds_hit, 0) as rounds_hit,
+      COALESCE(ugs.zero_differential, 0) as zero_differential,
+      gpc.total_players,
+      COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name
     FROM games g
     JOIN game_players gp ON g.game_id = gp.game_id
-    JOIN rounds r ON g.game_id = r.game_id
-    JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
-    WHERE gp.user_id = $1 AND g.status = 'completed'
-    GROUP BY g.game_id, gp.user_id
-  ),
-  GamePlayerCounts AS (
-    SELECT game_id, COUNT(*) as total_players
-    FROM game_players
-    GROUP BY game_id
-  )
-  SELECT
-    g.game_id,
-    gs.session_name,
-    g.created_at as game_date,
-    gp.finishing_position,
-    gp.final_score as total_points,
-    COALESCE(ugs.rounds_hit, 0) as rounds_hit,
-    COALESCE(ugs.zero_differential, 0) as zero_differential,
-    gpc.total_players,
-    COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name
-  FROM games g
-  JOIN game_players gp ON g.game_id = gp.game_id
-  LEFT JOIN UserGameStats ugs ON g.game_id = ugs.game_id AND gp.user_id = ugs.user_id
-  LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
-  LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
-  LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
-  WHERE g.status = 'completed' AND gp.user_id = $1
-  %s
-  LIMIT $2 OFFSET $3;
-  `, orderbyClause)
-	rows, err := querier.QueryContext(ctx, query, userID, pageSize, offset)
+    LEFT JOIN UserGameStats ugs ON g.game_id = ugs.game_id AND gp.user_id = ugs.user_id
+    LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
+    LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
+    LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
+    WHERE %s
+    %s
+    LIMIT $%d OFFSET $%d;
+  `, whereClause, orderByClause, argCounter, argCounter+1)
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get user game history")
+
+  finalArgs := append(args, pageSize, offset)
+	rows, err := querier.QueryContext(ctx, query, finalArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("error querying user game history: %w", err)
 	}
@@ -823,9 +874,16 @@ func GetUserGameHistory(
 			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential,
 			&h.TotalPlayers, &h.ScorekeeperName,
 		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan game history row")
 			return nil, fmt.Errorf("error scanning game history row: %w", err)
 		}
 		history = append(history, h)
 	}
-	return history, rows.Err()
+
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over game history rows")
+		return nil, fmt.Errorf("error iterating game history rows: %w", err)
+	}
+
+	return history, nil
 }

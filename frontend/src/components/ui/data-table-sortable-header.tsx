@@ -1,13 +1,12 @@
 import { Button } from "../ui/button";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
-import type { GameHistoryItem } from "@/lib/api/types";
 
-export const SortableHeader = ({
+export const SortableHeader = <T,>({
   column,
   title,
 }: {
-  column: Column<GameHistoryItem>;
+  column: Column<T>;
   title: string;
 }) => {
   const sortDirection = column.getIsSorted();

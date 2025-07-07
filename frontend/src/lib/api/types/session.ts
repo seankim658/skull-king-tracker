@@ -1,3 +1,5 @@
+import type { Pagination } from "./api";
+
 /**
  * Response for an active session.
  */
@@ -43,4 +45,20 @@ export interface SessionDetailResponse {
   status: string;
   games: SessionGame[];
   user_summary: SessionUserSummary;
+}
+
+export interface SessionHistoryItem {
+  session_id: string;
+  session_name?: string | null;
+  date_completed: string;
+  number_of_games: number;
+  your_wins: number;
+  win_percentage: number;
+  average_finishing_position: number;
+  session_creator: string;
+}
+
+export interface PaginatedSessionHistoryResponse {
+  sessions: SessionHistoryItem[];
+  pagination: Pagination;
 }

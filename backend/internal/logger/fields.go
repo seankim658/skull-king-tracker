@@ -12,6 +12,10 @@ const (
 	StackTraceKey = "stack_trace"
 	PathKey       = "path"
 	SizeBytesKey  = "size_bytes"
+	PageKey       = "page"
+	PageSizeKey   = "page_size"
+	SortByKey     = "sort_by"
+	SortOrderKey  = "sort_order"
 
 	// General network fields
 	InternalServerError  = "internal-server-error"

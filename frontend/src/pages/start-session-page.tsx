@@ -28,6 +28,7 @@ export function StartSessionPage() {
       actionVerb: "Creating session",
       onSuccess: (data: GameResponse | undefined) => {
         toast.success(`Session "${sessionName.trim()} created`);
+        queryClient.invalidateQueries({ queryKey: ["activeGames"] });
         queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
         if (data?.game_id) {
           navigate(`/game/${data.game_id}/add-players`);

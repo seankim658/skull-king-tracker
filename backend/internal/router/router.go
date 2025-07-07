@@ -87,6 +87,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	sessionHandler := h.NewSessionHandler(cfg)
 	sessionSubRouter := apiRouter.PathPrefix("/sessions").Subrouter()
 	sessionSubRouter.HandleFunc("/active", sessionHandler.HandleGetActiveSessionsForUser).Methods(http.MethodGet)
+	sessionSubRouter.HandleFunc("/history", sessionHandler.HandleGetUserSessionHistory).Methods(http.MethodGet)
 	sessionSubRouter.HandleFunc("/{session_id}", sessionHandler.HandleGetSessionDetails).Methods(http.MethodGet)
 	sessionSubRouter.HandleFunc("/{session_id}/complete", sessionHandler.HandleCompleteSession).Methods(http.MethodPut)
 
