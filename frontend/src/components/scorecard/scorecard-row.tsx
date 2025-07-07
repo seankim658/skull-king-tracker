@@ -25,11 +25,12 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
   return (
     <TableRow
       className={cn(
+        "relative",
         isActiveRound &&
           "bg-primary/5 border-l-4 border-l-primary/80 dark:bg-primary/10",
       )}
     >
-      <TableCell className="font-medium text-center sticky left-0 bg-background/95">
+      <TableCell className="font-medium text-center sticky left-0 bg-background z-10">
         <div className="flex flex-col items-center gap-1">
           <span className="text-xl">{round.round_number}</span>
           <Badge variant="secondary" className="px-1.5 py-0.5 text-xs">
@@ -40,7 +41,7 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
 
       {players.map((player) => {
         const score = getPlayerScore(player.game_player_id);
-        const isDealer = false; // TODO : placeholder for now
+        const isDealer = player.game_player_id === round.dealer_game_player_id;
 
         return (
           <TableCell
@@ -54,12 +55,11 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
                     <Spade className="h-4 w-4 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{player.display_name} is the dealer</p>
+                    <p>{player.display_name} was the dealer for this round</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            {/* TODO : Add dealer logic based on round.dealer_id */}
             <div className="flex flex-col items-start justify-start gap-1">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Swords className="h-3.5 w-3.5" />

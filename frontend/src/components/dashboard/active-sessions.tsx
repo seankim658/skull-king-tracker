@@ -39,8 +39,9 @@ export function ActiveSessions() {
       successMessage: "New game started",
       onSuccess: (data: GameResponse | undefined) => {
         queryClient.invalidateQueries({ queryKey: ["activeSessions"] });
+        queryClient.invalidateQueries({ queryKey: ["activeGames"] });
         if (data?.game_id) {
-          navigate(`/game${data.game_id}/add-players`);
+          navigate(`/game/${data.game_id}/add-players`);
         }
       },
     },
