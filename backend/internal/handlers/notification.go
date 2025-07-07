@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -237,4 +238,68 @@ func broadcastNotification(
 
 	sseHub.Broadcast(recipientID, string(jsonPayload))
 	logger.Info().Str(l.RecipientIDKey, recipientID).Msgf("Broadcasted '%s' event via SSE", ssePayload.Event)
+}
+
+// Handles deleting a single notification
+// Path: /notifications/{notification_id}
+// Method: DELETE
+func (nh *NotificationHandler) HandleDeleteNotification(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"HandleDeleteNotification",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	notificationID, ok := PathVar(w, r, "notification_id")
+	if !ok {
+		return
+	}
+
+	// TODO : SHould use database transcation
+	err := db.DeleteNotificationByID(ctx, nil, notificationID, userID)
+	if err != nil {
+		if errors.Is(err, db.ErrNotificationNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Notification not found or you do not have permission to delete it")
+		} else {
+			logger.Error().Err(err).Msg("Failed to delete notification")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Could not delete notification")
+		}
+		return
+	}
+
+	Respond(w, r, http.StatusNoContent, nil, "Notification deleted successfully")
+}
+
+// Handles deleting all notifications for the user
+// Path: /notifications
+// Method: DELETE
+func (nh *NotificationHandler) HandleDeleteAllNotifications(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		notificationComponent,
+		"HandleDeleteAllNotifications",
+	)
+
+	userID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	// TODO : Should use database transcation
+	deletedCount, err := db.DeleteAllNotificationsByUserID(ctx, nil, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to delete all user notifications")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not clear notifications")
+		return
+	}
+
+	message := fmt.Sprintf("Successfully cleared %d notifications", deletedCount)
+	Respond(w, r, http.StatusOK, nil, message)
 }
