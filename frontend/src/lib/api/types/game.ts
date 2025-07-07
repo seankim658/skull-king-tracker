@@ -70,6 +70,7 @@ export interface RoundScorecard {
   round_number: number;
   status: "bidding" | "playing" | "completed";
   player_scores: PlayerRoundData[];
+  dealer_game_player_id: string;
 }
 
 /**

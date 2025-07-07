@@ -53,9 +53,10 @@ type PlayerRoundData struct {
 
 // Main object for rendering the scorecard
 type RoundScorecard struct {
-	RoundNumber  int               `json:"round_number"`
-	Status       string            `json:"status"`
-	PlayerScores []PlayerRoundData `json:"player_scores"`
+	RoundNumber        int               `json:"round_number"`
+	Status             string            `json:"status"`
+	PlayerScores       []PlayerRoundData `json:"player_scores"`
+	DealerGamePlayerID string            `json:"dealer_game_player_id"`
 }
 
 type ScorecardResponse struct {

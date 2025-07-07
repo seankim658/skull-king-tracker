@@ -39,9 +39,10 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 		}
 
 		apiRounds[i] = apiModels.RoundScorecard{
-			RoundNumber:  dbRound.RoundNumber,
-			Status:       dbRound.Status,
-			PlayerScores: playerScores,
+			RoundNumber:        dbRound.RoundNumber,
+			Status:             dbRound.Status,
+			PlayerScores:       playerScores,
+			DealerGamePlayerID: dbRound.DealerGamePlayerID,
 		}
 		if dbRound.Status == "bidding" || dbRound.Status == "playing" {
 			if dbRound.RoundNumber > currentRoundNum {
