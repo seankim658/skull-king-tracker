@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -204,22 +203,22 @@ func (nh *NotificationHandler) HandleMarkNotificationUnread(w http.ResponseWrite
 	Respond(w, r, http.StatusNoContent, nil, "Notification marked as unread")
 }
 
-// Fetches a newly created notification, converts it, and sends it via SSE
-func broadcastNotification(
-	ctx context.Context,
-	tx *sql.Tx,
+// Converts a full notification object to its API model, marshals it into an SSE event payload,
+// broadcasts it to the recipient
+func broadcastNotificationEvent(
 	sseHub *sse.Hub,
-	notificationID,
-	recipientID string,
+	notification *dbModels.NotificationWithActor,
 	logger zerolog.Logger,
 ) {
-	dbNotif, err := db.GetNotificationWithActorByID(ctx, tx, notificationID)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to fetch created notification for SSE broadcast")
+	if notification == nil {
+		logger.Warn().Msg("Attempted to broadcast a nil notification")
 		return
 	}
 
-	apiNotif, err := modelConverters.DBNotificationWithActorToAPI(dbNotif)
+	recipientID := notification.RecipientUserID
+	logger = logger.With().Str(l.RequestIDKey, recipientID).Str(l.NotificationIDKey, notification.NotificationID).Logger()
+
+	apiNotif, err := modelConverters.DBNotificationWithActorToAPI(notification)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to convert notification for SSE broadcast")
 		return
@@ -237,7 +236,7 @@ func broadcastNotification(
 	}
 
 	sseHub.Broadcast(recipientID, string(jsonPayload))
-	logger.Info().Str(l.RecipientIDKey, recipientID).Msgf("Broadcasted '%s' event via SSE", ssePayload.Event)
+	logger.Info().Msgf("Broadcasted '%s' event via SSE", ssePayload.Event)
 }
 
 // Handles deleting a single notification

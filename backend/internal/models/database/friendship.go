@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// --- Core Entities ---
+
+// Maps to the `user_friendships` table
 type Friendship struct {
 	FriendshipID string    `db:"friendship_id"`
 	RequesterID  string    `db:"requester_id"`
@@ -14,7 +17,9 @@ type Friendship struct {
 	UpdatedAt    time.Time `db:"updated_at"`
 }
 
-// The possible states a friendship can be within the database
+// --- Enums & Composite Structs ---
+
+// Represents the logical state of a friendship
 type DBFriendshipStatus string
 
 const (
@@ -29,6 +34,7 @@ const (
 	DBFriendshipStatusUnknown                  DBFriendshipStatus = "unknown"
 )
 
+// Composite struct for queries that fetch a user's friends
 type FriendshipWithViewerStatus struct {
 	UserID           string         `db:"user_id"`
 	Username         string         `db:"username"`
