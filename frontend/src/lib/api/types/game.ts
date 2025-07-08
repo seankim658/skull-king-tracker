@@ -86,6 +86,7 @@ export interface ScorecardResponse {
   session_name?: string | null;
   current_scorekeeper_user_id: string;
   scorekeeper_name: string;
+  asterisks: PlayerGameAsterisk[];
 }
 
 /**

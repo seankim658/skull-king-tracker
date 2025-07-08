@@ -65,7 +65,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	settingsSubRouter.HandleFunc("linked-accounts/{provider}", settingsHandler.HandleUnlinkAccount).Methods(http.MethodDelete)
 
 	// Game routes
-	gameHandler := h.NewGameHandler(cfg)
+	gameHandler := h.NewGameHandler(cfg, sseHub)
 	gameSubRouter := apiRouter.PathPrefix("/games").Subrouter()
 	gameSubRouter.HandleFunc("", gameHandler.HandleCreateGame).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/active", gameHandler.HandleGetActiveGames).Methods(http.MethodGet)

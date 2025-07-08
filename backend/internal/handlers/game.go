@@ -10,16 +10,18 @@ import (
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
+	"github.com/seankim658/skullking/internal/sse"
 )
 
 const gameComponent = "handlers-game"
 
 type GameHandler struct {
-	Cfg *cf.Config
+	Cfg    *cf.Config
+	SSEHub *sse.Hub
 }
 
-func NewGameHandler(cfg *cf.Config) *GameHandler {
-	return &GameHandler{Cfg: cfg}
+func NewGameHandler(cfg *cf.Config, sseHub *sse.Hub) *GameHandler {
+	return &GameHandler{Cfg: cfg, SSEHub: sseHub}
 }
 
 // Handles the creation of a new game
@@ -824,6 +826,8 @@ func (gh *GameHandler) HandleAddAsterisk(w http.ResponseWriter, r *http.Request)
 		responseSent = true
 		return
 	}
+
+	go broadcastScorecardUpdate(gh.SSEHub, gameID, logger)
 
 	if !responseSent {
 		Respond(w, r, http.StatusCreated, nil, "Asterisk added successfully")

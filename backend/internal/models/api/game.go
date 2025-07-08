@@ -69,6 +69,7 @@ type ScorecardResponse struct {
 	SessionName              *string              `json:"session_name,omitempty"`
 	CurrentScoreKeeperUserID string               `json:"current_scorekeeper_user_id"`
 	ScorekeeperName          string               `json:"scorekeeper_name"`
+	Asterisks                []PlayerGameAsterisk `json:"asterisks"`
 }
 
 type PlayerBid struct {

@@ -54,24 +54,12 @@ export function GameScorecardPage() {
     enabled: !!gameId,
   });
 
-  const { data: asterisks } = useQuery({
-    queryKey: ["asterisks", gameId],
-    queryFn: async () => {
-      const response = await gameAPI.getAsterisks(gameId!);
-      if (!response.success) {
-        throw new Error(response.message || "Failed to fetch asterisks");
-      }
-      return response.data ?? [];
-    },
-    enabled: !!gameId,
-  });
-
   const { submit: addAsterisk, isLoading: isAddingAterisk } = useSubmit(
     gameAPI.addAsterisk,
     {
       actionVerb: "Adding asterisk",
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["asterisks", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
         setIsAsteriskDialogOpen(false);
         setSelectedPlayerForAsterisk(null);
       },
@@ -180,7 +168,7 @@ export function GameScorecardPage() {
           <ScorecardTable
             players={scorecardData.players}
             rounds={scorecardData.rounds}
-            asterisks={asterisks || []}
+            asterisks={scorecardData.asterisks || []}
             isScorekeeper={isScorekeeper}
             onAddAsterisk={handleOpenAsteriskDialog}
           />
