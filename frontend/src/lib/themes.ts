@@ -11,7 +11,6 @@ export const COLOR_THEMES = [
   { name: "Default", value: "default" },
   { name: "Blue", value: "blue" },
   { name: "Green", value: "green" },
-  { name: "Orange", value: "orange" },
   { name: "Red", value: "red" },
   { name: "Purple", value: "purple" },
 ];
