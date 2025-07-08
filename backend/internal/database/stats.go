@@ -7,18 +7,13 @@ import (
 	"time"
 
 	l "github.com/seankim658/skullking/internal/logger"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
 
 const statsComponent = "database-stats"
 
-type ProfileStats struct {
-	TotalGamesPlayed int
-	TotalWins        int
-	Top3Finishes     int
-}
-
 // Retrieves the basic game statistics for a user
-func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*ProfileStats, error) {
+func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*dbModels.ProfileStats, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -26,7 +21,7 @@ func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*Profile
 		"GetUserBasicStats",
 	).With().Str(l.UserIDKey, userID).Logger()
 
-	stats := &ProfileStats{}
+	stats := &dbModels.ProfileStats{}
 
 	query := `
   WITH GamePlayerCounts AS (
@@ -60,15 +55,8 @@ func GetUserBasicStats(ctx context.Context, tx *sql.Tx, userID string) (*Profile
 	return stats, nil
 }
 
-type SiteWideSummaryStats struct {
-	TotalPlayers      int
-	SessionsThisMonth int
-	GamesThisMonth    int
-	NewUsersThisMonth int
-}
-
 // Retrieves the basic site wide summary statistics
-func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*SiteWideSummaryStats, error) {
+func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*dbModels.SiteWideSummaryStats, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -76,7 +64,7 @@ func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*SiteWideSummaryS
 		"GetSiteWideSummaryStats",
 	)
 
-	stats := &SiteWideSummaryStats{}
+	stats := &dbModels.SiteWideSummaryStats{}
 	now := time.Now()
 	oneMonthAgo := now.AddDate(0, -1, 0)
 
@@ -137,7 +125,7 @@ func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*SiteWideSummaryS
 }
 
 // Retrieves the game statistics for a user within a specific session
-func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID string) (*ProfileStats, error) {
+func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID string) (*dbModels.ProfileStats, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -145,7 +133,7 @@ func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID stri
 		"GetUserSessionStats",
 	).With().Str(l.UserIDKey, userID).Str(l.SessionIDKey, sessionID).Logger()
 
-	stats := &ProfileStats{}
+	stats := &dbModels.ProfileStats{}
 
 	query := `
   WITH GamePlayerCounts AS (
@@ -179,25 +167,8 @@ func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID stri
 	return stats, nil
 }
 
-// Holds the raw calculated statistics for a single player in a game
-type GameSummaryPlayerStats struct {
-	GamePlayerID          string
-	DisplayName           string
-	FinalScore            int
-	FinishingPosition     sql.NullInt32
-	RoundsHit             int
-	RoundsMissed          int
-	ZeroBidsHit           int
-	TotalBonus            int
-	TotalTricksTaken      int
-	BidStdDev             sql.NullFloat64
-	PointsFromCorrectBids int
-	TricksFromCorrectBids int
-	AvgBid                sql.NullFloat64
-}
-
 // Retrieves and calculates all necessary stats for the end-of-game summary
-func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]GameSummaryPlayerStats, error) {
+func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]dbModels.GameSummaryPlayerStats, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -239,9 +210,9 @@ func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]Game
 	}
 	defer rows.Close()
 
-	var stats []GameSummaryPlayerStats
+	var stats []dbModels.GameSummaryPlayerStats
 	for rows.Next() {
-		var s GameSummaryPlayerStats
+		var s dbModels.GameSummaryPlayerStats
 		if err := rows.Scan(
 			&s.GamePlayerID,
 			&s.FinalScore,

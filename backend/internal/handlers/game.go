@@ -4,15 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
-	"sort"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	"github.com/seankim658/skullking/internal/rules"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -354,77 +353,37 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger); !authorized {
+		return
+	}
+
 	tx, txOk := StartTx(ctx, w, r, logger, "Failed to start game")
 	if !txOk {
 		return
 	}
+
 	var opErr error
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	game, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger)
-	if !authorized {
-		opErr = errors.New("authorization check failed")
-		responseSent = true
-		return
-	}
-
-	if game.Status != "pending" {
-		opErr = fmt.Errorf("game not in pending state: %s", game.Status)
-		ErrorResponse(
-			w, r, http.StatusConflict,
-			fmt.Sprintf("Cannot start game because its status is already '%s'", game.Status),
-		)
-		responseSent = true
-		return
-	}
-
-	if !game.StartingDealerGamePlayerID.Valid {
-		opErr = errors.New("cannot start game without a starting dealer")
-		ErrorResponse(w, r, http.StatusBadRequest, "Game setup is incomplete. Please set a starting dealer")
-		responseSent = true
-		return
-	}
-
-	_, err := db.CreateRound(
-		ctx,
-		tx,
-		gameID,
-		game.StartingDealerGamePlayerID.String,
-		1, false,
-	)
-	if err != nil {
-		opErr = fmt.Errorf("failed to create the first round: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Could not create the first round to start the game")
-		responseSent = true
-		return
-	}
-	logger.Info().Msg("Successfully created round 1 for the game")
-
-	players, err := db.GetPlayersByGameID(ctx, tx, gameID)
-	if err != nil {
-		opErr = fmt.Errorf("failed to get players for game start: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve players to start the game")
-		responseSent = true
-		return
-	}
-	if len(players) < 2 {
-		opErr = errors.New("not enough players to start game")
-		ErrorResponse(w, r, http.StatusBadRequest, "Cannot start a game with fewer than 2 players")
-		responseSent = true
-		return
-	}
-
-	if err := db.UpdateGameStatus(ctx, nil, gameID, "active"); err != nil {
-		opErr = fmt.Errorf("failed to update game status to active: %w", err)
-		logger.Error().Err(opErr).Msg("Failed to update game status to active")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the game")
+	opErr = db.StartGame(ctx, tx, gameID)
+	if opErr != nil {
+		switch {
+		case errors.Is(opErr, db.ErrGameNotInPendingState):
+			ErrorResponse(w, r, http.StatusConflict, opErr.Error())
+		case errors.Is(opErr, db.ErrGameNotEnoughPlayers), errors.Is(opErr, db.ErrGameMissingDealer):
+			ErrorResponse(w, r, http.StatusBadRequest, opErr.Error())
+		default:
+			logger.Error().Err(opErr).Msg("An unexpected error occurred while starting the game")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the game due to an internal error")
+		}
 		responseSent = true
 		return
 	}
 
 	if !responseSent {
 		Respond(w, r, http.StatusOK, nil, "Game started successfully")
+		responseSent = true
 	}
 }
 
@@ -932,7 +891,7 @@ func (gh *GameHandler) HandleGetGameSummary(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	awards := calculateGameAwards(playerStats)
+	awards := rules.CalculateGameAwards(playerStats)
 
 	finalScores, err := db.GetPlayersByGameID(ctx, nil, gameID)
 	if err != nil {
@@ -949,146 +908,4 @@ func (gh *GameHandler) HandleGetGameSummary(w http.ResponseWriter, r *http.Reque
 	}
 
 	Respond(w, r, http.StatusOK, response, "Game summary retrieved successfully.")
-}
-
-func calculateGameAwards(stats []db.GameSummaryPlayerStats) []apiModels.GameAward {
-	if len(stats) == 0 {
-		return []apiModels.GameAward{}
-	}
-
-	awards := []apiModels.GameAward{}
-
-	addAward := func(title, description string, players []db.GameSummaryPlayerStats, valueFormatter func(db.GameSummaryPlayerStats) string) {
-		if len(players) == 1 {
-			awards = append(awards, apiModels.GameAward{
-				Title:       title,
-				PlayerName:  players[0].DisplayName,
-				Value:       valueFormatter(players[0]),
-				Description: description,
-			})
-		}
-	}
-
-	// The Oracle (Most Rounds Hit)
-	sort.SliceStable(stats, func(i, j int) bool { return stats[i].RoundsHit > stats[j].RoundsHit })
-	addAward(
-		"The Oracle", "Most rounds with a correct bid.",
-		getTopPlayers(
-			stats,
-			func(s db.GameSummaryPlayerStats) float64 { return float64(s.RoundsHit) },
-		),
-		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Rounds", s.RoundsHit) },
-	)
-
-	// The Gambler (Most Rounds Missed)
-	sort.SliceStable(stats, func(i, j int) bool { return stats[i].RoundsMissed > stats[j].RoundsMissed })
-	addAward(
-		"The Gambler", "Most rounds with an incorrect bid.",
-		getTopPlayers(
-			stats,
-			func(s db.GameSummaryPlayerStats) float64 { return float64(s.RoundsMissed) },
-		),
-		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Rounds", s.RoundsMissed) },
-	)
-
-	// The Treasure Hunter (Most Bonus Points)
-	sort.SliceStable(stats, func(i, j int) bool { return stats[i].TotalBonus > stats[j].TotalBonus })
-	addAward(
-		"The Treasure Hunter", "Highest total bonus points collected.",
-		getTopPlayers(
-			stats,
-			func(s db.GameSummaryPlayerStats) float64 { return float64(s.TotalBonus) },
-		),
-		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Points", s.TotalBonus) },
-	)
-
-	// The Scallywag (Most Successful Zero Bids)
-	sort.SliceStable(stats, func(i, j int) bool { return stats[i].ZeroBidsHit > stats[j].ZeroBidsHit })
-	addAward(
-		"The Scallywag", "Most successful zero-trick bids.",
-		getTopPlayers(
-			stats,
-			func(s db.GameSummaryPlayerStats) float64 { return float64(s.ZeroBidsHit) },
-		),
-		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Times", s.ZeroBidsHit) },
-	)
-
-	// The Buccaneer (Most Tricks Taken)
-	sort.SliceStable(stats, func(i, j int) bool { return stats[i].TotalTricksTaken > stats[j].TotalTricksTaken })
-	addAward(
-		"The Buccaneer", "Most tricks taken throughout the game.",
-		getTopPlayers(
-			stats,
-			func(s db.GameSummaryPlayerStats) float64 { return float64(s.TotalTricksTaken) },
-		),
-		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Tricks", s.TotalTricksTaken) },
-	)
-
-	// The Maverick (Highest Bid Variance)
-	sort.SliceStable(stats, func(i, j int) bool { return stats[i].BidStdDev.Float64 > stats[j].BidStdDev.Float64 })
-	addAward(
-		"The Maverick", "Player with the wildest swings in bidding.",
-		getTopPlayers(
-			stats,
-			func(s db.GameSummaryPlayerStats) float64 { return s.BidStdDev.Float64 },
-		),
-		func(s db.GameSummaryPlayerStats) string {
-			return fmt.Sprintf("%.2f Std. Dev.", s.BidStdDev.Float64)
-		})
-
-	// The Conservative (Most Effective with Low Bids)
-	sort.SliceStable(stats, func(i, j int) bool {
-		scoreI := 0.0
-		if stats[i].TricksFromCorrectBids > 0 {
-			scoreI = float64(stats[i].PointsFromCorrectBids) / float64(stats[i].TricksFromCorrectBids)
-		}
-		scoreJ := 0.0
-		if stats[j].TricksFromCorrectBids > 0 {
-			scoreJ = float64(stats[j].PointsFromCorrectBids) / float64(stats[j].TricksFromCorrectBids)
-		}
-		if scoreI != scoreJ {
-			return scoreI > scoreJ
-		}
-		// Tie-breaker: lower average bid wins
-		return stats[i].AvgBid.Float64 < stats[j].AvgBid.Float64
-	})
-	addAward(
-		"The Conservative", "Most effective at winning with low bids.",
-		getTopPlayers(
-			stats, func(s db.GameSummaryPlayerStats) float64 {
-				if s.TricksFromCorrectBids == 0 {
-					return 0
-				}
-				return float64(s.PointsFromCorrectBids) / float64(s.TricksFromCorrectBids)
-			},
-		), func(s db.GameSummaryPlayerStats) string {
-			if s.TricksFromCorrectBids == 0 {
-				return "N/A"
-			}
-			return fmt.Sprintf("%.1f Pts/Trick", float64(s.PointsFromCorrectBids)/float64(s.TricksFromCorrectBids))
-		},
-	)
-
-	return awards
-}
-
-// Helper to find all players who are tied for the top score on a given metric.
-func getTopPlayers(stats []db.GameSummaryPlayerStats, getScore func(db.GameSummaryPlayerStats) float64) []db.GameSummaryPlayerStats {
-	if len(stats) == 0 {
-		return nil
-	}
-	topScore := getScore(stats[0])
-	if topScore == 0 { // Don't give awards for a score of 0
-		return nil
-	}
-
-	var winners []db.GameSummaryPlayerStats
-	for _, s := range stats {
-		if math.Abs(getScore(s)-topScore) < 0.001 { // Floating point comparison
-			winners = append(winners, s)
-		} else {
-			break // Since the list is sorted, we can stop early
-		}
-	}
-	return winners
 }

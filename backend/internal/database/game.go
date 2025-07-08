@@ -75,6 +75,47 @@ func CreateGame(
 	return returnedGameID, nil
 }
 
+// Validates that a game can be started, creates the first round, and updates the game's status to 'active'
+func StartGame(ctx context.Context, tx *sql.Tx, gameID string) error {
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"StartGame",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	game, err := GetGameByID(ctx, tx, gameID)
+	if err != nil {
+		return err
+	}
+	if game.Status != "pending" {
+		return ErrGameNotInPendingState
+	}
+	if !game.StartingDealerGamePlayerID.Valid {
+		return ErrGameMissingDealer
+	}
+
+	players, err := GetPlayersByGameID(ctx, tx, gameID)
+	if err != nil {
+		return fmt.Errorf("failed to get players for game start: %w", err)
+	}
+	if len(players) < 2 {
+		return ErrGameNotEnoughPlayers
+	}
+
+	_, err = CreateRound(ctx, tx, gameID, game.StartingDealerGamePlayerID.String, 1, false)
+	if err != nil {
+		return fmt.Errorf("failed to create the first round: %w", err)
+	}
+	logger.Info().Msg("Successfully created round 1 for game")
+
+	if err := UpdateGameStatus(ctx, tx, gameID, "active"); err != nil {
+		return fmt.Errorf("failed to update game status to active: %w", err)
+	}
+	logger.Info().Msg("Game status updated to active")
+
+	return nil
+}
+
 // Finds a guest by display name or creates a new one
 func FindOrCreateGuestPlayer(ctx context.Context, tx *sql.Tx, displayName string) (string, error) {
 	querier := GetQuerier(tx)
@@ -663,18 +704,8 @@ func IsUserInGame(ctx context.Context, tx *sql.Tx, userID, gameID string) (bool,
 	return exists, nil
 }
 
-type ActiveGameDetails struct {
-	GameID          string
-	SessionName     sql.NullString
-	ScorekeeperName sql.NullString
-	IsScorekeeper   bool
-	CreatedAt       time.Time
-	CurrentRound    sql.NullInt32
-	PlayersJSON     []byte
-}
-
 // Retrieves all active games a user is participating in
-func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]ActiveGameDetails, error) {
+func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbModels.ActiveGameDetails, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -725,9 +756,9 @@ func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]A
 	}
 	defer rows.Close()
 
-	var games []ActiveGameDetails
+	var games []dbModels.ActiveGameDetails
 	for rows.Next() {
-		var game ActiveGameDetails
+		var game dbModels.ActiveGameDetails
 		if err := rows.Scan(
 			&game.GameID,
 			&game.SessionName,

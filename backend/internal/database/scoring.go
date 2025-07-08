@@ -3,11 +3,12 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"math"
 
 	l "github.com/seankim658/skullking/internal/logger"
 	dbModels "github.com/seankim658/skullking/internal/models/database"
+	"github.com/seankim658/skullking/internal/rules"
 )
 
 const scoringComponent = "database-scoring"
@@ -95,31 +96,12 @@ func SubmitBidsAndUpdateRoundStatus(
 	return nil
 }
 
-// Calculates the score for a single player for a round based on their bid and tricks taken
-func calculatePlayerRoundScore(roundNumber, bid, tricks int) int {
-	// Zero bid
-	if bid == 0 && tricks == 0 {
-		return roundNumber * 10
-	}
-	if bid == 0 && tricks != 0 {
-		return roundNumber * -10
-	}
-
-	// Bid correct (non-zero)
-	if bid > 0 && bid == tricks {
-		return bid * 20
-	}
-	if bid > 0 && bid != tricks {
-		return int(math.Abs(float64(bid-tricks))) * -10
-	}
-	return 0
-}
-
-// Submits player scores, calculates results, updates totals, and completes the round
+// Handles submitting player scores, calculating results, updating totals, completing the round, and then
+// creating the next round or completing the game
 func SubmitScoresAndUpdateRound(
 	ctx context.Context,
 	tx *sql.Tx,
-	roundID string,
+	gameID, roundID string,
 	scores []dbModels.PlayerScoreData,
 ) error {
 	querier := GetQuerier(tx)
@@ -127,20 +109,47 @@ func SubmitScoresAndUpdateRound(
 		l.GetLoggerFromContext(ctx),
 		scoringComponent,
 		"SubmitScoresAndUpdateRound",
-	).With().Str(l.RoundIDKey, roundID).Logger()
+	).With().Str(l.RoundIDKey, roundID).Str(l.GameIDKey, gameID).Logger()
+
+	// 1. Get current round details
+	roundDetailsQuery := "SELECT round_number, dealer_game_player_id FROM rounds WHERE round_id = $1;"
+	logger.Debug().Str(l.QueryKey, roundDetailsQuery).Msg("Attempting to retrieve round details")
 
 	var roundNumber int
-	err := querier.QueryRowContext(
-		ctx,
-		"SELECT round_number FROM rounds WHERE round_id = $1;",
-		roundID,
-	).Scan(&roundNumber)
+	var dealerID string
+	err := querier.QueryRowContext(ctx, roundDetailsQuery, roundID).Scan(&roundNumber, &dealerID)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get round number")
-		return err
+		return fmt.Errorf("failed to get round details: %w", err)
 	}
 
-	updatePlayerScoreStmt, err := querier.PrepareContext(ctx, `
+	// 2. Get all the bids
+	bidQuery := "SELECT game_player_id, bid_amount FROM player_round_scores WHERE round_id = $1;"
+	rows, err := querier.QueryContext(ctx, bidQuery, roundID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch bids for round: %w", err)
+	}
+	defer rows.Close()
+
+	bids := make(map[string]int)
+	for rows.Next() {
+		var playerID string
+		var bid sql.NullInt32
+		if err := rows.Scan(&playerID, &bid); err != nil {
+			return fmt.Errorf("failed to scan bid row: %w", err)
+		}
+		if !bid.Valid {
+			return fmt.Errorf("player %s is missing a bid for this round", playerID)
+		}
+		bids[playerID] = int(bid.Int32)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating bid rows: %w", err)
+	}
+
+	// 3. Update scores for each player
+	updatePlayerStmt, err := querier.PrepareContext(
+		ctx,
+		`
     UPDATE player_round_scores
     SET tricks_taken = $1, bonus_points_applied = $2, round_score = $3, updated_at = NOW()
     WHERE round_id = $4 AND game_player_id = $5;
@@ -149,66 +158,83 @@ func SubmitScoresAndUpdateRound(
 	if err != nil {
 		return fmt.Errorf("failed to prepare player score update statement: %w", err)
 	}
-	defer updatePlayerScoreStmt.Close()
+	defer updatePlayerStmt.Close()
 
-	updatePlayerTotalStmt, err := querier.PrepareContext(ctx, `
-    UPDATE game_players
-    SET final_score = final_score + $1
-    WHERE game_player_id = $2;
-    `,
+	updateTotalStmt, err := querier.PrepareContext(
+		ctx,
+		`UPDATE game_players SET final_score = final_score + $1 WHERE game_player_id = $2;`,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to prepare player total score update statement: %w", err)
 	}
-	defer updatePlayerTotalStmt.Close()
+	defer updateTotalStmt.Close()
 
 	for _, scoreData := range scores {
-		var bid sql.NullInt32
-		err := querier.QueryRowContext(
-			ctx,
-			"SELECT bid_amount FROM player_round_scores WHERE round_id = $1 AND game_player_id = $2;",
-			roundID, scoreData.GamePlayerID,
-		).Scan(&bid)
-		if err != nil {
-			return fmt.Errorf("failed to fetch bid for player %s: %w", scoreData.GamePlayerID, err)
+		bidAmount, ok := bids[scoreData.GamePlayerID]
+		if !ok {
+			return fmt.Errorf("cannot score round, player %s has no bid record", scoreData.GamePlayerID)
 		}
-		if !bid.Valid {
-			return fmt.Errorf("cannot score round, player %s has no bid", scoreData.GamePlayerID)
-		}
-
-		calculatedScore := calculatePlayerRoundScore(
-			roundNumber,
-			int(bid.Int32),
-			scoreData.TricksTaken,
-		)
+		calculatedScore := rules.CalculatePlayerRoundScore(roundNumber, bidAmount, scoreData.TricksTaken)
 		totalRoundScore := calculatedScore + scoreData.BonusPoints
 
-		_, err = updatePlayerScoreStmt.ExecContext(
+		if _, err := updatePlayerStmt.ExecContext(
 			ctx, scoreData.TricksTaken, scoreData.BonusPoints,
 			totalRoundScore, roundID, scoreData.GamePlayerID,
-		)
-		if err != nil {
+		); err != nil {
 			return fmt.Errorf("failed to update round score for player %s: %w", scoreData.GamePlayerID, err)
 		}
-
-		_, err = updatePlayerTotalStmt.ExecContext(
-			ctx, totalRoundScore,
-			scoreData.GamePlayerID,
-		)
-		if err != nil {
+		if _, err := updateTotalStmt.ExecContext(
+			ctx, totalRoundScore, scoreData.GamePlayerID,
+		); err != nil {
 			return fmt.Errorf("failed to update total score for player %s: %w", scoreData.GamePlayerID, err)
 		}
 	}
 
-	_, err = querier.ExecContext(
+	// 4. Mark current round as completed
+	if _, err := querier.ExecContext(
 		ctx,
 		"UPDATE rounds SET status = 'completed', updated_at = NOW() WHERE round_id = $1;",
 		roundID,
-	)
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("failed to complete round: %w", err)
 	}
 
-	logger.Info().Msg("Successfully submitted and calculated scores for the round")
+	// 5. Transition to next state (next round or game over)
+	if roundNumber < 10 {
+		players, err := GetPlayersByGameID(ctx, tx, gameID)
+		if err != nil {
+			return fmt.Errorf("failed to get players for dealer rotation: %w", err)
+		}
+		if len(players) == 0 {
+			return errors.New("no players found to determine next dealer")
+		}
+
+		currentDealerIndex := -1
+		for i, p := range players {
+			if p.GamePlayerID == dealerID {
+				currentDealerIndex = i
+				break
+			}
+		}
+		if currentDealerIndex == -1 {
+			return errors.New("could not find current dealer in player list")
+		}
+
+		nextDealerID := players[(currentDealerIndex+1)%len(players)].GamePlayerID
+		nextRoundNumber := roundNumber + 1
+
+		if _, err := CreateRound(ctx, tx, gameID, nextDealerID, nextRoundNumber, false); err != nil {
+			return fmt.Errorf("failed to create round %d: %w", nextRoundNumber, err)
+		}
+		logger.Info().Int(l.RoundKey, nextRoundNumber).Msg("Next round created successfully")
+	} else {
+		// TODO : handle overtime
+		logger.Info().Msg("Final round completed, marking game as finished")
+		if err := UpdateGameStatus(ctx, tx, gameID, "completed"); err != nil {
+			return fmt.Errorf("failed to mark game as completed: %w", err)
+		}
+	}
+
+	logger.Info().Msg("Successfully submitted scores and transitioned game state")
 	return nil
 }
