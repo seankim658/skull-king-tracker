@@ -383,10 +383,9 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
 // Retrieves all games for a given session, including winner information
 func GetGamesBySessionID(
 	ctx context.Context,
-	tx *sql.Tx,
+	querier DBTX,
 	sessionID, viewerID string,
 ) ([]dbModels.GameWithWinner, error) {
-	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		gameComponent,

@@ -155,13 +155,12 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	logger = logger.With().Str(l.UserIDKey, userID).Logger()
 
 	sessionID, ok := PathVar(w, r, "session_id")
 	if !ok {
 		return
 	}
-	logger = logger.With().Str(l.SessionIDKey, sessionID).Logger()
+	logger = logger.With().Str(l.SessionIDKey, sessionID).Str(l.UserIDKey, userID).Logger()
 
 	participated, err := db.CheckUserParticipatedInSession(ctx, nil, userID, sessionID)
 	if err != nil {
@@ -173,7 +172,7 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 		return
 	}
 
-	dbSession, err := db.GetGameSessionByID(ctx, nil, sessionID)
+	sessionData, err := db.GetSessionDetails(ctx, nil, sessionID, userID)
 	if err != nil {
 		if errors.Is(err, db.ErrSessionNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "Session not found")
@@ -183,20 +182,8 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 		return
 	}
 
-	dbGames, err := db.GetGamesBySessionID(ctx, nil, sessionID, userID)
-	if err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve games for the session")
-		return
-	}
-
-	dbUserStats, err := db.GetUserSessionStats(ctx, nil, userID, sessionID)
-	if err != nil {
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve user stats for the session")
-		return
-	}
-
-	apiGames := make([]apiModels.SessionGame, len(dbGames))
-	for i, dbGame := range dbGames {
+	apiGames := make([]apiModels.SessionGame, len(sessionData.Games))
+	for i, dbGame := range sessionData.Games {
 		apiGames[i] = apiModels.SessionGame{
 			GameID:        dbGame.GameID,
 			Status:        dbGame.Status,
@@ -216,16 +203,16 @@ func (sh *SessionHandler) HandleGetSessionDetails(w http.ResponseWriter, r *http
 	}
 
 	apiResponse := apiModels.SessionDetailResponse{
-		SessionID: dbSession.SessionID,
-		Status:    dbSession.Status,
+		SessionID: sessionData.Session.SessionID,
+		Status:    sessionData.Session.Status,
 		Games:     apiGames,
 		UserSummary: apiModels.SessionUserSummary{
-			TotalGames: dbUserStats.TotalGamesPlayed,
-			Wins:       dbUserStats.TotalWins,
+			TotalGames: sessionData.UserStats.TotalGamesPlayed,
+			Wins:       sessionData.UserStats.TotalWins,
 		},
 	}
-	if dbSession.SessionName.Valid {
-		apiResponse.SessionName = &dbSession.SessionName.String
+	if sessionData.Session.SessionName.Valid {
+		apiResponse.SessionName = &sessionData.Session.SessionName.String
 	}
 
 	Respond(w, r, http.StatusOK, apiResponse, "Session details retrived successfully")

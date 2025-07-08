@@ -5,7 +5,9 @@ import (
 	"time"
 )
 
-// Mpas to the `game_sessions` table
+// --- Core Entities ---
+
+// Maps to the `game_sessions` table
 type GameSession struct {
 	SessionID       string         `db:"session_id"`
 	SessionName     sql.NullString `db:"session_name"`
@@ -16,6 +18,8 @@ type GameSession struct {
 	CompletedAt     sql.NullTime   `db:"completed_at"`
 }
 
+// --- Composite & Helper Structs ---
+
 // Helper struct to include session details along with game flow activity
 type GameSessionWithActivity struct {
 	GameSession
@@ -24,6 +28,7 @@ type GameSessionWithActivity struct {
 	CreatorName    sql.NullString `db:"creator_name"`
 }
 
+// Represents a single row returned for a user's paginated session history
 type UserSessionHistoryRow struct {
 	SessionID              string
 	SessionName            sql.NullString
@@ -32,4 +37,11 @@ type UserSessionHistoryRow struct {
 	YourWins               int
 	TotalFinishingPosition int
 	SessionCreator         sql.NullString
+}
+
+// Composite struct holding all data needed for the session detail view
+type SessionDetailData struct {
+	Session   GameSession
+	Games     []GameWithWinner
+	UserStats ProfileStats
 }

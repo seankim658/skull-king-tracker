@@ -2,6 +2,9 @@ package models
 
 import "time"
 
+// --- Response Payloads ---
+
+// Represents a single session in the user's list of active sessions
 type ActiveSessionResponse struct {
 	SessionID      string     `json:"session_id"`
 	SessionName    *string    `json:"session_name,omitempty"`
@@ -14,6 +17,24 @@ type ActiveSessionResponse struct {
 	CompletedAt    *time.Time `json:"completed_at,omitempty"`
 }
 
+// Response for a single session's detail page
+type SessionDetailResponse struct {
+	SessionID   string             `json:"session_id"`
+	SessionName *string            `json:"session_name,omitempty"`
+	Status      string             `json:"status"`
+	Games       []SessionGame      `json:"games"`
+	UserSummary SessionUserSummary `json:"user_summary"`
+}
+
+// Paginated response for a user's session history
+type PaginatedSessionHistoryResponse struct {
+	Sessions   []SessionHistoryItem `json:"sessions"`
+	Pagination Pagination           `json:"pagination"`
+}
+
+// --- Component Structs ---
+
+// Represents a single game within the session detail view
 type SessionGame struct {
 	GameID          string    `json:"game_id"`
 	Status          string    `json:"status"`
@@ -24,19 +45,13 @@ type SessionGame struct {
 	ScorekeeperName *string   `json:"scorekeeper_name,omitempty"`
 }
 
+// A summary of the viewing user's performance in a session
 type SessionUserSummary struct {
 	TotalGames int `json:"total_games"`
 	Wins       int `json:"wins"`
 }
 
-type SessionDetailResponse struct {
-	SessionID   string             `json:"session_id"`
-	SessionName *string            `json:"session_name,omitempty"`
-	Status      string             `json:"status"`
-	Games       []SessionGame      `json:"games"`
-	UserSummary SessionUserSummary `json:"user_summary"`
-}
-
+// A single entry in the session history list
 type SessionHistoryItem struct {
 	SessionID                string    `json:"session_id"`
 	SessionName              *string   `json:"session_name,omitempty"`
@@ -46,9 +61,4 @@ type SessionHistoryItem struct {
 	WinPercentage            float64   `json:"win_percentage"`
 	AverageFinishingPosition float64   `json:"average_finishing_position"`
 	SessionCreator           string    `json:"session_creator"`
-}
-
-type PaginatedSessionHistoryResponse struct {
-	Sessions   []SessionHistoryItem `json:"sessions"`
-	Pagination Pagination           `json:"pagination"`
 }

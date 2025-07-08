@@ -125,8 +125,7 @@ func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*dbModels.SiteWid
 }
 
 // Retrieves the game statistics for a user within a specific session
-func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID string) (*dbModels.ProfileStats, error) {
-	querier := GetQuerier(tx)
+func GetUserSessionStats(ctx context.Context, querier DBTX, userID, sessionID string) (*dbModels.ProfileStats, error) {
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		statsComponent,
