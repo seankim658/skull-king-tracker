@@ -283,42 +283,8 @@ func UpdateUserLastLogin(ctx context.Context, tx *sql.Tx, userID string) error {
 	return nil
 }
 
-// Updates the UI and color theme for a given user
-func UpdateUserThemeSettings(ctx context.Context, tx *sql.Tx, userID, uiTheme, colorTheme string) error {
-	querier := GetQuerier(tx)
-	logger := l.WithComponentAndSource(
-		l.GetLoggerFromContext(ctx),
-		userComponent,
-		"UpdateUserThemeSettings",
-	).With().Str(l.UserIDKey, userID).Str(l.UIThemeKey, uiTheme).Str(l.ColorThemeKey, colorTheme).Logger()
-
-	query := `
-  UPDATE users
-  SET ui_theme = $1, color_theme = $2, updated_at = NOW()
-  WHERE user_id = $3;
-  `
-	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update user theme settings")
-
-	result, err := querier.ExecContext(ctx, query, NullString(uiTheme), NullString(colorTheme), userID)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to update user theme settings")
-		return fmt.Errorf("error updating theme settings for user %s: %w", userID, err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get rows affected after updating theme settings")
-		return fmt.Errorf("error checking rows affected for user %s theme update: %w", userID, err)
-	}
-	if rowsAffected == 0 {
-		return ErrUserNotFound
-	}
-
-	return nil
-}
-
 // Updates specific fields for a user, only non-nil fields will be changed
-func UpdateUserProfile(ctx context.Context, tx *sql.Tx, userID string, updates map[string]any) error {
+func UpdateUserProfile(ctx context.Context, tx *sql.Tx, userID string, params dbModels.UpdateUserParams) error {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -326,39 +292,42 @@ func UpdateUserProfile(ctx context.Context, tx *sql.Tx, userID string, updates m
 		"UpdateUserProfile",
 	).With().Str(l.UserIDKey, userID).Logger()
 
-	if len(updates) == 0 {
-		return nil
-	}
-
 	var querySetParts []string
 	var queryArgs []any
 	argCounter := 1
 
-	for field, value := range updates {
-		switch field {
-		case "display_name":
-			querySetParts = append(querySetParts, fmt.Sprintf("display_name = $%d", argCounter))
-			queryArgs = append(queryArgs, value)
-			argCounter++
-		case "avatar_url":
-			querySetParts = append(querySetParts, fmt.Sprintf("avatar_url = $%d", argCounter))
-			queryArgs = append(queryArgs, value)
-			argCounter++
-		case "avatar_source":
-			querySetParts = append(querySetParts, fmt.Sprintf("avatar_source = $%d", argCounter))
-			queryArgs = append(queryArgs, value)
-			argCounter++
-		case "stats_privacy":
-			strVal, ok := value.(string)
-			if !ok || !IsValidStatsPrivacy(strVal) {
-				return fmt.Errorf("invalid value for stats_privacy: %v", value)
-			}
-			querySetParts = append(querySetParts, fmt.Sprintf("stats_privacy = $%d", argCounter))
-			queryArgs = append(queryArgs, strVal)
-			argCounter++
-		default:
-			return fmt.Errorf("unsupported field for update: %s", field)
+	if params.DisplayName != nil {
+		querySetParts = append(querySetParts, fmt.Sprintf("display_name = $%d", argCounter))
+		queryArgs = append(queryArgs, *params.DisplayName)
+		argCounter++
+	}
+	if params.AvatarURL != nil {
+		querySetParts = append(querySetParts, fmt.Sprintf("avatar_url = $%d", argCounter))
+		queryArgs = append(queryArgs, *params.AvatarURL)
+		argCounter++
+	}
+	if params.AvatarSource != nil {
+		querySetParts = append(querySetParts, fmt.Sprintf("avatar_source = $%d", argCounter))
+		queryArgs = append(queryArgs, *params.AvatarSource)
+		argCounter++
+	}
+	if params.StatsPrivacy != nil {
+		if !IsValidStatsPrivacy(*params.StatsPrivacy) {
+			return fmt.Errorf("invalid value for stats_privacy: %s", *params.StatsPrivacy)
 		}
+		querySetParts = append(querySetParts, fmt.Sprintf("stats_privacy = $%d", argCounter))
+		queryArgs = append(queryArgs, *params.StatsPrivacy)
+		argCounter++
+	}
+	if params.UITheme != nil {
+		querySetParts = append(querySetParts, fmt.Sprintf("ui_theme = $%d", argCounter))
+		queryArgs = append(queryArgs, *params.UITheme)
+		argCounter++
+	}
+	if params.ColorTheme != nil {
+		querySetParts = append(querySetParts, fmt.Sprintf("color_theme = $%d", argCounter))
+		queryArgs = append(queryArgs, *params.ColorTheme)
+		argCounter++
 	}
 
 	if len(querySetParts) == 0 {
@@ -372,25 +341,14 @@ func UpdateUserProfile(ctx context.Context, tx *sql.Tx, userID string, updates m
 
 	queryArgs = append(queryArgs, userID)
 
-	var queryBuilder strings.Builder
-	queryBuilder.WriteString("UPDATE users SET ")
-	queryBuilder.WriteString(strings.Join(querySetParts, ", "))
-	queryBuilder.WriteString(fmt.Sprintf(" WHERE user_id = $%d;", argCounter))
-
-	fullQuery := queryBuilder.String()
-	logger.Debug().Str(l.QueryKey, fullQuery).Interface(l.ArgsKey, queryArgs).Msg("Attempting to update user profile")
-
-	result, err := querier.ExecContext(ctx, fullQuery, queryArgs...)
+	query := fmt.Sprintf("UPDATE users SET %s WHERE user_id = $%d;", strings.Join(querySetParts, ", "), argCounter)
+	logger.Debug().Str(l.QueryKey, query).Interface(l.ArgsKey, queryArgs).Msg("Attempting to update user profile")
+	result, err := querier.ExecContext(ctx, query, queryArgs...)
 	if err != nil {
-		logger.Error().Err(err).Msg("Failed to update user profile")
 		return fmt.Errorf("error updating user profile for user %s: %w", userID, err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get rows affected after updating user profile")
-		return fmt.Errorf("error checking rows affected for user %s profile update: %w", userID, err)
-	}
+	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
 		return ErrUserNotFound
 	}

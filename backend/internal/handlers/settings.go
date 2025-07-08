@@ -12,6 +12,7 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
 
 const settingsComponent = "handlers-settings"
@@ -45,12 +46,6 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 	if !ParseJSON(w, r, &payload) {
 		return
 	}
-	if !RequireFields(w, r, map[string]string{
-		"ui_theme":    payload.UITheme,
-		"color_theme": payload.ColorTheme,
-	}) {
-		return
-	}
 
 	tx, txOk := StartTx(ctx, w, r, logger, "Failed to update theme settings")
 	if !txOk {
@@ -61,7 +56,12 @@ func (sh *SettingsHandler) HandleUpdateUserTheme(w http.ResponseWriter, r *http.
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	opErr = db.UpdateUserThemeSettings(ctx, tx, userID, payload.UITheme, payload.ColorTheme)
+	params := dbModels.UpdateUserParams{
+		UITheme:    &payload.UITheme,
+		ColorTheme: &payload.ColorTheme,
+	}
+
+	opErr = db.UpdateUserProfile(ctx, tx, userID, params)
 	if opErr != nil {
 		if errors.Is(opErr, db.ErrUserNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "User not found, cannot update theme")
@@ -103,22 +103,22 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 		return
 	}
 
-	updates := make(map[string]any)
+	params := dbModels.UpdateUserParams{
+		StatsPrivacy: payload.StatsPrivacy,
+	}
+
 	if payload.DisplayName != nil {
 		trimmedDisplayName := strings.TrimSpace(*payload.DisplayName)
 		if trimmedDisplayName == "" {
-			ErrorResponse(w, r, http.StatusBadRequest, "Display name cannot be empty or only whitespace")
+			ErrorResponse(w, r, http.StatusBadRequest, "Display naem cannot be empty or only whitespace")
 			return
 		}
-		updates["display_name"] = trimmedDisplayName
-	}
-	if payload.StatsPrivacy != nil {
-		updates["stats_privacy"] = *payload.StatsPrivacy
+		params.DisplayName = &trimmedDisplayName
 	}
 
 	if payload.AvatarURL != nil {
 		originalReqAvatarURL := *payload.AvatarURL
-		if strings.HasPrefix(originalReqAvatarURL, "http://") || strings.HasPrefix(originalReqAvatarURL, "https://") {
+		if strings.HasPrefix(originalReqAvatarURL, "http") {
 			// User provided a new external URL for manual avatar update
 			logger.Info().Msg("User provided an external avatar URL for manual update")
 			localPath, processErr := i.ProcessAndStoreAvatar(
@@ -127,39 +127,24 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 				i.AvatarWebPrefixPath,
 				i.AvatarImgSize,
 			)
-			if processErr == nil {
-				updates["avatar_url"] = localPath
-				updates["avatar_source"] = i.AvatarManualKey
-				logger.Info().
-					Str(l.PathKey, localPath).
-					Msg("Successfully localized and set manually provided avatar")
-			} else {
-				ErrorResponse(
-					w, r, http.StatusBadRequest,
-					fmt.Sprintf("Failed to process the provided avatar URL: %v", processErr),
-				)
+			if processErr != nil {
+				ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("Failed to process the provided avatar URL: %v", processErr))
 				return
 			}
+			params.AvatarURL = &localPath
+			manualSource := i.AvatarManualKey
+			params.AvatarSource = &manualSource
+			logger.Info().Str(l.PathKey, localPath).Msg("Successfully localized and set manually provided avatar")
 		} else if originalReqAvatarURL == "" {
 			// User wants to remove their avatar
-			updates["avatar_url"] = ""
-			updates["avatar_source"] = ""
+			emtpyString := ""
+			params.AvatarSource = &emtpyString
+			params.AvatarSource = &emtpyString
 			logger.Info().Msg("User reqeusted to remove avatar")
-		} else {
-			// User might be re-submitting an existing local path or providing non-URL data,
-			// for simplicity, if it's not HTTP and not empty, don't change the avatar_url
-			if strings.HasPrefix(originalReqAvatarURL, i.AvatarWebPrefixPath) {
-				updates["avatar_url"] = originalReqAvatarURL
-				updates["avatar_source"] = i.AvatarManualKey
-			} else {
-				logger.Warn().
-					Str("avatar_url_payload", originalReqAvatarURL).
-					Msg("Received non-HTTP avatar URL in profile update, not an expected local path. Ignoring avatar update.")
-			}
 		}
 	}
 
-	if len(updates) == 0 {
+	if params.DisplayName == nil && params.StatsPrivacy == nil && params.AvatarURL == nil {
 		logger.Info().Msg("No updatable fields provided in payload for profile update")
 		FetchUserAndRespond(w, r, nil, userID, logger, http.StatusOK, "No profile information was updated")
 		return
@@ -174,13 +159,11 @@ func (sh *SettingsHandler) HandleUpdateUserProfile(w http.ResponseWriter, r *htt
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	opErr = db.UpdateUserProfile(ctx, tx, userID, updates)
+	opErr = db.UpdateUserProfile(ctx, tx, userID, params)
 	if opErr != nil {
-		logger.Error().Err(opErr).Interface(l.UpdatesKey, updates).Msg("Failed to update user profile in database")
+		logger.Error().Err(opErr).Interface(l.UpdatesKey, params).Msg("Failed to update user profile in database")
 		if errors.Is(opErr, db.ErrUserNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "User not found, cannot update profile")
-		} else if errors.Is(opErr, db.ErrInvalidStatsPrivacy) {
-			ErrorResponse(w, r, http.StatusBadRequest, opErr.Error())
 		} else {
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update profile information")
 		}

@@ -4,7 +4,45 @@ import (
 	"time"
 )
 
-// API user model
+// --- Request Payloads ---
+
+// Payload for updating user's preferred themes
+type UpdateUserThemeRequest struct {
+	UITheme    string `json:"ui_theme" validate:"required"`
+	ColorTheme string `json:"color_theme" validate:"required"`
+}
+
+// Payload for updating a users profile display details
+type UpdateUserProfileRequest struct {
+	DisplayName  *string `json:"display_name"`
+	AvatarURL    *string `json:"avatar_url"`
+	StatsPrivacy *string `json:"stats_privacy"`
+}
+
+// --- Response Payloads ---
+
+// Response for the /auth/me endpoint
+type AuthenticatedUserResponse struct {
+	User User `json:"user"`
+}
+
+// Main response for a user's public profile page
+type UserProfileResponse struct {
+	Profile UserProfile `json:"profile"`
+	Stats   *UserStats  `json:"stats,omitempty"`
+}
+
+// Array of users returned from a search query
+type UserSearchResponse []UserSearchItem
+
+// Success message on logout
+type LogoutResponse struct {
+	Message string `json:"message"`
+}
+
+// --- Component Structs ---
+
+// Main API model representing a user's details for an authenticated session
 type User struct {
 	UserID       string    `json:"user_id"`
 	Username     string    `json:"username"`
@@ -20,32 +58,7 @@ type User struct {
 	LastLoginAt  *string   `json:"last_login_at,omitempty"`
 }
 
-type LinkedAccount struct {
-	ProviderName        string  `json:"provider_name"`
-	ProviderDisplayName *string `json:"provider_display_name,omitempty"`
-	ProviderAvatarURL   *string `json:"provider_avatar_url,omitempty"`
-	ProviderEmail       *string `json:"provider_email,omitempty"`
-}
-
-type AuthenticatedUserResponse struct {
-	User User `json:"user"`
-}
-
-type UpdateUserThemeRequest struct {
-	UITheme    string `json:"ui_theme" validate:"required"`
-	ColorTheme string `json:"color_theme" validate:"required"`
-}
-
-type UpdateUserProfileRequest struct {
-	DisplayName  *string `json:"display_name"`
-	AvatarURL    *string `json:"avatar_url"`
-	StatsPrivacy *string `json:"stats_privacy"`
-}
-
-type LogoutResponse struct {
-	Message string `json:"message"`
-}
-
+// The public-facing view of a user
 type UserProfile struct {
 	UserID            string           `json:"user_id"`
 	Username          string           `json:"username"`
@@ -58,11 +71,15 @@ type UserProfile struct {
 	FriendshipStatus  FriendshipStatus `json:"friendship_status_with_viewer"`
 }
 
-type UserProfileResponse struct {
-	Profile UserProfile `json:"profile"`
-	Stats   *UserStats  `json:"stats,omitempty"`
+// Represents a single OAuth provider linked to a user's account
+type LinkedAccount struct {
+	ProviderName        string  `json:"provider_name"`
+	ProviderDisplayName *string `json:"provider_display_name,omitempty"`
+	ProviderAvatarURL   *string `json:"provider_avatar_url,omitempty"`
+	ProviderEmail       *string `json:"provider_email,omitempty"`
 }
 
+// A single result in a user search response
 type UserSearchItem struct {
 	UserID      string  `json:"user_id"`
 	Username    string  `json:"username"`
@@ -70,8 +87,7 @@ type UserSearchItem struct {
 	AvatarURL   *string `json:"avatar_url,omitempty"`
 }
 
-type UserSearchResponse []UserSearchItem
-
+// Represents a single user in another user's friends list
 type FriendListItem struct {
 	UserID           string           `json:"user_id"`
 	Username         string           `json:"username"`

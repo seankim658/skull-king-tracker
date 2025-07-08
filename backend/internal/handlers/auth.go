@@ -833,11 +833,11 @@ func (ah *AuthHandler) processPrimaryAvatarUpdate(
 				ah.Cfg.AvatarStoragePath, i.AvatarWebPrefixPath, i.AvatarImgSize,
 			)
 			if processErr == nil {
-				updates := map[string]any{
-					"avatar_url":    newLocalPath,
-					"avatar_source": currentProviderName,
+				params := dbModels.UpdateUserParams{
+					AvatarURL:    &newLocalPath,
+					AvatarSource: &currentProviderName,
 				}
-				if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, updates); dbErr != nil {
+				if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, params); dbErr != nil {
 					logger.Warn().
 						Err(dbErr).
 						Msg("Failed to update users table with new avatar path/source from provider, continuing login...")
@@ -864,11 +864,12 @@ func (ah *AuthHandler) processPrimaryAvatarUpdate(
 				Msg(
 					"Current avatar source matches this provider, but provider returned no avatar, clearing user's main avatar...",
 				)
-			updates := map[string]any{
-				"avatar_url":    "",
-				"avatar_source": "",
+			emptyString := ""
+			params := dbModels.UpdateUserParams{
+				AvatarURL:    &emptyString,
+				AvatarSource: &emptyString,
 			}
-			if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, updates); dbErr != nil {
+			if dbErr := db.UpdateUserProfile(ctx, tx, dbUser.UserID, params); dbErr != nil {
 				logger.Warn().Err(dbErr).Msg("Failed to clear user avatar after provider removed theirs")
 				return dbUser, fmt.Errorf("failed to clear user avatar: %w", dbErr)
 			}
