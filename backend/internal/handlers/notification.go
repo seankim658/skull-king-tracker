@@ -260,19 +260,30 @@ func (nh *NotificationHandler) HandleDeleteNotification(w http.ResponseWriter, r
 		return
 	}
 
-	// TODO : SHould use database transcation
-	err := db.DeleteNotificationByID(ctx, nil, notificationID, userID)
-	if err != nil {
-		if errors.Is(err, db.ErrNotificationNotFound) {
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not delete notification")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.DeleteNotificationByID(ctx, tx, notificationID, userID)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrNotificationNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "Notification not found or you do not have permission to delete it")
 		} else {
-			logger.Error().Err(err).Msg("Failed to delete notification")
+			logger.Error().Err(opErr).Msg("Failed to delete notification")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not delete notification")
 		}
+		responseSent = true
 		return
 	}
 
-	Respond(w, r, http.StatusNoContent, nil, "Notification deleted successfully")
+	if !responseSent {
+		Respond(w, r, http.StatusNoContent, nil, "Notification deleted successfully")
+		responseSent = true
+	}
 }
 
 // Handles deleting all notifications for the user
@@ -291,14 +302,26 @@ func (nh *NotificationHandler) HandleDeleteAllNotifications(w http.ResponseWrite
 		return
 	}
 
-	// TODO : Should use database transcation
-	deletedCount, err := db.DeleteAllNotificationsByUserID(ctx, nil, userID)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to delete all user notifications")
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not clear notifications")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	var deletedCount int64
+	deletedCount, opErr = db.DeleteAllNotificationsByUserID(ctx, tx, userID)
+	if opErr != nil {
+		logger.Error().Err(opErr).Msg("Failed to delete all user notifications")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not clear notifications")
+		responseSent = true
 		return
 	}
 
-	message := fmt.Sprintf("Successfully cleared %d notifications", deletedCount)
-	Respond(w, r, http.StatusOK, nil, message)
+	if !responseSent {
+		message := fmt.Sprintf("Successfully cleared %d notifications", deletedCount)
+		Respond(w, r, http.StatusOK, nil, message)
+		responseSent = true
+	}
 }

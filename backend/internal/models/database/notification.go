@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Maps to the `user_notifications` table
 type Notification struct {
 	NotificationID  string         `db:"notification_id"`
 	RecipientUserID string         `db:"recipient_user_id"`
@@ -17,6 +18,7 @@ type Notification struct {
 	CreatedAt       time.Time      `db:"created_at"`
 }
 
+// Composite struct that includes the notification and details about the actor
 type NotificationWithActor struct {
 	Notification
 	ActorUsername    string         `db:"actor_username"`

@@ -6,6 +6,7 @@ const (
 	NotificationTypeFriendRequest = "friend_request"
 )
 
+// Represents the user who performed the action that triggered a notification
 type NotificationActor struct {
 	UserID      string  `json:"user_id"`
 	Username    string  `json:"username"`
@@ -13,6 +14,7 @@ type NotificationActor struct {
 	AvatarURL   *string `json:"avatar_url,omitempty"`
 }
 
+// Represents a single notification sent to the client
 type Notification struct {
 	NotificationID string            `json:"notification_id"`
 	Type           string            `json:"type"`
