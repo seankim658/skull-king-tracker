@@ -51,6 +51,19 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 		}
 	}
 
+	apiAsterisks := make([]apiModels.PlayerGameAsterisk, len(data.Asterisks))
+	for i, dbAsterisk := range data.Asterisks {
+		apiAsterisk := apiModels.PlayerGameAsterisk{
+			PlayerGameAsteriskID: dbAsterisk.PlayerGameAsteriskID,
+			GamePlayerID:         dbAsterisk.GamePlayerID,
+			CreatedAt:            dbAsterisk.CreatedAt,
+		}
+		if dbAsterisk.Reason.Valid {
+			apiAsterisk.Reason = &dbAsterisk.Reason.String
+		}
+		apiAsterisks[i] = apiAsterisk
+	}
+
 	response := &apiModels.ScorecardResponse{
 		GameID:                   data.Game.GameID,
 		GameStatus:               data.Game.Status,
@@ -58,6 +71,7 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 		Players:                  buildGamePlayerResponses(data.Players),
 		Rounds:                   apiRounds,
 		CurrentRound:             currentRoundNum,
+		Asterisks:                apiAsterisks,
 	}
 	if data.Game.SessionName.Valid {
 		response.SessionName = &data.Game.SessionName.String

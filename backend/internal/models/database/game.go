@@ -87,10 +87,11 @@ type Round struct {
 
 // Composite struct to hold all data for a scorecard
 type FullScorecardData struct {
-	Game    Game
-	Players []GamePlayerDetails
-	Rounds  []Round
-	Scores  []PlayerRoundScoreDetails
+	Game      Game
+	Players   []GamePlayerDetails
+	Rounds    []Round
+	Scores    []PlayerRoundScoreDetails
+	Asterisks []PlayerGameAsterisk
 }
 
 type PlayerBidData struct {

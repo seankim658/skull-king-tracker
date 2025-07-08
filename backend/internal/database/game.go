@@ -320,7 +320,7 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
 			&p.UserID,
 			&p.GuestPlayerID,
 			&p.DisplayName,
-      &p.Username,
+			&p.Username,
 			&p.AvatarURL,
 			&p.SeatingOrder,
 			&p.FinalScore,
@@ -638,6 +638,14 @@ func GetScorecardState(ctx context.Context, tx *sql.Tx, gameID string) (*dbModel
 		return nil, fmt.Errorf("error iterating score rows: %w", err)
 	}
 	scorecardData.Scores = scores
+
+	asterisks, err := GetAsterisksByGameID(ctx, tx, gameID)
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to get asterisks for scorecard, continuing without them")
+		scorecardData.Asterisks = []dbModels.PlayerGameAsterisk{}
+	} else {
+		scorecardData.Asterisks = asterisks
+	}
 
 	logger.Info().Msg("Successfully fetched all scorecard data")
 	return scorecardData, nil
