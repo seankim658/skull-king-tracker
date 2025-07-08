@@ -109,7 +109,7 @@ export function ProfileHeader({
                   <UserRoundCheck className="mr-1.5 h-4 w-4" />
                   {
                     profile.mutual_friend_count
-                  } mutual friend
+                  } Mutual friend
                   {profile.mutual_friend_count !== 1 ? "s" : ""}
                 </span>
               )}
