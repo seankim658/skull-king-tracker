@@ -1,5 +1,6 @@
 package models
 
+// Represents a user's calculated statistics for display on a profile
 type UserStats struct {
 	TotalGamesPlayed int     `json:"total_games_played"`
 	TotalWins        int     `json:"total_wins"`
@@ -7,6 +8,7 @@ type UserStats struct {
 	WinPercentage    float64 `json:"win_percentage"`
 }
 
+// Response for site-wide summary statistics
 type SiteSummaryStatsResponse struct {
 	TotalPlayers      int `json:"total_players"`
 	SessionsThisMonth int `json:"sessions_this_month"`

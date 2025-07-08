@@ -2,7 +2,7 @@ package models
 
 import "database/sql"
 
-// Holds a user's basic game statistics
+// Holds a user's basic game statistics for their profile or a specific session
 type ProfileStats struct {
 	TotalGamesPlayed int
 	TotalWins        int
