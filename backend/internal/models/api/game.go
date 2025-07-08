@@ -140,3 +140,16 @@ type PlayerGameAsterisk struct {
 	Reason               *string   `json:"reason,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 }
+
+type GameAward struct {
+	Title       string `json:"title"`
+	PlayerName  string `json:"player_name"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
+}
+
+type GameSummaryResponse struct {
+	WinnerName  string               `json:"winner_name"`
+	FinalScores []GamePlayerResponse `json:"final_scores"`
+	Awards      []GameAward          `json:"awards"`
+}

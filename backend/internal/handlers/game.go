@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"sort"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
+	modelConverters "github.com/seankim658/skullking/internal/models/convert"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -872,4 +875,220 @@ func (gh *GameHandler) HandleGetAsterisks(w http.ResponseWriter, r *http.Request
 	}
 
 	Respond(w, r, http.StatusOK, apiAsterisks, "Asterisks retrieved successfully")
+}
+
+// Retrieves a calculated summary of a completed game
+// Path: /games/{game_id}/summary
+// Method: GET
+func (gh *GameHandler) HandleGetGameSummary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"HandleGetGameSummary",
+	)
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.GameIDKey, gameID).Logger()
+
+	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !authOk {
+		return
+	}
+
+	game, err := db.GetGameByID(ctx, nil, gameID)
+	if err != nil {
+		if errors.Is(err, db.ErrGameNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Game not found")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve game details")
+		}
+		return
+	}
+
+	if game.Status != "completed" {
+		ErrorResponse(w, r, http.StatusConflict, "Game summary is only available for completed games")
+		return
+	}
+
+	isPlayer, err := db.IsUserInGame(ctx, nil, userID, gameID)
+	if err != nil || !isPlayer {
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to view this game summary")
+		return
+	}
+
+	playerStats, err := db.GetGameSummaryStats(ctx, nil, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get game summary stats from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not calculate game summary.")
+		return
+	}
+
+	if len(playerStats) == 0 {
+		ErrorResponse(w, r, http.StatusNotFound, "No player data found for this game summary.")
+		return
+	}
+
+	awards := calculateGameAwards(playerStats)
+
+	finalScores, err := db.GetPlayersByGameID(ctx, nil, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get final player scores for summary")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve final scores.")
+		return
+	}
+	apiFinalScores := modelConverters.BuildGamePlayerResponses(finalScores)
+
+	response := apiModels.GameSummaryResponse{
+		WinnerName:  playerStats[0].DisplayName,
+		FinalScores: apiFinalScores,
+		Awards:      awards,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Game summary retrieved successfully.")
+}
+
+func calculateGameAwards(stats []db.GameSummaryPlayerStats) []apiModels.GameAward {
+	if len(stats) == 0 {
+		return []apiModels.GameAward{}
+	}
+
+	awards := []apiModels.GameAward{}
+
+	addAward := func(title, description string, players []db.GameSummaryPlayerStats, valueFormatter func(db.GameSummaryPlayerStats) string) {
+		if len(players) == 1 {
+			awards = append(awards, apiModels.GameAward{
+				Title:       title,
+				PlayerName:  players[0].DisplayName,
+				Value:       valueFormatter(players[0]),
+				Description: description,
+			})
+		}
+	}
+
+	// The Oracle (Most Rounds Hit)
+	sort.SliceStable(stats, func(i, j int) bool { return stats[i].RoundsHit > stats[j].RoundsHit })
+	addAward(
+		"The Oracle", "Most rounds with a correct bid.",
+		getTopPlayers(
+			stats,
+			func(s db.GameSummaryPlayerStats) float64 { return float64(s.RoundsHit) },
+		),
+		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Rounds", s.RoundsHit) },
+	)
+
+	// The Gambler (Most Rounds Missed)
+	sort.SliceStable(stats, func(i, j int) bool { return stats[i].RoundsMissed > stats[j].RoundsMissed })
+	addAward(
+		"The Gambler", "Most rounds with an incorrect bid.",
+		getTopPlayers(
+			stats,
+			func(s db.GameSummaryPlayerStats) float64 { return float64(s.RoundsMissed) },
+		),
+		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Rounds", s.RoundsMissed) },
+	)
+
+	// The Treasure Hunter (Most Bonus Points)
+	sort.SliceStable(stats, func(i, j int) bool { return stats[i].TotalBonus > stats[j].TotalBonus })
+	addAward(
+		"The Treasure Hunter", "Highest total bonus points collected.",
+		getTopPlayers(
+			stats,
+			func(s db.GameSummaryPlayerStats) float64 { return float64(s.TotalBonus) },
+		),
+		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Points", s.TotalBonus) },
+	)
+
+	// The Scallywag (Most Successful Zero Bids)
+	sort.SliceStable(stats, func(i, j int) bool { return stats[i].ZeroBidsHit > stats[j].ZeroBidsHit })
+	addAward(
+		"The Scallywag", "Most successful zero-trick bids.",
+		getTopPlayers(
+			stats,
+			func(s db.GameSummaryPlayerStats) float64 { return float64(s.ZeroBidsHit) },
+		),
+		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Times", s.ZeroBidsHit) },
+	)
+
+	// The Buccaneer (Most Tricks Taken)
+	sort.SliceStable(stats, func(i, j int) bool { return stats[i].TotalTricksTaken > stats[j].TotalTricksTaken })
+	addAward(
+		"The Buccaneer", "Most tricks taken throughout the game.",
+		getTopPlayers(
+			stats,
+			func(s db.GameSummaryPlayerStats) float64 { return float64(s.TotalTricksTaken) },
+		),
+		func(s db.GameSummaryPlayerStats) string { return fmt.Sprintf("%d Tricks", s.TotalTricksTaken) },
+	)
+
+	// The Maverick (Highest Bid Variance)
+	sort.SliceStable(stats, func(i, j int) bool { return stats[i].BidStdDev.Float64 > stats[j].BidStdDev.Float64 })
+	addAward(
+		"The Maverick", "Player with the wildest swings in bidding.",
+		getTopPlayers(
+			stats,
+			func(s db.GameSummaryPlayerStats) float64 { return s.BidStdDev.Float64 },
+		),
+		func(s db.GameSummaryPlayerStats) string {
+			return fmt.Sprintf("%.2f Std. Dev.", s.BidStdDev.Float64)
+		})
+
+	// The Conservative (Most Effective with Low Bids)
+	sort.SliceStable(stats, func(i, j int) bool {
+		scoreI := 0.0
+		if stats[i].TricksFromCorrectBids > 0 {
+			scoreI = float64(stats[i].PointsFromCorrectBids) / float64(stats[i].TricksFromCorrectBids)
+		}
+		scoreJ := 0.0
+		if stats[j].TricksFromCorrectBids > 0 {
+			scoreJ = float64(stats[j].PointsFromCorrectBids) / float64(stats[j].TricksFromCorrectBids)
+		}
+		if scoreI != scoreJ {
+			return scoreI > scoreJ
+		}
+		// Tie-breaker: lower average bid wins
+		return stats[i].AvgBid.Float64 < stats[j].AvgBid.Float64
+	})
+	addAward(
+		"The Conservative", "Most effective at winning with low bids.",
+		getTopPlayers(
+			stats, func(s db.GameSummaryPlayerStats) float64 {
+				if s.TricksFromCorrectBids == 0 {
+					return 0
+				}
+				return float64(s.PointsFromCorrectBids) / float64(s.TricksFromCorrectBids)
+			},
+		), func(s db.GameSummaryPlayerStats) string {
+			if s.TricksFromCorrectBids == 0 {
+				return "N/A"
+			}
+			return fmt.Sprintf("%.1f Pts/Trick", float64(s.PointsFromCorrectBids)/float64(s.TricksFromCorrectBids))
+		},
+	)
+
+	return awards
+}
+
+// Helper to find all players who are tied for the top score on a given metric.
+func getTopPlayers(stats []db.GameSummaryPlayerStats, getScore func(db.GameSummaryPlayerStats) float64) []db.GameSummaryPlayerStats {
+	if len(stats) == 0 {
+		return nil
+	}
+	topScore := getScore(stats[0])
+	if topScore == 0 { // Don't give awards for a score of 0
+		return nil
+	}
+
+	var winners []db.GameSummaryPlayerStats
+	for _, s := range stats {
+		if math.Abs(getScore(s)-topScore) < 0.001 { // Floating point comparison
+			winners = append(winners, s)
+		} else {
+			break // Since the list is sorted, we can stop early
+		}
+	}
+	return winners
 }

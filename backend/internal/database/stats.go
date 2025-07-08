@@ -178,3 +178,96 @@ func GetUserSessionStats(ctx context.Context, tx *sql.Tx, userID, sessionID stri
 	logger.Info().Interface("session_user_stats", stats).Msg("User session stats retrieved successfully")
 	return stats, nil
 }
+
+// Holds the raw calculated statistics for a single player in a game
+type GameSummaryPlayerStats struct {
+	GamePlayerID          string
+	DisplayName           string
+	FinalScore            int
+	FinishingPosition     sql.NullInt32
+	RoundsHit             int
+	RoundsMissed          int
+	ZeroBidsHit           int
+	TotalBonus            int
+	TotalTricksTaken      int
+	BidStdDev             sql.NullFloat64
+	PointsFromCorrectBids int
+	TricksFromCorrectBids int
+	AvgBid                sql.NullFloat64
+}
+
+// Retrieves and calculates all necessary stats for the end-of-game summary
+func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]GameSummaryPlayerStats, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		statsComponent,
+		"GetGameSummaryStats",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	query := `
+  WITH PlayerGameStats AS (
+    SELECT
+      gp.game_player_id,
+      gp.final_score,
+      gp.finishing_position,
+      COALESCE(u.display_name, u.username, g.display_name) as display_name,
+      COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END), 0)::int as rounds_hit,
+      COALESCE(SUM(CASE WHEN prs.bid_amount != prs.tricks_taken THEN 1 ELSE 0 END), 0)::int as rounds_missed,
+      COALESCE(SUM(CASE WHEN prs.bid_amount = 0 AND prs.tricks_taken = 0 THEN 1 ELSE 0 END), 0)::int as zero_bids_hit,
+      COALESCE(SUM(prs.bonus_points_applied), 0)::int as total_bonus,
+      COALESCE(SUM(prs.tricks_taken), 0)::int as total_tricks_taken,
+      COALESCE(STDDEV_SAMP(prs.bid_amount), 0.0) as bid_stddev,
+      COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken AND prs.bid_amount > 0 THEN prs.round_score ELSE 0 END), 0)::int as points_from_correct_bids,
+      COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken AND prs.bid_amount > 0 THEN prs.tricks_taken ELSE 0 END), 0)::int as tricks_from_correct_bids,
+      COALESCE(AVG(prs.bid_amount), 0.0) as avg_bid
+    FROM game_players gp
+    LEFT JOIN player_round_scores prs ON gp.game_player_id = prs.game_player_id
+    LEFT JOIN users u ON gp.user_id = u.user_id
+    LEFT JOIN guest_players g ON gp.guest_player_id = g.guest_player_id
+    WHERE gp.game_id = $1
+    GROUP BY gp.game_player_id, u.display_name, u.username, g.display_name
+  )
+  SELECT * FROM PlayerGameStats ORDER BY finishing_position ASC NULLS LAST;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get game summary stats")
+
+	rows, err := querier.QueryContext(ctx, query, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query for game summary stats")
+		return nil, fmt.Errorf("error querying game summary stats: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []GameSummaryPlayerStats
+	for rows.Next() {
+		var s GameSummaryPlayerStats
+		if err := rows.Scan(
+			&s.GamePlayerID,
+			&s.FinalScore,
+			&s.FinishingPosition,
+			&s.DisplayName,
+			&s.RoundsHit,
+			&s.RoundsMissed,
+			&s.ZeroBidsHit,
+			&s.TotalBonus,
+			&s.TotalTricksTaken,
+			&s.BidStdDev,
+			&s.PointsFromCorrectBids,
+			&s.TricksFromCorrectBids,
+			&s.AvgBid,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan game summary stats row")
+			return nil, fmt.Errorf("error scanning game summary stats row: %w", err)
+		}
+		stats = append(stats, s)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over game summary stats row")
+		return nil, fmt.Errorf("error iterating game summary stats row: %w", err)
+	}
+
+	logger.Info().Int(l.CountKey, len(stats)).Msg("Game summary stats retrieved successfully")
+	return stats, nil
+}

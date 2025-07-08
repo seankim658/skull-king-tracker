@@ -68,7 +68,7 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 		GameID:                   data.Game.GameID,
 		GameStatus:               data.Game.Status,
 		CurrentScoreKeeperUserID: data.Game.CurrentScorekeeperUserID.String,
-		Players:                  buildGamePlayerResponses(data.Players),
+		Players:                  BuildGamePlayerResponses(data.Players),
 		Rounds:                   apiRounds,
 		CurrentRound:             currentRoundNum,
 		Asterisks:                apiAsterisks,
@@ -84,7 +84,7 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 }
 
 // Private helper to convert DB player details to API player responses
-func buildGamePlayerResponses(dbPlayers []dbModels.GamePlayerDetails) []apiModels.GamePlayerResponse {
+func BuildGamePlayerResponses(dbPlayers []dbModels.GamePlayerDetails) []apiModels.GamePlayerResponse {
 	apiPlayers := make([]apiModels.GamePlayerResponse, len(dbPlayers))
 	for i, p := range dbPlayers {
 		apiPlayer := apiModels.GamePlayerResponse{
