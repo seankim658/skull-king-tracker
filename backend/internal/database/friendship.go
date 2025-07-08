@@ -490,16 +490,128 @@ func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbMod
 			&friend.AvatarURL,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan friend row")
-      return nil, fmt.Errorf("error scanning friend data for user %s: %w", userID, err)
+			return nil, fmt.Errorf("error scanning friend data for user %s: %w", userID, err)
 		}
-    friends = append(friends, friend)
+		friends = append(friends, friend)
 	}
 
-  if err = rows.Err(); err != nil {
-    logger.Error().Err(err).Msg("Error iterating over friend rows")
-    return nil, fmt.Errorf("error iterating friend rows for user %s: %w", userID, err)
-  }
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over friend rows")
+		return nil, fmt.Errorf("error iterating friend rows for user %s: %w", userID, err)
+	}
 
-  logger.Info().Int(l.CountKey, len(friends)).Msg("Friends list retrieved successfully")
-  return friends, nil
+	logger.Info().Int(l.CountKey, len(friends)).Msg("Friends list retrieved successfully")
+	return friends, nil
+}
+
+// Gets the number of mutual friends between two users
+func CountMutualFriends(ctx context.Context, tx *sql.Tx, userIDOne, userIDTwo string) (int, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"CountMutualFriends",
+	).With().Str(l.UserIDOneKey, userIDOne).Str(l.UserIDTwoKey, userIDTwo).Logger()
+
+	query := `
+  SELECT COUNT(DISTINCT f1.friend_id)
+  FROM (
+    SELECT CASE
+        WHEN requester_id = $1 THEN addressee_id
+        ELSE requester_id
+    END AS friend_id
+    FROM user_friendships
+    WHERE (requester_id = $1 OR addressee_id = $1) AND status = 'accepted'
+  ) AS f1
+  JOIN (
+    SELECT CASE
+      WHEN requester_id = $2 THEN addressee_id
+      ELSE requester_id
+    END AS friend_id
+    FROM user_friendships
+    WHERE (requester_id = $2 OR addressee_id = $2) AND status = 'accepted'
+  ) AS f2 ON f1.friend_id = f2.friend_id;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to count mutual friends")
+
+	var count int
+	err := querier.QueryRowContext(ctx, query, userIDOne, userIDTwo).Scan(&count)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count mutual friends")
+		return 0, fmt.Errorf("error counting mutual friends between %s and %s: %w", userIDOne, userIDTwo, err)
+	}
+
+	logger.Info().Int(l.CountKey, count).Msg("Mutual friends counted successfully")
+	return count, nil
+}
+
+// Retrieves the friends of a profile user and determines the friendship
+func GetFriendshipWithViewerStatus(
+	ctx context.Context,
+	tx *sql.Tx,
+	profileUserID, viewerUserID string,
+) ([]dbModels.FriendshipWithViewerStatus, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"GetFriendshipWithViewerStatus",
+	).With().Str(l.ProfileUserIDKey, profileUserID).Str(l.ViewerUserIDKey, viewerUserID).Logger()
+
+	query := `
+  WITH profile_friends AS (
+    SELECT
+    CASE
+      WHEN f.requester_id = $1 THEN f.addressee_id
+      ELSE f.requester_id
+    END AS friend_user_id
+    FROM user_friendships f
+    WHERE (f.requester_id = $1 OR f.addressee_id = $1) AND f.status = 'accepted'
+  )
+  SELECT
+    u.user_id,
+    u.username,
+    u.display_name,
+    u.avatar_url,
+    COALESCE(vf.status, 'not_friends') AS friendship_status_with_viewer,
+    vf.requester_id
+  FROM profile_friends pf
+  JOIN users u ON pf.friend_user_id = u.user_id
+  LEFT JOIN user_friendships vf ON
+    (vf.requester_id = $2 AND vf.addressee_id = u.user_id) OR
+    (vf.requester_id = u.user_id AND vf.addressee_id = $2)
+  ORDER BY u.username;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to retrieve user friendship statuses with users")
+
+	rows, err := querier.QueryContext(ctx, query, profileUserID, viewerUserID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query friends with viewer status")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var friends []dbModels.FriendshipWithViewerStatus
+	for rows.Next() {
+		var friend dbModels.FriendshipWithViewerStatus
+		if err := rows.Scan(
+			&friend.UserID,
+			&friend.Username,
+			&friend.DisplayName,
+			&friend.AvatarURL,
+			&friend.FriendshipStatus,
+			&friend.RequesterID,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan friend with viewer status row")
+			return nil, err
+		}
+		friends = append(friends, friend)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over friend with viewer status rows")
+		return nil, err
+	}
+
+	return friends, nil
 }

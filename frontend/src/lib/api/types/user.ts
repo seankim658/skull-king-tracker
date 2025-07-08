@@ -73,6 +73,7 @@ export interface UserProfile {
   stats_privacy: "private" | "friends_only" | "public";
   created_at: string;
   friend_count: number;
+  mutual_friend_count?: number | null;
   friendship_status_with_viewer: FriendshipStatus;
 }
 
@@ -89,3 +90,11 @@ export interface UserSearchItem {
 }
 
 export type UserSearchResponse = UserSearchItem[];
+
+export interface FriendListItem {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  friendship_status_with_viewer: FriendshipStatus;
+}

@@ -10,6 +10,7 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
 
 const userComponent = "handers-user"
@@ -99,6 +100,14 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 		CreatedAt:        apiProfileUserPart.CreatedAt,
 		FriendCount:      friendCount,
 		FriendshipStatus: apiFriendshipStatus,
+	}
+	if isAuthenticated && viewerUserID != profileUserIDFromPath {
+		mutualCount, mfErr := db.CountMutualFriends(ctx, nil, viewerUserID, profileUserIDFromPath)
+		if mfErr != nil {
+			logger.Error().Err(mfErr).Msg("Database error counting mutual friends, proceeding without it")
+		} else {
+			apiProfile.MutualFriendCount = &mutualCount
+		}
 	}
 	finalResponse := apiModels.UserProfileResponse{
 		Profile: apiProfile,
@@ -190,4 +199,82 @@ func (uph *UserProfileHandler) HandleSearchUsers(w http.ResponseWriter, r *http.
 	}
 
 	Respond(w, r, http.StatusOK, apiUsers, "User search completed successfully")
+}
+
+// Retrieves a user's friends list with friendship status relative to the viewer
+// Path: /users/{user_id}/friends
+// Method: GET
+func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		userComponent,
+		"HandleGetFriendsList",
+	)
+
+	profileUserID, ok := PathVar(w, r, "user_id")
+	if !ok {
+		return
+	}
+	viewerUserID, isAuthenticated := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !isAuthenticated {
+		viewerUserID = ""
+	}
+
+	logger = logger.With().Str(l.ProfileUserIDKey, profileUserID).Str(l.ViewerUserIDKey, viewerUserID).Logger()
+
+	dbFriends, err := db.GetFriendshipWithViewerStatus(ctx, nil, profileUserID, viewerUserID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve friends list")
+		return
+	}
+
+	apiFriends := make([]apiModels.FriendListItem, 0, len(dbFriends))
+	for _, f := range dbFriends {
+		var displayName, avatarURL *string
+		if f.DisplayName.Valid {
+			displayName = &f.DisplayName.String
+		}
+		if f.AvatarURL.Valid {
+			avatarURL = &f.AvatarURL.String
+		}
+
+		var status apiModels.FriendshipStatus
+		if f.UserID == viewerUserID {
+			status = apiModels.FriendshipStatusAPISelf
+		} else {
+			var logicalStatus dbModels.DBFriendshipStatus
+			switch f.FriendshipStatus {
+			case "accepted":
+				logicalStatus = dbModels.DBFriendshipStatusFriends
+			case "not_friends":
+				logicalStatus = dbModels.DBFriendshipStatusNotFriends
+			case "blocked":
+				if f.RequesterID.Valid && f.RequesterID.String == viewerUserID {
+					logicalStatus = dbModels.DBFriendshipStatusBlockedFirstBySecond
+				} else {
+					logicalStatus = dbModels.DBFriendshipStatusBlockedSecondByFirst
+				}
+			case "pending":
+				if f.RequesterID.Valid && f.RequesterID.String == viewerUserID {
+					logicalStatus = dbModels.DBFriendshipStatusPendingFirstSentToSecond
+				} else {
+					logicalStatus = dbModels.DBFriendshipStatusPendingSecondSentToFirst
+				}
+			default:
+				logicalStatus = dbModels.DBFriendshipStatusUnknown
+			}
+			status = modelConverters.DBFriendshipStatusToAPIStatus(logicalStatus)
+		}
+
+		apiFriends = append(apiFriends, apiModels.FriendListItem{
+			UserID:           f.UserID,
+			Username:         f.Username,
+			DisplayName:      displayName,
+			AvatarURL:        avatarURL,
+			FriendshipStatus: status,
+		})
+	}
+
+	Respond(w, r, http.StatusOK, apiFriends, "Friends list retrieved successfully")
 }

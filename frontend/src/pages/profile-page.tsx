@@ -7,10 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { FriendsListModal } from "@/components/profile/friends-list-modal";
+import { useState } from "react";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const { user: authenticatedUser, isLoadingAuth } = useAuth();
+
+  const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
 
   const {
     data: profileData,
@@ -81,12 +85,19 @@ export function ProfilePage() {
         profile={profileData.profile}
         isOwnProfile={isOwnProfile}
         onActionSuccess={fetchProfile}
+        onOpenFriendsList={() => setIsFriendsModalOpen(true)}
       />
       <ProfileStatsSummary
         stats={profileData.stats}
         username={
           profileData.profile.display_name || profileData.profile.username
         }
+      />
+
+      <FriendsListModal
+        isOpen={isFriendsModalOpen}
+        onClose={() => setIsFriendsModalOpen(false)}
+        profile={profileData.profile}
       />
       {/* TODO Future sections like Game History, Detailed Stats can be added here */}
     </div>

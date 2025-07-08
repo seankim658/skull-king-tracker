@@ -42,15 +42,17 @@ const (
 	LimitKey                = "limit"
 
 	// User
-	UserIDKey       = "user_id"
-	UserIDOneKey    = "user_id_1"
-	UserIDTwoKey    = "user_id_2"
-	UsernameKey     = "username"
-	EmailKey        = "email"
-	UIThemeKey      = "ui_theme"
-	ColorThemeKey   = "color_theme"
-	AvatarURLKey    = "avatar_url"
-	StatsPrivacyKey = "stats_privacy"
+	UserIDKey        = "user_id"
+	UserIDOneKey     = "user_id_1"
+	UserIDTwoKey     = "user_id_2"
+	ProfileUserIDKey = "profile_user_id"
+	ViewerUserIDKey  = "viewer_user_id"
+	UsernameKey      = "username"
+	EmailKey         = "email"
+	UIThemeKey       = "ui_theme"
+	ColorThemeKey    = "color_theme"
+	AvatarURLKey     = "avatar_url"
+	StatsPrivacyKey  = "stats_privacy"
 
 	// Friendship
 	FriendshipIDKey     = "friendship_id"

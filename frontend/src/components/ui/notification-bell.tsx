@@ -233,6 +233,7 @@ export function NotificationBell() {
             queryKey: ["userProfile", user.user_id],
           });
         }
+        queryClient.invalidateQueries({ queryKey: ["friendsList"] });
       },
     },
   );
