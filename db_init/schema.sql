@@ -135,6 +135,17 @@ CREATE TABLE player_game_asterisks (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Game Player Awards Table
+CREATE TABLE game_player_awards (
+    game_player_award_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+    game_player_id UUID NOT NULL REFERENCES game_players(game_player_id) ON DELETE CASCADE,
+    award_type VARCHAR(50) NOT NULL,
+    award_value VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_game_player_award UNIQUE (game_id, game_player_id, award_type)
+);
+
 -- User Notifications Table
 CREATE TABLE user_notifications (
   notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -219,6 +230,9 @@ CREATE INDEX idx_player_round_scores_game_player_id ON player_round_scores(game_
 
 CREATE INDEX idx_player_game_asterisks_game_player_id ON player_game_asterisks(game_player_id);
 CREATE INDEX idx_player_game_asterisks_game_id ON player_game_asterisks(game_id);
+
+CREATE INDEX idx_game_player_awards_game_id ON game_player_awards(game_id);
+CREATE INDEX idx_game_player_awards_game_player_id ON game_player_awards(game_player_id);
 
 CREATE INDEX idx_user_notifications_recipient_user_id ON user_notifications(recipient_user_id);
 CREATE INDEX idx_user_notifications_is_read ON user_notifications(recipient_user_id, is_read);

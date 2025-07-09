@@ -132,6 +132,7 @@ type UserGameHistoryRow struct {
 	TotalPlayers      sql.NullInt32
 	TotalAsterisks    sql.NullInt32
 	ScorekeeperName   sql.NullString
+	AwardsWon         []byte
 }
 
 // --- Data Transfer Structs ---

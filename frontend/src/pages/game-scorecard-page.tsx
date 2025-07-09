@@ -17,7 +17,7 @@ import type {
 } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
-import { PenLine, Terminal } from "lucide-react";
+import { PenLine, Terminal, Trophy } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { gameAPI } from "@/lib/api/service/game";
@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSubmit } from "@/hooks/use-submit";
 import { AddAsteriskDialog } from "@/components/scorecard/add-asterisk-dialog";
+import { GameSummaryModal } from "@/components/games/game-summary-modal";
 
 export function GameScorecardPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -32,6 +33,7 @@ export function GameScorecardPage() {
   const queryClient = useQueryClient();
 
   const [isInputDrawerOpen, setIsInputDrawerOpen] = useState(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   const [isAsteriskDialogOpen, setIsAsteriskDialogOpen] = useState(false);
   const [selectedPlayerForAsterisk, setSelectedPlayerForAsterisk] =
@@ -174,10 +176,10 @@ export function GameScorecardPage() {
           />
         </CardContent>
 
-        {isScorekeeper &&
-          scorecardData.game_status === "active" &&
-          currentRound && (
-            <CardFooter className="pt-2">
+        <CardFooter className="flex-wrap justify-between pt-4 gap-2">
+          {isScorekeeper &&
+            scorecardData.game_status === "active" &&
+            currentRound && (
               <Button
                 size="lg"
                 className="w-full sm:w-auto cursor-pointer"
@@ -186,8 +188,19 @@ export function GameScorecardPage() {
                 <PenLine className="h-4 w-4 mr-2" />
                 {getButtonText()}
               </Button>
-            </CardFooter>
+            )}
+
+          {scorecardData.game_status === "completed" && (
+            <Button
+              size="lg"
+              className="w-full sm:w-auto cursor-pointer bg-amber-500 hover:bg-amber-600"
+              onClick={() => setIsSummaryModalOpen(true)}
+            >
+              <Trophy className="h-4 w-4 mr-2" />
+              View Game Summary
+            </Button>
           )}
+        </CardFooter>
       </Card>
 
       {currentRound && (
@@ -205,6 +218,12 @@ export function GameScorecardPage() {
         onClose={() => setIsAsteriskDialogOpen(false)}
         onSubmit={handleAddAsteriskSubmit}
         isLoading={isAddingAterisk}
+      />
+
+      <GameSummaryModal
+        gameId={gameId ?? null}
+        isOpen={isSummaryModalOpen}
+        onClose={() => setIsSummaryModalOpen(false)}
       />
     </div>
   );

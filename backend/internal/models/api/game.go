@@ -147,18 +147,25 @@ type PlayerGameAsterisk struct {
 	CreatedAt            time.Time `json:"created_at"`
 }
 
+// Represents a game award
+type GameHistoryAward struct {
+	Type  string `json:"type"`
+	Title string `json:"title"`
+}
+
 // Represents a single row in the user's game history table
 type GameHistoryItem struct {
-	GameID            string    `json:"game_id"`
-	SessionName       *string   `json:"session_name,omitempty"`
-	GameDate          time.Time `json:"game_date"`
-	FinishingPosition int       `json:"finishing_position"`
-	TotalPoints       int       `json:"total_points"`
-	RoundsHit         int       `json:"rounds_hit"`
-	ZeroDifferential  int       `json:"zero_differential"`
-	TotalPlayers      int       `json:"total_players"`
-	TotalAsterisks    int       `json:"total_asterisks"`
-	ScorekeeperName   string    `json:"scorekeeper_name"`
+	GameID            string             `json:"game_id"`
+	SessionName       *string            `json:"session_name,omitempty"`
+	GameDate          time.Time          `json:"game_date"`
+	FinishingPosition int                `json:"finishing_position"`
+	TotalPoints       int                `json:"total_points"`
+	RoundsHit         int                `json:"rounds_hit"`
+	ZeroDifferential  int                `json:"zero_differential"`
+	TotalPlayers      int                `json:"total_players"`
+	TotalAsterisks    int                `json:"total_asterisks"`
+	ScorekeeperName   string             `json:"scorekeeper_name"`
+	AwardsWon         []GameHistoryAward `json:"awards_won,omitempty"`
 }
 
 // Represents a special award given at the end of a game

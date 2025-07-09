@@ -13,6 +13,7 @@ import type {
   PaginatedGameHistoryResponse,
   PlayerGameAsterisk,
   AddAsteriskPayload,
+  GameSummaryResponse,
 } from "../types";
 
 export const gameAPI = {
@@ -201,5 +202,13 @@ export const gameAPI = {
     client<null>(`/games/${gameId}/players/${gamePlayerId}/asterisk`, {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  /**
+   * Fetches the calculated summary for a completed game.
+   */
+  getGameSummary: (gameId: string): Promise<ApiResponse<GameSummaryResponse>> =>
+    client<GameSummaryResponse>(`/games/${gameId}/summary`, {
+      method: "GET",
     }),
 };

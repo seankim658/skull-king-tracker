@@ -892,7 +892,7 @@ func GetUserGameHistory(
       GROUP BY game_id
     ),
     AsteriskCounts AS (
-      SELECT 
+      SELECT
         pga.game_id,
         gp.user_id,
         COUNT(pga.player_game_asterisk_id) as total_asterisks
@@ -900,6 +900,26 @@ func GetUserGameHistory(
       JOIN game_players gp ON pga.game_player_id = gp.game_player_id
       WHERE gp.user_id IS NOT NULL
       GROUP BY pga.game_id, gp.user_id
+    ),
+    PlayerAwards AS (
+      SELECT
+        gpa.game_id,
+        gp.user_id,
+        jsonb_agg(jsonb_build_object('type', gpa.award_type, 'title',
+          CASE gpa.award_type
+            WHEN 'oracle' THEN 'The Oracle'
+            WHEN 'gambler' THEN 'The Gambler'
+            WHEN 'treasure-hunter' THEN 'The Treasure Hunter'
+            WHEN 'scallywag' THEN 'The Scallywag'
+            WHEN 'buccaneer' THEN 'The Buccaneer'
+            WHEN 'maverick' THEN 'The Maverick'
+            WHEN 'conservative' THEN 'The Conservative'
+            ELSE gpa.award_type
+          END
+        )) AS awards_won
+      FROM game_player_awards gpa
+      JOIN game_players gp ON gpa.game_player_id = gp.game_player_id
+      GROUP BY gpa.game_id, gp.user_id
     )
     SELECT
       g.game_id,
@@ -911,12 +931,14 @@ func GetUserGameHistory(
       COALESCE(ugs.zero_differential, 0) as zero_differential,
       gpc.total_players,
       COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name,
-      COALESCE(ac.total_asterisks, 0) as total_asterisks
+      COALESCE(ac.total_asterisks, 0) as total_asterisks,
+      pa.awards_won
     FROM games g
     JOIN game_players gp ON g.game_id = gp.game_id
     LEFT JOIN UserGameStats ugs ON g.game_id = ugs.game_id AND gp.user_id = ugs.user_id
     LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
     LEFT JOIN AsteriskCounts ac ON g.game_id = ac.game_id AND gp.user_id = ac.user_id
+    LEFT JOIN PlayerAwards pa ON g.game_id = pa.game_id AND gp.user_id = pa.user_id
     LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
     LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
     WHERE %s
@@ -937,8 +959,8 @@ func GetUserGameHistory(
 		var h dbModels.UserGameHistoryRow
 		if err := rows.Scan(
 			&h.GameID, &h.SessionName, &h.GameDate, &h.FinishingPosition,
-			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential,
-			&h.TotalPlayers, &h.ScorekeeperName, &h.TotalAsterisks,
+			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential, &h.TotalPlayers,
+			&h.ScorekeeperName, &h.TotalAsterisks, &h.AwardsWon,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan game history row")
 			return nil, fmt.Errorf("error scanning game history row: %w", err)

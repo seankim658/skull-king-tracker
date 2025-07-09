@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	l "github.com/seankim658/skullking/internal/logger"
+	apiModels "github.com/seankim658/skullking/internal/models/api"
 	dbModels "github.com/seankim658/skullking/internal/models/database"
 	"github.com/seankim658/skullking/internal/rules"
 )
@@ -233,8 +235,61 @@ func SubmitScoresAndUpdateRound(
 		if err := UpdateGameStatus(ctx, tx, gameID, "completed"); err != nil {
 			return fmt.Errorf("failed to mark game as completed: %w", err)
 		}
+
+		playerStats, err := GetGameSummaryStats(ctx, tx, gameID)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to get player stats for award calculation; awards will not be stored")
+		} else {
+			if len(playerStats) >= 4 {
+				awards := rules.CalculateGameAwards(playerStats)
+				if err := saveAwardsToDB(ctx, tx, gameID, awards); err != nil {
+					logger.Error().Err(err).Msg("Failed to save game awards to database")
+				}
+			}
+		}
 	}
 
 	logger.Info().Msg("Successfully submitted scores and transitioned game state")
+	return nil
+}
+
+// Inserts calculated awards into the database
+func saveAwardsToDB(ctx context.Context, tx *sql.Tx, gameID string, awards []apiModels.GameAward) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		scoringComponent,
+		"saveAwardsToDB",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	stmt, err := querier.PrepareContext(ctx, `
+    INSERT INTO game_player_awards (game_id, game_player_id, award_type, award_value)
+    SELECT $1, gp.game_player_id, $2, $3
+    FROM game_players gp
+    LEFT JOIN users u ON gp.user_id = u.user_id
+    LEFT JOIN guest_players g ON gp.guest_player_id = g.guest_player_id
+    WHERE gp.game_id = $1 AND COALESCE(u.display_name, u.username, g.display_name) = $4;
+  `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare award insert statement: %w", err)
+	}
+	defer stmt.Close()
+
+	var awardsSaved int
+	for _, award := range awards {
+		awardTypeKey := strings.ToLower(strings.ReplaceAll(award.Title, "The ", ""))
+		awardTypeKey = strings.ReplaceAll(awardTypeKey, " ", "-")
+
+		if _, err := stmt.ExecContext(ctx, gameID, awardTypeKey, award.Value, award.PlayerName); err != nil {
+			logger.Error().
+				Err(err).
+				Str(l.AwardTypeKey, award.Title).
+				Str(l.GamePlayerNameKey, award.PlayerName).
+				Msg("Failed to insert a game award")
+		} else {
+			awardsSaved++
+		}
+	}
+	logger.Info().Int(l.CountKey, awardsSaved).Msg("Finished saving game awards")
 	return nil
 }

@@ -175,3 +175,22 @@ export interface PlayerGameAsterisk {
   reason?: string | null;
   created_at: string;
 }
+
+/**
+ * Represents a special award given at the end of the game.
+ */
+export interface GameAward {
+  title: string;
+  player_name: string;
+  value: string;
+  description: string;
+}
+
+/**
+ * Response for the end-of-game summary screen.
+ */
+export interface GameSummaryResponse {
+  winner_name: string;
+  final_scores: GamePlayerResponse[];
+  awards: GameAward[];
+}

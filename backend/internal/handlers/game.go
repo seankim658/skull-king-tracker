@@ -711,6 +711,12 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 
 	apiHistory := make([]apiModels.GameHistoryItem, 0, len(dbHistory))
 	for _, h := range dbHistory {
+		var awards []apiModels.GameHistoryAward
+		if h.AwardsWon != nil {
+			if err := json.Unmarshal(h.AwardsWon, &awards); err != nil {
+				logger.Error().Err(err).Str(l.GameIDKey, h.GameID).Msg("Failed to unmarshal awards for game history")
+			}
+		}
 		item := apiModels.GameHistoryItem{
 			GameID:            h.GameID,
 			GameDate:          h.GameDate,
@@ -721,6 +727,7 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 			TotalPlayers:      int(h.TotalPlayers.Int32),
 			TotalAsterisks:    int(h.TotalAsterisks.Int32),
 			ScorekeeperName:   h.ScorekeeperName.String,
+			AwardsWon:         awards,
 		}
 		if h.SessionName.Valid {
 			item.SessionName = &h.SessionName.String

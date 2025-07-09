@@ -16,14 +16,18 @@ func CalculateGameAwards(stats []dbModels.GameSummaryPlayerStats) []apiModels.Ga
 
 	awards := []apiModels.GameAward{}
 
-	addAward := func(title, description string, players []dbModels.GameSummaryPlayerStats, valueFormatter func(dbModels.GameSummaryPlayerStats) string) {
+	addAward := func(
+		title, description string,
+		players []dbModels.GameSummaryPlayerStats,
+		valueFormatter func(dbModels.GameSummaryPlayerStats) string) {
 		if len(players) == 1 {
 			awards = append(awards, apiModels.GameAward{
 				Title:       title,
 				PlayerName:  players[0].DisplayName,
 				Value:       valueFormatter(players[0]),
 				Description: description,
-			})
+			},
+			)
 		}
 	}
 
