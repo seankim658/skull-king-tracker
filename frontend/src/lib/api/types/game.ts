@@ -61,6 +61,7 @@ export interface PlayerRoundData {
   bid_amount: number | null;
   tricks_taken: number | null;
   round_score: number | null;
+  running_total?: number | null;
   bonus_points: number | null;
 }
 

@@ -130,6 +130,7 @@ type PlayerRoundData struct {
 	BidAmount    *int   `json:"bid_amount,omitempty"`
 	TricksTaken  *int   `json:"tricks_taken,omitempty"`
 	RoundScore   *int   `json:"round_score,omitempty"`
+	RunningTotal *int   `json:"running_total,omitempty"`
 	BonusPoints  *int   `json:"bonus_points,omitempty"`
 }
 
