@@ -11,3 +11,11 @@ export interface SiteSummaryStatsResponse {
   games_this_month: number;
   new_users_this_month: number;
 }
+
+export interface UserAwardStat {
+  award_type: string;
+  award_title: string;
+  count: number;
+}
+
+export type UserAwardsStatsResponse = UserAwardStat[];

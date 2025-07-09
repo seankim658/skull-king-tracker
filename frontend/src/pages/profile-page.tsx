@@ -9,6 +9,7 @@ import { Terminal } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { FriendsListModal } from "@/components/profile/friends-list-modal";
 import { useState } from "react";
+import { ProfileAwardsChart } from "@/components/profile/profile-awards-chart";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -93,6 +94,10 @@ export function ProfilePage() {
           profileData.profile.display_name || profileData.profile.username
         }
       />
+
+      {!!profileData.stats && (
+        <ProfileAwardsChart userId={profileData.profile.user_id} />
+      )}
 
       <FriendsListModal
         isOpen={isFriendsModalOpen}
