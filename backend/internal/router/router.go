@@ -99,6 +99,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	userSubRouter := apiRouter.PathPrefix("/users").Subrouter()
 	userSubRouter.HandleFunc("/{user_id}/profile", userHandler.HandleGetUserProfile).Methods(http.MethodGet)
 	userSubRouter.HandleFunc("/{user_id}/friends", userHandler.HandleGetFriendsList).Methods(http.MethodGet)
+	userSubRouter.HandleFunc("/{user_id}/stats/awards", userHandler.HandleGetUserAwardStats).Methods(http.MethodGet)
 	userSubRouter.HandleFunc("/search", userHandler.HandleSearchUsers).Methods(http.MethodGet)
 
 	// Friendship routes

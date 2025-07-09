@@ -209,3 +209,49 @@ func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMo
 	logger.Info().Int(l.CountKey, len(stats)).Msg("Game summary stats retrieved successfully")
 	return stats, nil
 }
+
+// Retrieves a summary of all awards a user has won
+func GetUserAwardsSummary(ctx context.Context, tx *sql.Tx, userID string) ([]dbModels.UserAwardStat, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		statsComponent,
+		"GetUserAwardsSummary",
+	).With().Str(l.UserIDKey, userID).Logger()
+
+	query := `
+  SELECT
+    gpa.award_type,
+    COUNT(gpa.game_player_award_id) as award_count
+  FROM game_player_awards gpa
+  JOIN game_players gp ON gpa.game_player_id = gp.game_player_id
+  WHERE gp.user_id = $1
+  GROUP BY gpa.award_type
+  ORDER BY award_count DESC;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to retrieve user awards summary")
+
+	rows, err := querier.QueryContext(ctx, query, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query user awards summary")
+		return nil, fmt.Errorf("error querying awards for user %s: %w", userID, err)
+	}
+	defer rows.Close()
+
+	var awards []dbModels.UserAwardStat
+	for rows.Next() {
+		var award dbModels.UserAwardStat
+		if err := rows.Scan(&award.AwardType, &award.AwardCount); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan award stat row")
+			return nil, fmt.Errorf("error scanning award stat: %w", err)
+		}
+		awards = append(awards, award)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating award stat rows: %w", err)
+	}
+
+	logger.Info().Int(l.CountKey, len(awards)).Msg("User awards summary retrieved successfully")
+	return awards, nil
+}

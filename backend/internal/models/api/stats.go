@@ -15,3 +15,12 @@ type SiteSummaryStatsResponse struct {
 	GamesThisMonth    int `json:"games_this_month"`
 	NewUsersThisMonth int `json:"new_users_this_month"`
 }
+
+// Represents a single award's statistics
+type UserAwardStat struct {
+	AwardType  string `json:"award_type"`
+	AwardTitle string `json:"award_title"`
+	Count      int    `json:"count"`
+}
+
+type UserAwardsStatsResponse []UserAwardStat

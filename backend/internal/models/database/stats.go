@@ -33,3 +33,9 @@ type GameSummaryPlayerStats struct {
 	TricksFromCorrectBids int
 	AvgBid                sql.NullFloat64
 }
+
+// Summary of a single award type for a user
+type UserAwardStat struct {
+	AwardType  string `db:"award_type"`
+	AwardCount int    `db:"award_count"`
+}
