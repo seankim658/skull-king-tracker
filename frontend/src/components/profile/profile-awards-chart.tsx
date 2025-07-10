@@ -60,7 +60,21 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
   }
 
   if (isError || !awardsData || awardsData.length === 0) {
-    return null;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Trophy Case </CardTitle>
+          <CardDescription>A summary of all awards won.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">
+              No awards yet. Keep playing to earn some!
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
