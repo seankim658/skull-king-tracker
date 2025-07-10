@@ -15,6 +15,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { statsAPI } from "@/lib/api/service/stat";
 import { Skeleton } from "../ui/skeleton";
+import { Separator } from "../ui/separator";
 
 interface ProfileAwardsChartProps {
   userId: string;
@@ -80,7 +81,29 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
             <XAxis type="number" dataKey="count" hide />
             <ChartTooltip
               cursor={false}
-              content={<ChartTooltipContent hideLabel />}
+              content={
+                <ChartTooltipContent
+                  formatter={(value, _, item) => {
+                    const { award_title, percentile } = item.payload;
+                    return (
+                      <div className="min-w-[120px] space-y-1">
+                        <p className="font-bold">{award_title}</p>
+                        <Separator />
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Count:</span>
+                          <span className="font-medium">{value}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Rank:</span>
+                          <span className="font-medium">
+                            Top {(100 - percentile).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+              }
             />
             <Bar dataKey="count" fill="var(--color-count)" radius={4}>
               <LabelList

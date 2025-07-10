@@ -16,6 +16,7 @@ export interface UserAwardStat {
   award_type: string;
   award_title: string;
   count: number;
+  percentile: number;
 }
 
 export type UserAwardsStatsResponse = UserAwardStat[];

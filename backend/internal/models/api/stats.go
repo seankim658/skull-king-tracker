@@ -18,9 +18,10 @@ type SiteSummaryStatsResponse struct {
 
 // Represents a single award's statistics
 type UserAwardStat struct {
-	AwardType  string `json:"award_type"`
-	AwardTitle string `json:"award_title"`
-	Count      int    `json:"count"`
+	AwardType  string  `json:"award_type"`
+	AwardTitle string  `json:"award_title"`
+	Count      int     `json:"count"`
+	Percentile float64 `json:"percentile"`
 }
 
 type UserAwardsStatsResponse []UserAwardStat

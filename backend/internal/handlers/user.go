@@ -330,6 +330,7 @@ func (uph *UserProfileHandler) HandleGetUserAwardStats(w http.ResponseWriter, r 
 			AwardType:  dbAward.AwardType,
 			AwardTitle: awardTypeToTitle[dbAward.AwardType],
 			Count:      dbAward.AwardCount,
+			Percentile: dbAward.PercentilRank * 100,
 		}
 	}
 

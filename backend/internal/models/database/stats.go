@@ -41,6 +41,7 @@ type GameSummaryPlayerStats struct {
 
 // Summary of a single award type for a user
 type UserAwardStat struct {
-	AwardType  string `db:"award_type"`
-	AwardCount int    `db:"award_count"`
+	AwardType     string  `db:"award_type"`
+	AwardCount    int     `db:"award_count"`
+	PercentilRank float64 `db:"percentile_rank"`
 }
