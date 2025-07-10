@@ -16,12 +16,20 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 
 	apiRounds := make([]apiModels.RoundScorecard, len(data.Rounds))
 	currentRoundNum := 0
+
+	runningTotals := make(map[string]int)
+	for _, player := range data.Players {
+		runningTotals[player.GamePlayerID] = 0
+	}
+
 	for i, dbRound := range data.Rounds {
 		playerScores := make([]apiModels.PlayerRoundData, len(data.Players))
 		for j, dbPlayer := range data.Players {
 			playerScores[j] = apiModels.PlayerRoundData{
 				GamePlayerID: dbPlayer.GamePlayerID,
 			}
+
+			var currentRoundScore int = 0
 			if roundScores, ok := scoresMap[dbRound.RoundID]; ok {
 				if score, ok := roundScores[dbPlayer.GamePlayerID]; ok {
 					if score.BidAmount.Valid {
@@ -34,8 +42,13 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 					}
 					playerScores[j].RoundScore = &score.RoundScore
 					playerScores[j].BonusPoints = &score.BonusPointsApplied
+					currentRoundScore = score.RoundScore
 				}
 			}
+
+			runningTotals[dbPlayer.GamePlayerID] += currentRoundScore
+			currentTotal := runningTotals[dbPlayer.GamePlayerID]
+			playerScores[j].RunningTotal = &currentTotal
 		}
 
 		apiRounds[i] = apiModels.RoundScorecard{
@@ -68,7 +81,7 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 		GameID:                   data.Game.GameID,
 		GameStatus:               data.Game.Status,
 		CurrentScoreKeeperUserID: data.Game.CurrentScorekeeperUserID.String,
-		Players:                  buildGamePlayerResponses(data.Players),
+		Players:                  BuildGamePlayerResponses(data.Players),
 		Rounds:                   apiRounds,
 		CurrentRound:             currentRoundNum,
 		Asterisks:                apiAsterisks,
@@ -84,7 +97,7 @@ func DBScorecardToAPIResponse(data *dbModels.FullScorecardData) *apiModels.Score
 }
 
 // Private helper to convert DB player details to API player responses
-func buildGamePlayerResponses(dbPlayers []dbModels.GamePlayerDetails) []apiModels.GamePlayerResponse {
+func BuildGamePlayerResponses(dbPlayers []dbModels.GamePlayerDetails) []apiModels.GamePlayerResponse {
 	apiPlayers := make([]apiModels.GamePlayerResponse, len(dbPlayers))
 	for i, p := range dbPlayers {
 		apiPlayer := apiModels.GamePlayerResponse{

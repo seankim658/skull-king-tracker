@@ -265,67 +265,12 @@ func (sh *ScoringHandler) HandleSubmitTricks(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	opErr = db.SubmitScoresAndUpdateRound(ctx, tx, currentRound.RoundID, scores)
+	opErr = db.SubmitScoresAndUpdateRound(ctx, tx, gameID, currentRound.RoundID, scores)
 	if opErr != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save scores to the database")
 		responseSent = true
 		return
 	}
-
-  if currentRound.RoundNumber < 10 {
-    logger.Info().Msg("Round completed, creating next round")
-
-    gamePlayers, err := db.GetPlayersByGameID(ctx, tx, gameID)
-    if err != nil {
-      opErr = fmt.Errorf("failed to get game players for dealer rotation: %w", err)
-      ErrorResponse(w, r, http.StatusInternalServerError, "Could not prepare the next round")
-      responseSent = true
-      return
-    }
-
-    if len(gamePlayers) == 0 {
-      opErr = errors.New("no players found in game to determine next dealer")
-      ErrorResponse(w, r, http.StatusInternalServerError, "Could not prepare the next round: no players found")
-      responseSent = true
-      return
-    }
-
-    currentDealerIndex := -1
-    for i, p := range gamePlayers {
-      if p.GamePlayerID == currentRound.DealerGamePlayerID {
-        currentDealerIndex = i
-        break
-      }
-    }
-
-    if currentDealerIndex == -1 {
-      opErr = errors.New("could not find current dealer in player list")
-      ErrorResponse(w, r, http.StatusInternalServerError, "Could not prepare the next round: dealer not found")
-      responseSent = true
-      return
-    }
-
-    nextDealerIndex := (currentDealerIndex + 1) % len(gamePlayers)
-    nextDealerID := gamePlayers[nextDealerIndex].GamePlayerID
-    nextRoundNumber := currentRound.RoundNumber + 1
-
-    _, err = db.CreateRound(ctx, tx, gameID, nextDealerID, nextRoundNumber, false)
-    if err != nil {
-      opErr = fmt.Errorf("failed to create round %d: %w", nextRoundNumber, err)
-      ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the next round")
-      responseSent = true
-      return
-    }
-    logger.Info().Int(l.RoundKey, nextRoundNumber).Msg("Next round created successfully")
-  } else {
-    logger.Info().Msg("Final round completed, marking game as finished")
-    if err := db.UpdateGameStatus(ctx, tx, gameID, "completed"); err != nil {
-      opErr = fmt.Errorf("failed to mark game as completed: %w", err)
-      ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize the game")
-      responseSent = true
-      return
-    }
-  }
 
 	go broadcastScorecardUpdate(sh.SSEHub, gameID, logger)
 

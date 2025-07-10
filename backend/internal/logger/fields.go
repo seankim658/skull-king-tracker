@@ -89,9 +89,13 @@ const (
 	GuestPlayerNameKey = "guest_player_display_name"
 
 	// Game player
-	GamePlayerIDKey = "game_player_id"
-	SeatingOrderKey = "seating_order"
-	GameStatusKey   = "game_status"
+	GamePlayerIDKey   = "game_player_id"
+	GamePlayerNameKey = "player_name"
+	SeatingOrderKey   = "seating_order"
+	GameStatusKey     = "game_status"
+
+	// Awards
+	AwardTypeKey = "award_type"
 
 	// Notification
 	NotificationIDKey   = "notification_id"

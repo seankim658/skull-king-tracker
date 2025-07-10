@@ -66,14 +66,11 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	friendshipID, err := db.CreateFriendship(ctx, tx, requesterID, req.AddresseeID)
-	if err != nil {
-		opErr = err
+	createdNotification, err := db.SendFriendRequest(ctx, tx, requesterID, req.AddresseeID)
+	opErr = err
+	if opErr != nil {
 		if errors.Is(opErr, db.ErrFriendshipAlreadyExists) {
-			ErrorResponse(
-				w, r, http.StatusConflict,
-				"A pending or accepted friendship already exists with this user",
-			)
+			ErrorResponse(w, r, http.StatusConflict, "A pending or accepted friendship already exists with this user")
 		} else if errors.Is(opErr, db.ErrFriendshipBlocked) {
 			ErrorResponse(w, r, http.StatusForbidden, "Cannot send a friend request to this user")
 		} else {
@@ -83,36 +80,7 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 		return
 	}
 
-	actor, err := db.GetUserByID(ctx, tx, requesterID)
-	if err != nil {
-		opErr = fmt.Errorf("failed to get actor for notification: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Could not send friend request")
-		responseSent = true
-		return
-	}
-
-	actorDisplayName := actor.Username
-	if actor.DisplayName.Valid {
-		actorDisplayName = actor.DisplayName.String
-	}
-	message := fmt.Sprintf("%s wants to be your friend", actorDisplayName)
-
-	createdNotificationID, err := db.CreateNotification(
-		ctx, tx, req.AddresseeID, requesterID,
-		apiModels.NotificationTypeFriendRequest,
-		message, &friendshipID,
-	)
-	if err != nil {
-		opErr = err
-		ErrorResponse(
-			w, r, http.StatusInternalServerError,
-			"Friend reqeust sent, but failed to create a notification",
-		)
-		responseSent = true
-		return
-	}
-
-	broadcastNotification(ctx, tx, fh.SSEHub, createdNotificationID, req.AddresseeID, logger)
+	go broadcastNotificationEvent(fh.SSEHub, createdNotification, logger)
 
 	if !responseSent {
 		Respond(w, r, http.StatusCreated, nil, "Friendship request sent successfully")
@@ -167,8 +135,8 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		return
 	}
 
-	if friendship.AddresseeID != addresseeID {
-		opErr = errors.New("user not authorized to respond to this friend request")
+	if friendship.AddresseeID != addresseeID || friendship.Status != "pending" {
+		opErr = errors.New("user not authorized or request not pending")
 		ErrorResponse(
 			w, r, http.StatusForbidden,
 			"You are not authorized to respond to this friend request",
@@ -177,64 +145,22 @@ func (fh *FriendshipHandler) HandleRespondToFriendRequest(w http.ResponseWriter,
 		return
 	}
 
-	if friendship.Status != "pending" {
-		opErr = errors.New("friend request already actioned")
-		ErrorResponse(w, r, http.StatusConflict, "This friend request has already been actioned")
-		responseSent = true
-		return
-	}
-
-	var newStatus string
+	newStatus := "declined"
 	if req.Response == "accept" {
 		newStatus = "accepted"
-	} else {
-		// We're just assuming anything not explicitly an "accept" will decline the request
-		newStatus = "declined"
 	}
 	logger = logger.With().Str("response_action", newStatus).Logger()
 
-	err = db.UpdateFriendshipStatus(ctx, tx, friendshipID, newStatus)
-	if err != nil {
-		opErr = err
+	acceptedNotification, err := db.RespondToFriendRequest(ctx, tx, friendshipID, newStatus)
+	opErr = err
+	if opErr != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to respond to friend request")
 		responseSent = true
 		return
 	}
 
-	err = db.DeleteNotificationByFriendshipID(
-		ctx, tx, friendshipID,
-		apiModels.NotificationTypeFriendRequest,
-	)
-	if err != nil {
-		logger.Error().
-			Err(opErr).
-			Msg("Failed to delete original friend request notification, but proceeding")
-	}
-
-	if newStatus == "accepted" {
-		actor, userErr := db.GetUserByID(ctx, tx, addresseeID)
-		if userErr != nil {
-			opErr = fmt.Errorf("failed to get actor for accepted notificaiton: %w", userErr)
-			ErrorResponse(w, r, http.StatusInternalServerError, "Could not send acceptance notification")
-			responseSent = true
-			return
-		}
-
-		actorDisplayName := actor.Username
-		if actor.DisplayName.Valid {
-			actorDisplayName = actor.DisplayName.String
-		}
-		message := fmt.Sprintf("%s accepted your friend request", actorDisplayName)
-
-		acceptedNotificationID, err := db.CreateNotification(
-			ctx, tx, friendship.RequesterID, addresseeID,
-			"friend_accepted", message, &friendshipID,
-		)
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to create 'friend_accepted' notification")
-		} else {
-			broadcastNotification(ctx, tx, fh.SSEHub, acceptedNotificationID, friendship.RequesterID, logger)
-		}
+	if acceptedNotification != nil {
+		go broadcastNotificationEvent(fh.SSEHub, acceptedNotification, logger)
 	}
 
 	if !responseSent {

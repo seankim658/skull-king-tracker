@@ -184,8 +184,7 @@ func UpdateSessionStatus(
 }
 
 // Retrieves a game session by its ID
-func GetGameSessionByID(ctx context.Context, tx *sql.Tx, sessionID string) (*dbModels.GameSession, error) {
-	querier := GetQuerier(tx)
+func GetGameSessionByID(ctx context.Context, querier DBTX, sessionID string) (*dbModels.GameSession, error) {
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		sessionComponent,
@@ -354,4 +353,44 @@ func GetUserSessionHistory(
 	}
 
 	return history, nil
+}
+
+// Fetches all data required for the session details page
+func GetSessionDetails(
+	ctx context.Context,
+	tx *sql.Tx,
+	sessionID, viewerID string,
+) (*dbModels.SessionDetailData, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"GetSessionDetails",
+	).With().Str(l.SessionIDKey, sessionID).Str(l.ViewerUserIDKey, viewerID).Logger()
+
+	details := &dbModels.SessionDetailData{}
+
+	// 1. Get core session details
+	session, err := GetGameSessionByID(ctx, querier, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	details.Session = *session
+
+	// 2. Get all games for the session
+	games, err := GetGamesBySessionID(ctx, querier, sessionID, viewerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get games for session details: %w", err)
+	}
+	details.Games = games
+
+	// 3. Get the user-specific stats for this session
+	userStats, err := GetUserSessionStats(ctx, querier, viewerID, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user stats for session details: %w", err)
+	}
+	details.UserStats = *userStats
+
+	logger.Info().Msg("Successfully fetched all components for session details")
+	return details, nil
 }

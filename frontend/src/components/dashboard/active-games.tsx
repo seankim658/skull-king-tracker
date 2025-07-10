@@ -34,7 +34,14 @@ export function ActiveGames() {
   }
 
   if (!activeGames || activeGames.length === 0) {
-    return null;
+    return (
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Your Active Games</h2>
+        <Card className="flex items-center justify-between p-12">
+          <p className="text-center text-muted-foreground">No active games.</p>
+        </Card>
+      </section>
+    );
   }
 
   return (

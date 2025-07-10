@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +12,7 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -204,22 +203,22 @@ func (nh *NotificationHandler) HandleMarkNotificationUnread(w http.ResponseWrite
 	Respond(w, r, http.StatusNoContent, nil, "Notification marked as unread")
 }
 
-// Fetches a newly created notification, converts it, and sends it via SSE
-func broadcastNotification(
-	ctx context.Context,
-	tx *sql.Tx,
+// Converts a full notification object to its API model, marshals it into an SSE event payload,
+// broadcasts it to the recipient
+func broadcastNotificationEvent(
 	sseHub *sse.Hub,
-	notificationID,
-	recipientID string,
+	notification *dbModels.NotificationWithActor,
 	logger zerolog.Logger,
 ) {
-	dbNotif, err := db.GetNotificationWithActorByID(ctx, tx, notificationID)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to fetch created notification for SSE broadcast")
+	if notification == nil {
+		logger.Warn().Msg("Attempted to broadcast a nil notification")
 		return
 	}
 
-	apiNotif, err := modelConverters.DBNotificationWithActorToAPI(dbNotif)
+	recipientID := notification.RecipientUserID
+	logger = logger.With().Str(l.RequestIDKey, recipientID).Str(l.NotificationIDKey, notification.NotificationID).Logger()
+
+	apiNotif, err := modelConverters.DBNotificationWithActorToAPI(notification)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to convert notification for SSE broadcast")
 		return
@@ -237,7 +236,7 @@ func broadcastNotification(
 	}
 
 	sseHub.Broadcast(recipientID, string(jsonPayload))
-	logger.Info().Str(l.RecipientIDKey, recipientID).Msgf("Broadcasted '%s' event via SSE", ssePayload.Event)
+	logger.Info().Msgf("Broadcasted '%s' event via SSE", ssePayload.Event)
 }
 
 // Handles deleting a single notification
@@ -261,19 +260,30 @@ func (nh *NotificationHandler) HandleDeleteNotification(w http.ResponseWriter, r
 		return
 	}
 
-	// TODO : SHould use database transcation
-	err := db.DeleteNotificationByID(ctx, nil, notificationID, userID)
-	if err != nil {
-		if errors.Is(err, db.ErrNotificationNotFound) {
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not delete notification")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.DeleteNotificationByID(ctx, tx, notificationID, userID)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrNotificationNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "Notification not found or you do not have permission to delete it")
 		} else {
-			logger.Error().Err(err).Msg("Failed to delete notification")
+			logger.Error().Err(opErr).Msg("Failed to delete notification")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Could not delete notification")
 		}
+		responseSent = true
 		return
 	}
 
-	Respond(w, r, http.StatusNoContent, nil, "Notification deleted successfully")
+	if !responseSent {
+		Respond(w, r, http.StatusNoContent, nil, "Notification deleted successfully")
+		responseSent = true
+	}
 }
 
 // Handles deleting all notifications for the user
@@ -292,14 +302,26 @@ func (nh *NotificationHandler) HandleDeleteAllNotifications(w http.ResponseWrite
 		return
 	}
 
-	// TODO : Should use database transcation
-	deletedCount, err := db.DeleteAllNotificationsByUserID(ctx, nil, userID)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to delete all user notifications")
+	tx, txOk := StartTx(ctx, w, r, logger, "Could not clear notifications")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	var deletedCount int64
+	deletedCount, opErr = db.DeleteAllNotificationsByUserID(ctx, tx, userID)
+	if opErr != nil {
+		logger.Error().Err(opErr).Msg("Failed to delete all user notifications")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not clear notifications")
+		responseSent = true
 		return
 	}
 
-	message := fmt.Sprintf("Successfully cleared %d notifications", deletedCount)
-	Respond(w, r, http.StatusOK, nil, message)
+	if !responseSent {
+		message := fmt.Sprintf("Successfully cleared %d notifications", deletedCount)
+		Respond(w, r, http.StatusOK, nil, message)
+		responseSent = true
+	}
 }

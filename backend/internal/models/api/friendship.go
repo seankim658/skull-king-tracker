@@ -14,10 +14,14 @@ const (
 	FriendshipStatusAPIUnknown              FriendshipStatus = "unknown"
 )
 
+// --- Request Payloads ---
+
+// Request payload for accepting or declining a friend request
 type RespondToFriendRequest struct {
 	Response string `json:"response" validate:"required,oneof=accept decline"`
 }
 
+// Request payload for sending a new friend request
 type SendFriendRequest struct {
 	AddresseeID string `json:"addressee_id" validate:"required,uuid"`
 }

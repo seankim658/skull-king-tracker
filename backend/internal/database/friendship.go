@@ -12,6 +12,91 @@ import (
 
 const friendshipComponent = "database-friendship"
 
+// Handles the full process of creating a pending friendship and its associated friend request
+func SendFriendRequest(ctx context.Context, tx *sql.Tx, requesterID, addresseeID string) (*dbModels.NotificationWithActor, error) {
+	// 1. Create the friendship record
+	friendshipID, err := CreateFriendship(ctx, tx, requesterID, addresseeID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Get actor details for the notification message
+	actor, err := GetUserByID(ctx, tx, requesterID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get actor for notification: %w", err)
+	}
+
+	actorDisplayName := actor.Username
+	if actor.DisplayName.Valid {
+		actorDisplayName = actor.DisplayName.String
+	}
+	message := fmt.Sprintf("%s wants to be your friend", actorDisplayName)
+
+	// 3. Create the notification record
+	notificationID, err := CreateNotification(
+		ctx, tx, addresseeID, requesterID,
+		"friend_request", message, &friendshipID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("friend request sent, but failed to create notification: %w", err)
+	}
+
+	// 4. Fetch the full notification to return it for SSE broadcasting
+	createdNotification, err := GetNotificationWithActorByID(ctx, tx, notificationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch created notification: %w", err)
+	}
+
+	return createdNotification, nil
+}
+
+// Handles the full process of responding to a friend request
+func RespondToFriendRequest(ctx context.Context, tx *sql.Tx, friendshipID, newStatus string) (*dbModels.NotificationWithActor, error) {
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		friendshipComponent,
+		"RespondToFriendRequest",
+	).With().Str(l.FriendshipIDKey, friendshipID).Str(l.FriendshipStatusKey, newStatus).Logger()
+
+	if err := UpdateFriendshipStatus(ctx, tx, friendshipID, newStatus); err != nil {
+		return nil, fmt.Errorf("failed to update friendship status: %w", err)
+	}
+
+	if err := DeleteNotificationByFriendshipID(ctx, tx, friendshipID, "friend_request"); err != nil {
+		logger.Warn().Err(err).Msg("Failed to delete original friend request notification")
+	}
+
+	if newStatus == "accepted" {
+		friendship, err := GetFriendshipByID(ctx, tx, friendshipID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get friendship details for acceptance notification: %w", err)
+		}
+		actor, err := GetUserByID(ctx, tx, friendship.AddresseeID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get actor details for acceptance notification: %w", err)
+		}
+
+		actorDisplayName := actor.Username
+		if actor.DisplayName.Valid {
+			actorDisplayName = actor.DisplayName.String
+		}
+		message := fmt.Sprintf("%s accepted your friend request", actorDisplayName)
+
+		notificationID, err := CreateNotification(
+			ctx, tx, friendship.RequesterID, friendship.AddresseeID,
+			"friend_accepted", message, &friendshipID,
+		)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to create 'friend_accepted' notification")
+			return nil, nil
+		}
+
+		return GetNotificationWithActorByID(ctx, tx, notificationID)
+	}
+
+	return nil, nil
+}
+
 // Returns a users friends
 func CountFriends(ctx context.Context, tx *sql.Tx, userID string) (int, error) {
 	querier := GetQuerier(tx)

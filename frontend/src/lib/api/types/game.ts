@@ -61,6 +61,7 @@ export interface PlayerRoundData {
   bid_amount: number | null;
   tricks_taken: number | null;
   round_score: number | null;
+  running_total?: number | null;
   bonus_points: number | null;
 }
 
@@ -174,4 +175,23 @@ export interface PlayerGameAsterisk {
   game_player_id: string;
   reason?: string | null;
   created_at: string;
+}
+
+/**
+ * Represents a special award given at the end of the game.
+ */
+export interface GameAward {
+  title: string;
+  player_name: string;
+  value: string;
+  description: string;
+}
+
+/**
+ * Response for the end-of-game summary screen.
+ */
+export interface GameSummaryResponse {
+  winner_name: string;
+  final_scores: GamePlayerResponse[];
+  awards: GameAward[];
 }

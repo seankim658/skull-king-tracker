@@ -25,7 +25,10 @@ var (
 	ErrFriendshipBlocked       = errors.New("friendship blocked")
 
 	// Game
-	ErrGameNotFound = errors.New("game not found")
+	ErrGameNotFound          = errors.New("game not found")
+	ErrGameNotInPendingState = errors.New("game is not in pending state")
+	ErrGameMissingDealer     = errors.New("game setup is incomplete, a starting dealer has not been set")
+	ErrGameNotEnoughPlayers  = errors.New("cannot start a game with fewer than 2 player")
 
 	// Round
 	ErrNoRoundsFound = errors.New("no rounds found for this game")

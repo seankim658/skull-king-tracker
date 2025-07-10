@@ -60,7 +60,7 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
                 </Tooltip>
               </TooltipProvider>
             )}
-            <div className="flex flex-col items-start justify-start gap-1">
+            <div className="flex flex-col items-start justify-start">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Swords className="h-3.5 w-3.5" />
                 <span>Bid: {score?.bid_amount ?? "-"}</span>
@@ -73,8 +73,11 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
                 <Star className="h-3.5 w-3.5" />
                 <span>Bonus: {score?.bonus_points ?? 0}</span>
               </div>
-              <div className="font-bold text-lg mt-1">
-                {score?.round_score ?? 0}
+              <div className="font-bold text-md mt-1 mb-0">
+                Round: {score?.round_score ?? 0}
+              </div>
+              <div className="font-bold text-md">
+                Total: {score?.running_total ?? 0}
               </div>
             </div>
           </TableCell>

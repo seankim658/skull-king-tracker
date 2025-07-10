@@ -230,7 +230,7 @@ export function AddPlayersPage() {
 
             <div>
               <div className="relative inline-flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-semibold">Add a Guest</h3>
+                <h3 className="text-lg font-semibold mr-2">Add a Guest</h3>
                 <InfoTooltip content="Guests are for players who do not have an account. Their scores will be tracked for this game, but their long-term stats will not be saved and they cannot be made scorekeeper." />
               </div>
               <form

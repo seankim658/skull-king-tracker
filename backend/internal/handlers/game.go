@@ -10,6 +10,8 @@ import (
 	db "github.com/seankim658/skullking/internal/database"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
+	modelConverters "github.com/seankim658/skullking/internal/models/convert"
+	"github.com/seankim658/skullking/internal/rules"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -351,77 +353,37 @@ func (gh *GameHandler) HandleStartGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger); !authorized {
+		return
+	}
+
 	tx, txOk := StartTx(ctx, w, r, logger, "Failed to start game")
 	if !txOk {
 		return
 	}
+
 	var opErr error
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
-	game, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger)
-	if !authorized {
-		opErr = errors.New("authorization check failed")
-		responseSent = true
-		return
-	}
-
-	if game.Status != "pending" {
-		opErr = fmt.Errorf("game not in pending state: %s", game.Status)
-		ErrorResponse(
-			w, r, http.StatusConflict,
-			fmt.Sprintf("Cannot start game because its status is already '%s'", game.Status),
-		)
-		responseSent = true
-		return
-	}
-
-	if !game.StartingDealerGamePlayerID.Valid {
-		opErr = errors.New("cannot start game without a starting dealer")
-		ErrorResponse(w, r, http.StatusBadRequest, "Game setup is incomplete. Please set a starting dealer")
-		responseSent = true
-		return
-	}
-
-	_, err := db.CreateRound(
-		ctx,
-		tx,
-		gameID,
-		game.StartingDealerGamePlayerID.String,
-		1, false,
-	)
-	if err != nil {
-		opErr = fmt.Errorf("failed to create the first round: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Could not create the first round to start the game")
-		responseSent = true
-		return
-	}
-	logger.Info().Msg("Successfully created round 1 for the game")
-
-	players, err := db.GetPlayersByGameID(ctx, tx, gameID)
-	if err != nil {
-		opErr = fmt.Errorf("failed to get players for game start: %w", err)
-		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve players to start the game")
-		responseSent = true
-		return
-	}
-	if len(players) < 2 {
-		opErr = errors.New("not enough players to start game")
-		ErrorResponse(w, r, http.StatusBadRequest, "Cannot start a game with fewer than 2 players")
-		responseSent = true
-		return
-	}
-
-	if err := db.UpdateGameStatus(ctx, nil, gameID, "active"); err != nil {
-		opErr = fmt.Errorf("failed to update game status to active: %w", err)
-		logger.Error().Err(opErr).Msg("Failed to update game status to active")
-		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the game")
+	opErr = db.StartGame(ctx, tx, gameID)
+	if opErr != nil {
+		switch {
+		case errors.Is(opErr, db.ErrGameNotInPendingState):
+			ErrorResponse(w, r, http.StatusConflict, opErr.Error())
+		case errors.Is(opErr, db.ErrGameNotEnoughPlayers), errors.Is(opErr, db.ErrGameMissingDealer):
+			ErrorResponse(w, r, http.StatusBadRequest, opErr.Error())
+		default:
+			logger.Error().Err(opErr).Msg("An unexpected error occurred while starting the game")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to start the game due to an internal error")
+		}
 		responseSent = true
 		return
 	}
 
 	if !responseSent {
 		Respond(w, r, http.StatusOK, nil, "Game started successfully")
+		responseSent = true
 	}
 }
 
@@ -749,6 +711,12 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 
 	apiHistory := make([]apiModels.GameHistoryItem, 0, len(dbHistory))
 	for _, h := range dbHistory {
+		var awards []apiModels.GameHistoryAward
+		if h.AwardsWon != nil {
+			if err := json.Unmarshal(h.AwardsWon, &awards); err != nil {
+				logger.Error().Err(err).Str(l.GameIDKey, h.GameID).Msg("Failed to unmarshal awards for game history")
+			}
+		}
 		item := apiModels.GameHistoryItem{
 			GameID:            h.GameID,
 			GameDate:          h.GameDate,
@@ -759,6 +727,7 @@ func (gh *GameHandler) HandleGetGameHistory(w http.ResponseWriter, r *http.Reque
 			TotalPlayers:      int(h.TotalPlayers.Int32),
 			TotalAsterisks:    int(h.TotalAsterisks.Int32),
 			ScorekeeperName:   h.ScorekeeperName.String,
+			AwardsWon:         awards,
 		}
 		if h.SessionName.Valid {
 			item.SessionName = &h.SessionName.String
@@ -872,4 +841,83 @@ func (gh *GameHandler) HandleGetAsterisks(w http.ResponseWriter, r *http.Request
 	}
 
 	Respond(w, r, http.StatusOK, apiAsterisks, "Asterisks retrieved successfully")
+}
+
+// Retrieves a calculated summary of a completed game
+// Path: /games/{game_id}/summary
+// Method: GET
+func (gh *GameHandler) HandleGetGameSummary(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"HandleGetGameSummary",
+	)
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.GameIDKey, gameID).Logger()
+
+	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !authOk {
+		return
+	}
+
+	game, err := db.GetGameByID(ctx, nil, gameID)
+	if err != nil {
+		if errors.Is(err, db.ErrGameNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Game not found")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve game details")
+		}
+		return
+	}
+
+	if game.Status != "completed" {
+		ErrorResponse(w, r, http.StatusConflict, "Game summary is only available for completed games")
+		return
+	}
+
+	isPlayer, err := db.IsUserInGame(ctx, nil, userID, gameID)
+	if err != nil || !isPlayer {
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to view this game summary")
+		return
+	}
+
+	playerStats, err := db.GetGameSummaryStats(ctx, nil, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get game summary stats from database")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not calculate game summary.")
+		return
+	}
+
+	if len(playerStats) == 0 {
+		ErrorResponse(w, r, http.StatusNotFound, "No player data found for this game summary.")
+		return
+	}
+
+	var awards []apiModels.GameAward
+	if len(playerStats) >= 4 {
+		awards = rules.CalculateGameAwards(playerStats)
+	} else {
+		awards = []apiModels.GameAward{}
+	}
+
+	finalScores, err := db.GetPlayersByGameID(ctx, nil, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get final player scores for summary")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve final scores.")
+		return
+	}
+	apiFinalScores := modelConverters.BuildGamePlayerResponses(finalScores)
+
+	response := apiModels.GameSummaryResponse{
+		WinnerName:  playerStats[0].DisplayName,
+		FinalScores: apiFinalScores,
+		Awards:      awards,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Game summary retrieved successfully.")
 }

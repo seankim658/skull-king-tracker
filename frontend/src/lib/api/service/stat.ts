@@ -1,5 +1,9 @@
 import { client } from "../client";
-import type { ApiResponse, SiteSummaryStatsResponse } from "../types";
+import type {
+  UserAwardsStatsResponse,
+  ApiResponse,
+  SiteSummaryStatsResponse,
+} from "../types";
 
 export const statsAPI = {
   /**
@@ -7,6 +11,16 @@ export const statsAPI = {
    */
   getSiteSummaryStats: (): Promise<ApiResponse<SiteSummaryStatsResponse>> =>
     client<SiteSummaryStatsResponse>("/stats/summary", {
+      method: "GET",
+    }),
+
+  /**
+   * Fetches the awards summary for a specific user.
+   */
+  getUserAwardsStats: (
+    userId: string,
+  ): Promise<ApiResponse<UserAwardsStatsResponse>> =>
+    client<UserAwardsStatsResponse>(`/users/${userId}/stats/awards`, {
       method: "GET",
     }),
 };

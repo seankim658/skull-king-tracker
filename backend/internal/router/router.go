@@ -82,6 +82,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	// Scoring routes
 	scoringHandler := h.NewScoringHandler(cfg, sseHub)
 	gameSubRouter.HandleFunc("/{game_id}/scorecard", scoringHandler.HandleGetScorecardState).Methods(http.MethodGet)
+	gameSubRouter.HandleFunc("/{game_id}/summary", gameHandler.HandleGetGameSummary).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/rounds/{round_number:[0-9]+}/bids", scoringHandler.HandleSubmitBids).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/{game_id}/rounds/{round_number:[0-9]+}/tricks", scoringHandler.HandleSubmitTricks).Methods(http.MethodPost)
 
@@ -98,6 +99,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	userSubRouter := apiRouter.PathPrefix("/users").Subrouter()
 	userSubRouter.HandleFunc("/{user_id}/profile", userHandler.HandleGetUserProfile).Methods(http.MethodGet)
 	userSubRouter.HandleFunc("/{user_id}/friends", userHandler.HandleGetFriendsList).Methods(http.MethodGet)
+	userSubRouter.HandleFunc("/{user_id}/stats/awards", userHandler.HandleGetUserAwardStats).Methods(http.MethodGet)
 	userSubRouter.HandleFunc("/search", userHandler.HandleSearchUsers).Methods(http.MethodGet)
 
 	// Friendship routes

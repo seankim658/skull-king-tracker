@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
@@ -277,4 +278,91 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 	}
 
 	Respond(w, r, http.StatusOK, apiFriends, "Friends list retrieved successfully")
+}
+
+var awardTypeToTitle = map[string]string{
+	"oracle":          "The Oracle",
+	"gambler":         "The Gambler",
+	"treasure-hunter": "The Treasure Hunter",
+	"scallywag":       "The Scallywag",
+	"buccaneer":       "The Buccaneer",
+	"maverick":        "The Maverick",
+	"conservative":    "The Conservative",
+}
+
+// Retrieves the awards statistics for a user
+// Path: /users/{user_id}/stats/awards
+// Method: GET
+func (uph *UserProfileHandler) HandleGetUserAwardStats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		userComponent,
+		"HandleGetUserAwardStats",
+	)
+
+	profileUserID, ok := PathVar(w, r, "user_id")
+	if !ok {
+		return
+	}
+	logger = logger.With().Str(l.ProfileUserIDKey, profileUserID).Logger()
+
+	viewerUserID, _ := GetAuthenticatedUserIDFromSession(w, r, logger)
+	authorized, err := isAuthorizedToViewStats(ctx, profileUserID, viewerUserID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to verify stats privacy")
+		return
+	}
+	if !authorized {
+		ErrorResponse(w, r, http.StatusForbidden, "You are not authorized to view these statistics")
+		return
+	}
+
+	dbAwards, err := db.GetUserAwardsSummary(ctx, nil, profileUserID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve award statistics")
+		return
+	}
+
+	apiResponse := make(apiModels.UserAwardsStatsResponse, len(dbAwards))
+	for i, dbAward := range dbAwards {
+		apiResponse[i] = apiModels.UserAwardStat{
+			AwardType:  dbAward.AwardType,
+			AwardTitle: awardTypeToTitle[dbAward.AwardType],
+			Count:      dbAward.AwardCount,
+			Percentile: dbAward.PercentilRank * 100,
+		}
+	}
+
+	Respond(w, r, http.StatusOK, apiResponse, "User awards statistics retrieved successfully")
+}
+
+// Helper to check if a viewer can see a target user's stats
+func isAuthorizedToViewStats(ctx context.Context, targetUserID, viewerUserID string) (bool, error) {
+	if targetUserID == viewerUserID {
+		return true, nil
+	}
+
+	targetUser, err := db.GetUserByID(ctx, nil, targetUserID)
+	if err != nil {
+		return false, err
+	}
+
+	switch targetUser.StatsPrivacy {
+	case "public":
+		return true, nil
+	case "private":
+		return false, nil
+	case "friends_only":
+		if viewerUserID == "" {
+			return false, nil
+		}
+		status, err := db.GetFriendshipStatus(ctx, nil, viewerUserID, targetUserID)
+		if err != nil {
+			return false, err
+		}
+		return status == dbModels.DBFriendshipStatusFriends, nil
+	default:
+		return false, nil
+	}
 }

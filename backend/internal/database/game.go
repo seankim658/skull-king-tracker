@@ -75,6 +75,47 @@ func CreateGame(
 	return returnedGameID, nil
 }
 
+// Validates that a game can be started, creates the first round, and updates the game's status to 'active'
+func StartGame(ctx context.Context, tx *sql.Tx, gameID string) error {
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"StartGame",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	game, err := GetGameByID(ctx, tx, gameID)
+	if err != nil {
+		return err
+	}
+	if game.Status != "pending" {
+		return ErrGameNotInPendingState
+	}
+	if !game.StartingDealerGamePlayerID.Valid {
+		return ErrGameMissingDealer
+	}
+
+	players, err := GetPlayersByGameID(ctx, tx, gameID)
+	if err != nil {
+		return fmt.Errorf("failed to get players for game start: %w", err)
+	}
+	if len(players) < 2 {
+		return ErrGameNotEnoughPlayers
+	}
+
+	_, err = CreateRound(ctx, tx, gameID, game.StartingDealerGamePlayerID.String, 1, false)
+	if err != nil {
+		return fmt.Errorf("failed to create the first round: %w", err)
+	}
+	logger.Info().Msg("Successfully created round 1 for game")
+
+	if err := UpdateGameStatus(ctx, tx, gameID, "active"); err != nil {
+		return fmt.Errorf("failed to update game status to active: %w", err)
+	}
+	logger.Info().Msg("Game status updated to active")
+
+	return nil
+}
+
 // Finds a guest by display name or creates a new one
 func FindOrCreateGuestPlayer(ctx context.Context, tx *sql.Tx, displayName string) (string, error) {
 	querier := GetQuerier(tx)
@@ -272,6 +313,12 @@ func UpdateGameStatus(ctx context.Context, tx *sql.Tx, gameID, status string) er
 		return ErrGameNotFound
 	}
 
+	if status == "completed" {
+		if err := UpdateFinishingPositions(ctx, querier, gameID); err != nil {
+			logger.Warn().Err(err).Msg("Failed to update finishing positions after completing game")
+		}
+	}
+
 	logger.Info().Msg("Game status updated successfully")
 	return nil
 }
@@ -342,10 +389,9 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
 // Retrieves all games for a given session, including winner information
 func GetGamesBySessionID(
 	ctx context.Context,
-	tx *sql.Tx,
+	querier DBTX,
 	sessionID, viewerID string,
 ) ([]dbModels.GameWithWinner, error) {
-	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		gameComponent,
@@ -663,18 +709,8 @@ func IsUserInGame(ctx context.Context, tx *sql.Tx, userID, gameID string) (bool,
 	return exists, nil
 }
 
-type ActiveGameDetails struct {
-	GameID          string
-	SessionName     sql.NullString
-	ScorekeeperName sql.NullString
-	IsScorekeeper   bool
-	CreatedAt       time.Time
-	CurrentRound    sql.NullInt32
-	PlayersJSON     []byte
-}
-
 // Retrieves all active games a user is participating in
-func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]ActiveGameDetails, error) {
+func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbModels.ActiveGameDetails, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -725,9 +761,9 @@ func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]A
 	}
 	defer rows.Close()
 
-	var games []ActiveGameDetails
+	var games []dbModels.ActiveGameDetails
 	for rows.Next() {
-		var game ActiveGameDetails
+		var game dbModels.ActiveGameDetails
 		if err := rows.Scan(
 			&game.GameID,
 			&game.SessionName,
@@ -862,7 +898,7 @@ func GetUserGameHistory(
       GROUP BY game_id
     ),
     AsteriskCounts AS (
-      SELECT 
+      SELECT
         pga.game_id,
         gp.user_id,
         COUNT(pga.player_game_asterisk_id) as total_asterisks
@@ -870,6 +906,26 @@ func GetUserGameHistory(
       JOIN game_players gp ON pga.game_player_id = gp.game_player_id
       WHERE gp.user_id IS NOT NULL
       GROUP BY pga.game_id, gp.user_id
+    ),
+    PlayerAwards AS (
+      SELECT
+        gpa.game_id,
+        gp.user_id,
+        jsonb_agg(jsonb_build_object('type', gpa.award_type, 'title',
+          CASE gpa.award_type
+            WHEN 'oracle' THEN 'The Oracle'
+            WHEN 'gambler' THEN 'The Gambler'
+            WHEN 'treasure-hunter' THEN 'The Treasure Hunter'
+            WHEN 'scallywag' THEN 'The Scallywag'
+            WHEN 'buccaneer' THEN 'The Buccaneer'
+            WHEN 'maverick' THEN 'The Maverick'
+            WHEN 'conservative' THEN 'The Conservative'
+            ELSE gpa.award_type
+          END
+        )) AS awards_won
+      FROM game_player_awards gpa
+      JOIN game_players gp ON gpa.game_player_id = gp.game_player_id
+      GROUP BY gpa.game_id, gp.user_id
     )
     SELECT
       g.game_id,
@@ -881,12 +937,14 @@ func GetUserGameHistory(
       COALESCE(ugs.zero_differential, 0) as zero_differential,
       gpc.total_players,
       COALESCE(u_sk.display_name, u_sk.username) as scorekeeper_name,
-      COALESCE(ac.total_asterisks, 0) as total_asterisks
+      COALESCE(ac.total_asterisks, 0) as total_asterisks,
+      pa.awards_won
     FROM games g
     JOIN game_players gp ON g.game_id = gp.game_id
     LEFT JOIN UserGameStats ugs ON g.game_id = ugs.game_id AND gp.user_id = ugs.user_id
     LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
     LEFT JOIN AsteriskCounts ac ON g.game_id = ac.game_id AND gp.user_id = ac.user_id
+    LEFT JOIN PlayerAwards pa ON g.game_id = pa.game_id AND gp.user_id = pa.user_id
     LEFT JOIN users u_sk ON g.current_scorekeeper_user_id = u_sk.user_id
     LEFT JOIN game_sessions gs ON g.session_id = gs.session_id
     WHERE %s
@@ -907,8 +965,8 @@ func GetUserGameHistory(
 		var h dbModels.UserGameHistoryRow
 		if err := rows.Scan(
 			&h.GameID, &h.SessionName, &h.GameDate, &h.FinishingPosition,
-			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential,
-			&h.TotalPlayers, &h.ScorekeeperName, &h.TotalAsterisks,
+			&h.TotalPoints, &h.RoundsHit, &h.ZeroDifferential, &h.TotalPlayers,
+			&h.ScorekeeperName, &h.TotalAsterisks, &h.AwardsWon,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan game history row")
 			return nil, fmt.Errorf("error scanning game history row: %w", err)
@@ -991,4 +1049,37 @@ func GetAsterisksByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbM
 
 	logger.Info().Int(l.CountKey, len(asterisks)).Msg("Game asterisks retrieved successfully")
 	return asterisks, nil
+}
+
+// Calculates and sets the finishing position for all players in a completed game
+func UpdateFinishingPositions(ctx context.Context, tx DBTX, gameID string) error {
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"UpdateFinishingPositions",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	query := `
+  WITH player_ranks AS (
+    SELECT
+      game_player_id,
+      RANK() OVER (ORDER BY final_score DESC) as finishing_position
+    FROM game_players
+    WHERE game_id = $1
+  )
+  UPDATE game_players gp
+  SET finishing_position = pr.finishing_position
+  FROM player_ranks pr
+  WHERE gp.game_player_id = pr.game_player_id;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update finishing positions")
+
+	_, err := tx.ExecContext(ctx, query, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute update for finishing positions")
+		return fmt.Errorf("error updating finishing positions for game %s: %w", gameID, err)
+	}
+
+	logger.Info().Msg("Finishing positions updated successfully")
+	return nil
 }
