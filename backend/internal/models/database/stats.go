@@ -32,6 +32,11 @@ type GameSummaryPlayerStats struct {
 	PointsFromCorrectBids int
 	TricksFromCorrectBids int
 	AvgBid                sql.NullFloat64
+	RoundScoreVariance    sql.NullFloat64
+	PointsLastThreeRounds int
+	BiggestBust           int
+	FailedZeroBids        int
+	TotalAsterisks        int
 }
 
 // Summary of a single award type for a user

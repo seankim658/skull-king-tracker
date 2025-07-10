@@ -158,9 +158,15 @@ func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMo
       COALESCE(STDDEV_SAMP(prs.bid_amount), 0.0) as bid_stddev,
       COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken AND prs.bid_amount > 0 THEN prs.round_score ELSE 0 END), 0)::int as points_from_correct_bids,
       COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken AND prs.bid_amount > 0 THEN prs.tricks_taken ELSE 0 END), 0)::int as tricks_from_correct_bids,
-      COALESCE(AVG(prs.bid_amount), 0.0) as avg_bid
+      COALESCE(AVG(prs.bid_amount), 0.0) as avg_bid,
+      COALESCE(VAR_SAMP(prs.round_score), 0.0) as round_score_variance,
+      COALESCE(SUM(CASE WHEN r.round_number >= 8 THEN prs.round_score ELSE 0 END), 0)::int as points_last_three_rounds,
+      COALESCE(MAX(ABS(prs.bid_amount - prs.tricks_taken)), 0)::int as biggest_bust,
+      COALESCE(SUM(CASE WHEN prs.bid_amount = 0 AND prs.tricks_taken != 0 THEN 1 ELSE 0 END), 0)::int as failed_zero_bids,
+      (SELECT COUNT(*) FROM player_game_asterisks pga WHERE pga.game_player_id = gp.game_player_id)::int as total_asterisks
     FROM game_players gp
     LEFT JOIN player_round_scores prs ON gp.game_player_id = prs.game_player_id
+    LEFT JOIN rounds r ON prs.round_id = r.round_id
     LEFT JOIN users u ON gp.user_id = u.user_id
     LEFT JOIN guest_players g ON gp.guest_player_id = g.guest_player_id
     WHERE gp.game_id = $1
@@ -194,6 +200,11 @@ func GetGameSummaryStats(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMo
 			&s.PointsFromCorrectBids,
 			&s.TricksFromCorrectBids,
 			&s.AvgBid,
+			&s.RoundScoreVariance,
+			&s.PointsLastThreeRounds,
+			&s.BiggestBust,
+			&s.FailedZeroBids,
+			&s.TotalAsterisks,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan game summary stats row")
 			return nil, fmt.Errorf("error scanning game summary stats row: %w", err)
