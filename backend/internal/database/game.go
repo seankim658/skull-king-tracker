@@ -313,6 +313,12 @@ func UpdateGameStatus(ctx context.Context, tx *sql.Tx, gameID, status string) er
 		return ErrGameNotFound
 	}
 
+	if status == "completed" {
+		if err := UpdateFinishingPositions(ctx, querier, gameID); err != nil {
+			logger.Warn().Err(err).Msg("Failed to update finishing positions after completing game")
+		}
+	}
+
 	logger.Info().Msg("Game status updated successfully")
 	return nil
 }
@@ -1043,4 +1049,37 @@ func GetAsterisksByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbM
 
 	logger.Info().Int(l.CountKey, len(asterisks)).Msg("Game asterisks retrieved successfully")
 	return asterisks, nil
+}
+
+// Calculates and sets the finishing position for all players in a completed game
+func UpdateFinishingPositions(ctx context.Context, tx DBTX, gameID string) error {
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"UpdateFinishingPositions",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	query := `
+  WITH player_ranks AS (
+    SELECT
+      game_player_id,
+      RANK() OVER (ORDER BY final_score DESC) as finishing_position
+    FROM game_players
+    WHERE game_id = $1
+  )
+  UPDATE game_players gp
+  SET finishing_position = pr.finishing_position
+  FROM player_ranks pr
+  WHERE gp.game_player_id = pr.game_player_id;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to update finishing positions")
+
+	_, err := tx.ExecContext(ctx, query, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute update for finishing positions")
+		return fmt.Errorf("error updating finishing positions for game %s: %w", gameID, err)
+	}
+
+	logger.Info().Msg("Finishing positions updated successfully")
+	return nil
 }

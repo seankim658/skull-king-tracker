@@ -898,7 +898,12 @@ func (gh *GameHandler) HandleGetGameSummary(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	awards := rules.CalculateGameAwards(playerStats)
+	var awards []apiModels.GameAward
+	if len(playerStats) >= 4 {
+		awards = rules.CalculateGameAwards(playerStats)
+	} else {
+		awards = []apiModels.GameAward{}
+	}
 
 	finalScores, err := db.GetPlayersByGameID(ctx, nil, gameID)
 	if err != nil {

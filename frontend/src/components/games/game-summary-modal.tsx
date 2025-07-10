@@ -91,7 +91,7 @@ export function GameSummaryModal({
 
     const topThree = summaryData.final_scores
       .slice()
-      .sort((a, b) => a.final_score - b.final_score)
+      .sort((a, b) => b.final_score - a.final_score)
       .slice(0, 3);
 
     return (
