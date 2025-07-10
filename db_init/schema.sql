@@ -140,6 +140,7 @@ CREATE TABLE game_player_awards (
     game_player_award_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
     game_player_id UUID NOT NULL REFERENCES game_players(game_player_id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
     award_type VARCHAR(50) NOT NULL,
     award_value VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -233,6 +234,7 @@ CREATE INDEX idx_player_game_asterisks_game_id ON player_game_asterisks(game_id)
 
 CREATE INDEX idx_game_player_awards_game_id ON game_player_awards(game_id);
 CREATE INDEX idx_game_player_awards_game_player_id ON game_player_awards(game_player_id);
+CREATE INDEX idx_game_player_awards_user_award_type ON game_player_awards(user_id, award_type);
 
 CREATE INDEX idx_user_notifications_recipient_user_id ON user_notifications(recipient_user_id);
 CREATE INDEX idx_user_notifications_is_read ON user_notifications(recipient_user_id, is_read);

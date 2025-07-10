@@ -231,13 +231,10 @@ func GetUserAwardsSummary(ctx context.Context, tx *sql.Tx, userID string) ([]dbM
 	).With().Str(l.UserIDKey, userID).Logger()
 
 	query := `
-  SELECT
-    gpa.award_type,
-    COUNT(gpa.game_player_award_id) as award_count
-  FROM game_player_awards gpa
-  JOIN game_players gp ON gpa.game_player_id = gp.game_player_id
-  WHERE gp.user_id = $1
-  GROUP BY gpa.award_type
+  SELECT award_type, COUNT(*) as award_count
+  FROM game_player_awards
+  WHERE user_id = $1
+  GROUP BY award_type
   ORDER BY award_count DESC;
   `
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to retrieve user awards summary")
