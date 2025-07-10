@@ -97,51 +97,64 @@ export function GameSummaryModal({
     return (
       <div className="space-y-6">
         {/* Podium */}
-        <div className="flex justify-center items-end gap-4 p-4 bg-muted/50 rounded-lg">
-          {topThree[1] && (
-            <div className="text-center">
-              <p className="text-2xl">🥈</p>
-              <UserAvatar
-                displayName={topThree[1].display_name}
-                avatarUrl={topThree[1].avatar_url}
-                className="h-16 w-16 mx-auto border-2 border-slate-400"
-              />
-              <p className="font-semibold mt-1">{topThree[1].display_name}</p>
-              <p className="text-sm text-muted-foreground">
-                {topThree[1].final_score} pts
-              </p>
-            </div>
-          )}
-          {topThree[0] && (
-            <div className="text-center">
-              <p className="text-4xl">🥇</p>
-              <UserAvatar
-                displayName={topThree[0].display_name}
-                avatarUrl={topThree[0].avatar_url}
-                className="h-20 w-20 mx-auto border-4 border-amber-400"
-              />
-              <p className="text-lg font-bold mt-1">
-                {topThree[0].display_name}
-              </p>
-              <p className="text-muted-foreground">
-                {topThree[0].final_score} pts
-              </p>
-            </div>
-          )}
-          {topThree[2] && (
-            <div className="text-center">
-              <p className="text-2xl">🥉</p>
-              <UserAvatar
-                displayName={topThree[2].display_name}
-                avatarUrl={topThree[2].avatar_url}
-                className="h-16 w-16 mx-auto border-2 border-amber-600"
-              />
-              <p className="font-semibold mt-1">{topThree[2].display_name}</p>
-              <p className="text-sm text-muted-foreground">
-                {topThree[2].final_score} pts
-              </p>
-            </div>
-          )}
+        <div className="grid grid-cols-3 items-end gap-2 p-4 bg-muted/50 rounded-lg">
+          {/* 2nd Place Slot */}
+          <div className="text-center">
+            {topThree[1] && (
+              <>
+                <p className="text-2xl">🥈</p>
+                <UserAvatar
+                  displayName={topThree[1].display_name}
+                  avatarUrl={topThree[1].avatar_url}
+                  className="h-16 w-16 mx-auto border-2 border-slate-400"
+                />
+                <p className="font-semibold mt-1 truncate">
+                  {topThree[1].display_name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {topThree[1].final_score} pts
+                </p>
+              </>
+            )}
+          </div>
+          {/* 1st Place */}
+          <div className="text-center">
+            {topThree[0] && (
+              <>
+                <p className="text-4xl">🥇</p>
+                <UserAvatar
+                  displayName={topThree[0].display_name}
+                  avatarUrl={topThree[0].avatar_url}
+                  className="h-20 w-20 mx-auto border-4 border-amber-400"
+                />
+                <p className="text-lg font-bold mt-1 truncate">
+                  {topThree[0].display_name}
+                </p>
+                <p className="text-muted-foreground">
+                  {topThree[0].final_score} pts
+                </p>
+              </>
+            )}
+          </div>
+          {/* 3rd Place Slot */}
+          <div className="text-center">
+            {topThree[2] && (
+              <>
+                <p className="text-2xl">🥉</p>
+                <UserAvatar
+                  displayName={topThree[2].display_name}
+                  avatarUrl={topThree[2].avatar_url}
+                  className="h-16 w-16 mx-auto border-2 border-amber-600"
+                />
+                <p className="font-semibold mt-1 truncate">
+                  {topThree[2].display_name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {topThree[2].final_score} pts
+                </p>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Awards */}
