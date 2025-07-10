@@ -91,6 +91,15 @@ export function GameScorecardPage() {
           if (updatedScorecard.game_id === gameId) {
             console.log("Received scorecard update via SSE:", updatedScorecard);
             queryClient.setQueryData(["scorecard", gameId], updatedScorecard);
+
+            if (updatedScorecard.game_status === "completed" && user) {
+              queryClient.invalidateQueries({
+                queryKey: ["userProfile", user.user_id],
+              });
+              queryClient.invalidateQueries({
+                queryKey: ["userAwardsStats", user.user_id],
+              });
+            }
           }
         }
       } catch (e) {
@@ -106,7 +115,7 @@ export function GameScorecardPage() {
     return () => {
       eventSource.close();
     };
-  }, [gameId, queryClient]);
+  }, [gameId, queryClient, user]);
 
   if (isLoading) {
     return (
