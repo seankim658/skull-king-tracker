@@ -84,7 +84,7 @@ CREATE TABLE games (
   session_id UUID REFERENCES game_sessions(session_id) ON DELETE SET NULL,
   created_by_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
   current_scorekeeper_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
-  status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'active', 'completed', 'abandoned')),
+  status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'active', 'completed', 'abandoned', 'overtime')),
   starting_dealer_game_player_id UUID REFERENCES game_players(game_player_id) ON DELETE SET NULL,
   player_seating_order_randomized BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
