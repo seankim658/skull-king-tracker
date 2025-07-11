@@ -9,6 +9,8 @@ CREATE TABLE users (
   stats_privacy VARCHAR(50) NOT NULL DEFAULT 'public' CHECK (stats_privacy IN ('private', 'friends_only', 'public')),
   ui_theme VARCHAR(50) DEFAULT 'system',
   color_theme VARCHAR(50) DEFAULT 'blue',
+  role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'superuser')),
+  is_banned BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   last_login_at TIMESTAMPTZ,
@@ -160,6 +162,18 @@ CREATE TABLE user_notifications (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User Reports Table
+CREATE TABLE user_reports (
+  report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  reported_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  reason TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_different_users_report CHECK (reporter_user_id <> reported_user_id)
+);
+
 -- Functions to update 'updated_at' timestamps
 CREATE OR REPLACE FUNCTION trigger_set_timestamp()
 RETURNS TRIGGER AS $$
@@ -205,6 +219,11 @@ BEFORE UPDATE ON player_round_scores
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
 
+CREATE TRIGGER set_timestamp_user_reports
+BEFORE UPDATE ON user_reports
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
+
 -- Indexes
 CREATE INDEX idx_user_provider_identities_user_id ON user_provider_identities(user_id);
 CREATE INDEX idx_user_provider_identities_provider_lookup ON user_provider_identities(provider_name, provider_user_id);
@@ -239,3 +258,5 @@ CREATE INDEX idx_game_player_awards_user_award_type ON game_player_awards(user_i
 CREATE INDEX idx_user_notifications_recipient_user_id ON user_notifications(recipient_user_id);
 CREATE INDEX idx_user_notifications_is_read ON user_notifications(recipient_user_id, is_read);
 CREATE INDEX idx_user_notifications_actor_user_id ON user_notifications(actor_user_id);
+
+CREATE INDEX idx_user_reports_status ON user_reports(status);
