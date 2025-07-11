@@ -1083,3 +1083,64 @@ func UpdateFinishingPositions(ctx context.Context, tx DBTX, gameID string) error
 	logger.Info().Msg("Finishing positions updated successfully")
 	return nil
 }
+
+// Checks if there is a tie for first place and returns the game_player_ids of the tied players
+func CheckForTie(ctx context.Context, tx *sql.Tx, gameID string) ([]string, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"CheckForTie",
+	).With().Str(l.GameIDKey, gameID).Logger()
+
+	query := `
+  SELECT game_player_id, final_score
+  FROM game_players
+  WHERE game_id = $1
+  ORDER BY final_score DESC;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to check for game ties")
+
+	rows, err := querier.QueryContext(ctx, query, gameID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query player scores for tie check")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scores []struct {
+		PlayerID string
+		Score    int
+	}
+	for rows.Next() {
+		var s struct {
+			PlayerID string
+			Score    int
+		}
+		if err := rows.Scan(&s.PlayerID, &s.Score); err != nil {
+			return nil, err
+		}
+		scores = append(scores, s)
+	}
+
+	if len(scores) < 2 {
+		return []string{}, nil
+	}
+
+	topScore := scores[0].Score
+	var tiedPlayerIDs []string
+	for _, s := range scores {
+		if s.Score == topScore {
+			tiedPlayerIDs = append(tiedPlayerIDs, s.PlayerID)
+		} else {
+			break
+		}
+	}
+
+	if len(tiedPlayerIDs) > 1 {
+		logger.Info().Strs("tied_players", tiedPlayerIDs).Int("score", topScore).Msg("Found tied players")
+		return tiedPlayerIDs, nil
+	}
+
+	return []string{}, nil
+}

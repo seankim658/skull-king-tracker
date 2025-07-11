@@ -73,6 +73,7 @@ export interface RoundScorecard {
   status: "bidding" | "playing" | "completed";
   player_scores: PlayerRoundData[];
   dealer_game_player_id: string;
+  is_tie_breaker_round: boolean;
 }
 
 /**
@@ -88,6 +89,7 @@ export interface ScorecardResponse {
   current_scorekeeper_user_id: string;
   scorekeeper_name: string;
   asterisks: PlayerGameAsterisk[];
+  overtime_player_ids?: string | null;
 }
 
 /**

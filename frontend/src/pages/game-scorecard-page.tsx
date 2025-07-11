@@ -156,6 +156,13 @@ export function GameScorecardPage() {
     (r) => r.status === "bidding" || r.status === "playing",
   );
 
+  const playersForInput =
+    currentRound?.is_tie_breaker_round && scorecardData.overtime_player_ids
+      ? scorecardData.players.filter((p) =>
+          scorecardData.overtime_player_ids?.includes(p.game_player_id),
+        )
+      : scorecardData.players;
+
   const getButtonText = () => {
     if (!currentRound) return "View Scores";
     if (currentRound.status === "bidding") {
@@ -167,6 +174,7 @@ export function GameScorecardPage() {
     return "Game Over";
   };
 
+  // TODO
   return (
     <div className="container mx-auto p-2 sm:p-4 md:p-6">
       <Card>
@@ -217,7 +225,7 @@ export function GameScorecardPage() {
           isOpen={isInputDrawerOpen}
           onOpenChange={setIsInputDrawerOpen}
           currentRound={currentRound}
-          players={scorecardData.players}
+          players={playersForInput}
         />
       )}
 
