@@ -2,6 +2,8 @@ import { Separator } from "./separator";
 import { SidebarTrigger } from "./sidebar";
 import { ModeToggle } from "../theme/mode-toggle";
 import { NotificationBell } from "./notification-bell";
+import { Heart } from "lucide-react";
+import { Button } from "./button";
 
 export function SiteHeader() {
   return (
@@ -14,6 +16,21 @@ export function SiteHeader() {
         />
         <h1 className="text-base font-medium">Skull King Tracker</h1>
         <div className="flex flex-1 items-center justify-end space-x-2">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="cursor-pointer"
+          >
+            <a
+              href="https://ko-fi.com/skim658"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Heart className="h-4 w-4 text-red-500" />
+              Support
+            </a>
+          </Button>
           <NotificationBell />
           <ModeToggle />
         </div>
