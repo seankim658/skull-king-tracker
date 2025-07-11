@@ -114,12 +114,13 @@ func SubmitScoresAndUpdateRound(
 	).With().Str(l.RoundIDKey, roundID).Str(l.GameIDKey, gameID).Logger()
 
 	// 1. Get current round details
-	roundDetailsQuery := "SELECT round_number, dealer_game_player_id FROM rounds WHERE round_id = $1;"
+	roundDetailsQuery := "SELECT round_number, dealer_game_player_id, is_tiebreaker_round FROM rounds WHERE round_id = $1;"
 	logger.Debug().Str(l.QueryKey, roundDetailsQuery).Msg("Attempting to retrieve round details")
 
 	var roundNumber int
 	var dealerID string
-	err := querier.QueryRowContext(ctx, roundDetailsQuery, roundID).Scan(&roundNumber, &dealerID)
+	var isTiebreakerRound bool
+	err := querier.QueryRowContext(ctx, roundDetailsQuery, roundID).Scan(&roundNumber, &dealerID, &isTiebreakerRound)
 	if err != nil {
 		return fmt.Errorf("failed to get round details: %w", err)
 	}
@@ -176,6 +177,11 @@ func SubmitScoresAndUpdateRound(
 		if !ok {
 			return fmt.Errorf("cannot score round, player %s has no bid record", scoreData.GamePlayerID)
 		}
+
+		effectiveRoundNumber := roundNumber
+		if isTiebreakerRound {
+			effectiveRoundNumber = 10
+		}
 		calculatedScore := rules.CalculatePlayerRoundScore(roundNumber, bidAmount, scoreData.TricksTaken)
 		totalRoundScore := calculatedScore + scoreData.BonusPoints
 
@@ -202,55 +208,77 @@ func SubmitScoresAndUpdateRound(
 	}
 
 	// 5. Transition to next state (next round or game over)
-	if roundNumber < 10 {
+	if roundNumber >= 10 {
+		tiedPlayerIDs, tieErr := CheckForTie(ctx, tx, gameID)
+		if tieErr != nil {
+			return fmt.Errorf("failed to check for ties: %w", tieErr)
+		}
+
+		if len(tiedPlayerIDs) > 1 {
+			// Overtime triggered
+			logger.Info().Msg("Tie detected, initiating overtime round")
+			if err := UpdateGameStatus(ctx, tx, gameID, "overtime"); err != nil {
+				return fmt.Errorf("failed to update game status to overtime: %w", err)
+			}
+			players, err := GetPlayersByGameID(ctx, tx, gameID)
+			if err != nil {
+				return fmt.Errorf("failed to get players for dealer rotation: %w", err)
+			}
+			nextDealerID := getNextDealerID(players, dealerID)
+			if _, err := CreateRound(ctx, tx, gameID, nextDealerID, roundNumber+1, true); err != nil {
+				return fmt.Errorf("failed to create tiebreaker round %d: %w", roundNumber+1, err)
+			}
+		} else {
+			logger.Info().Msg("No tie detected, marking game as finished")
+			if err := UpdateGameStatus(ctx, tx, gameID, "completed"); err != nil {
+				return fmt.Errorf("failed to mark game as completed: %w", err)
+			}
+			playerStats, err := GetGameSummaryStats(ctx, tx, gameID)
+			if err != nil {
+				logger.Error().Err(err).Msg("Failed to get player stats for award calculation; awards will not be stored")
+			} else {
+				if len(playerStats) >= 4 {
+					awards := rules.CalculateGameAwards(playerStats)
+					if err := saveAwardsToDB(ctx, tx, gameID, awards); err != nil {
+						logger.Error().Err(err).Msg("Failed to save game awards to database")
+					}
+				}
+			}
+		}
+	} else {
 		players, err := GetPlayersByGameID(ctx, tx, gameID)
 		if err != nil {
 			return fmt.Errorf("failed to get players for dealer rotation: %w", err)
 		}
-		if len(players) == 0 {
-			return errors.New("no players found to determine next dealer")
-		}
-
-		currentDealerIndex := -1
-		for i, p := range players {
-			if p.GamePlayerID == dealerID {
-				currentDealerIndex = i
-				break
-			}
-		}
-		if currentDealerIndex == -1 {
-			return errors.New("could not find current dealer in player list")
-		}
-
-		nextDealerID := players[(currentDealerIndex+1)%len(players)].GamePlayerID
+		nextDealerID := getNextDealerID(players, dealerID)
 		nextRoundNumber := roundNumber + 1
 
 		if _, err := CreateRound(ctx, tx, gameID, nextDealerID, nextRoundNumber, false); err != nil {
 			return fmt.Errorf("failed to create round %d: %w", nextRoundNumber, err)
 		}
 		logger.Info().Int(l.RoundKey, nextRoundNumber).Msg("Next round created successfully")
-	} else {
-		// TODO : handle overtime
-		logger.Info().Msg("Final round completed, marking game as finished")
-		if err := UpdateGameStatus(ctx, tx, gameID, "completed"); err != nil {
-			return fmt.Errorf("failed to mark game as completed: %w", err)
-		}
-
-		playerStats, err := GetGameSummaryStats(ctx, tx, gameID)
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to get player stats for award calculation; awards will not be stored")
-		} else {
-			if len(playerStats) >= 4 {
-				awards := rules.CalculateGameAwards(playerStats)
-				if err := saveAwardsToDB(ctx, tx, gameID, awards); err != nil {
-					logger.Error().Err(err).Msg("Failed to save game awards to database")
-				}
-			}
-		}
 	}
 
 	logger.Info().Msg("Successfully submitted scores and transitioned game state")
 	return nil
+}
+
+// Find the next dealer in the seating order
+func getNextDealerID(players []dbModels.GamePlayerDetails, currentDealerID string) string {
+	if len(players) == 0 {
+		return ""
+	}
+	currentDealerIndex := -1
+	for i, p := range players {
+		if p.GamePlayerID == currentDealerID {
+			currentDealerIndex = i
+			break
+		}
+	}
+	if currentDealerIndex == -1 {
+		return players[0].GamePlayerID
+	}
+	return players[(currentDealerIndex+1)%len(players)].GamePlayerID
 }
 
 // Inserts calculated awards into the database

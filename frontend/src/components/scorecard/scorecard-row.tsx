@@ -1,6 +1,6 @@
 import { TableCell, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { Swords, Shield, Spade, Star } from "lucide-react";
+import { Swords, Shield, Spade, Star, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GamePlayerResponse, RoundScorecard } from "@/lib/api/types";
 import {
@@ -33,9 +33,16 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
       <TableCell className="font-medium text-center sticky left-0 bg-background z-10">
         <div className="flex flex-col items-center gap-1">
           <span className="text-xl">{round.round_number}</span>
-          <Badge variant="secondary" className="px-1.5 py-0.5 text-xs">
-            {round.round_number} cards
-          </Badge>
+          {round.is_tie_breaker_round ? (
+            <Badge variant="destructive" className="px-1.5 py-0.5 text-xs">
+              <Trophy className="h-3 w-3 mr-1" />
+              Tiebreaker
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="px-1.5 py-0.5 text-xs">
+              {round.round_number} cards
+            </Badge>
+          )}
         </div>
       </TableCell>
 
