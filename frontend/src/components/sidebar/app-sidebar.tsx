@@ -7,6 +7,7 @@ import {
   ChartLine,
   Gamepad,
   NotebookTabs,
+  Lightbulb,
 } from "lucide-react";
 import { NavUser } from "./nav-user";
 import { NavMain } from "./nav-main";
@@ -30,8 +31,15 @@ const secondaryItems = [
   },
   {
     title: "Report Bug",
-    url: "/bug",
+    url: "https://github.com/seankim658/skull-king-tracker/issues/new/choose",
     icon: HelpCircle,
+    external: true,
+  },
+  {
+    title: "Feature Request",
+    url: "https://github.com/seankim658/skull-king-tracker/issues/new/choose",
+    icon: Lightbulb,
+    external: true,
   },
 ];
 

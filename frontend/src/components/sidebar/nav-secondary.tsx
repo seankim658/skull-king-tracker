@@ -15,6 +15,7 @@ interface NavSecondaryProps
     title: string;
     url: string;
     icon: LucideIcon;
+    external?: boolean;
   }[];
 }
 
@@ -37,10 +38,22 @@ export function NavSecondary({
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuButton key={item.title} asChild>
-              <Link to={item.url} onClick={handleLinkClick}>
-                <item.icon />
-                <span>{item.title}</span>
-              </Link>
+              {item.external ? (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleLinkClick}
+                >
+                  <item.icon />
+                  <span>{item.title}</span>
+                </a>
+              ) : (
+                <Link to={item.url} onClick={handleLinkClick}>
+                  <item.icon />
+                  <span>{item.title}</span>
+                </Link>
+              )}
             </SidebarMenuButton>
           ))}
         </SidebarMenu>
