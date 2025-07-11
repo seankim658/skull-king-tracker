@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -182,7 +181,7 @@ func SubmitScoresAndUpdateRound(
 		if isTiebreakerRound {
 			effectiveRoundNumber = 10
 		}
-		calculatedScore := rules.CalculatePlayerRoundScore(roundNumber, bidAmount, scoreData.TricksTaken)
+		calculatedScore := rules.CalculatePlayerRoundScore(effectiveRoundNumber, bidAmount, scoreData.TricksTaken)
 		totalRoundScore := calculatedScore + scoreData.BonusPoints
 
 		if _, err := updatePlayerStmt.ExecContext(

@@ -40,6 +40,12 @@ type LogoutResponse struct {
 	Message string `json:"message"`
 }
 
+// Paginated response for a user's friends list
+type PaginatedFriendsListResponse struct {
+	Friends    []FriendListItem `json:"friends"`
+	Pagination Pagination       `json:"pagination"`
+}
+
 // --- Component Structs ---
 
 // Main API model representing a user's details for an authenticated session

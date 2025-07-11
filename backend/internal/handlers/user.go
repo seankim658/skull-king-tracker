@@ -217,6 +217,7 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
+	page, pageSize := GetPaginationParams(r)
 	viewerUserID, isAuthenticated := GetAuthenticatedUserIDFromSession(w, r, logger)
 	if !isAuthenticated {
 		viewerUserID = ""
@@ -224,7 +225,13 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 
 	logger = logger.With().Str(l.ProfileUserIDKey, profileUserID).Str(l.ViewerUserIDKey, viewerUserID).Logger()
 
-	dbFriends, err := db.GetFriendshipWithViewerStatus(ctx, nil, profileUserID, viewerUserID)
+	totalCount, err := db.CountFriends(ctx, nil, profileUserID)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to count friends")
+		return
+	}
+
+	dbFriends, err := db.GetFriendshipWithViewerStatus(ctx, nil, profileUserID, viewerUserID, page, pageSize)
 	if err != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve friends list")
 		return
@@ -277,7 +284,13 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 		})
 	}
 
-	Respond(w, r, http.StatusOK, apiFriends, "Friends list retrieved successfully")
+	pagination := CalculatePagination(int64(totalCount), page, pageSize)
+	response := apiModels.PaginatedFriendsListResponse{
+		Friends:    apiFriends,
+		Pagination: pagination,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Friends list retrieved successfully")
 }
 
 var awardTypeToTitle = map[string]string{

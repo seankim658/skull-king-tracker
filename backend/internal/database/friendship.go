@@ -635,13 +635,21 @@ func GetFriendshipWithViewerStatus(
 	ctx context.Context,
 	tx *sql.Tx,
 	profileUserID, viewerUserID string,
+	page, pageSize int,
 ) ([]dbModels.FriendshipWithViewerStatus, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		friendshipComponent,
 		"GetFriendshipWithViewerStatus",
-	).With().Str(l.ProfileUserIDKey, profileUserID).Str(l.ViewerUserIDKey, viewerUserID).Logger()
+	).With().
+		Str(l.ProfileUserIDKey, profileUserID).
+		Str(l.ViewerUserIDKey, viewerUserID).
+		Int(l.PageKey, page).
+		Int(l.PageSizeKey, pageSize).
+		Logger()
+
+	offset := (page - 1) * pageSize
 
 	query := `
   WITH profile_friends AS (
@@ -665,11 +673,12 @@ func GetFriendshipWithViewerStatus(
   LEFT JOIN user_friendships vf ON
     (vf.requester_id = $2 AND vf.addressee_id = u.user_id) OR
     (vf.requester_id = u.user_id AND vf.addressee_id = $2)
-  ORDER BY u.username;
+  ORDER BY u.username
+  LIMIT $3 OFFSET $4;
   `
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to retrieve user friendship statuses with users")
 
-	rows, err := querier.QueryContext(ctx, query, profileUserID, viewerUserID)
+	rows, err := querier.QueryContext(ctx, query, profileUserID, viewerUserID, pageSize, offset)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to query friends with viewer status")
 		return nil, err
