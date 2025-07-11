@@ -7,7 +7,7 @@ import type {
   LinkedAccount,
   UserProfileResponse,
   UserSearchResponse,
-  FriendListItem,
+  PaginatedFriendsListResponse,
 } from "../types";
 
 export const userAPI = {
@@ -93,8 +93,17 @@ export const userAPI = {
    * Retrieves a list of friends for a given user, including the viewer's friendship status with each.
    * @param userId - The Id of the user whose friends to fetch
    */
-  getFriendsList: (userId: string): Promise<ApiResponse<FriendListItem[]>> =>
-    client<FriendListItem[]>(`/users/${userId}/friends`, {
-      method: "GET",
-    }),
+  getFriendsList: (
+    userId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<ApiResponse<PaginatedFriendsListResponse>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    return client<PaginatedFriendsListResponse>(
+      `/users/${userId}/friends?${params.toString()}`,
+    );
+  },
 };

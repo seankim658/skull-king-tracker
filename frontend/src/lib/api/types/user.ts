@@ -1,5 +1,6 @@
 import type { UITheme, ColorTheme } from "@/lib/themes";
 import type { UserStats } from "./stats";
+import type { Pagination } from "./api";
 
 /**
  * Represents a user in the skull king application.
@@ -97,4 +98,9 @@ export interface FriendListItem {
   display_name: string | null;
   avatar_url: string | null;
   friendship_status_with_viewer: FriendshipStatus;
+}
+
+export interface PaginatedFriendsListResponse {
+  friends: FriendListItem[];
+  pagination: Pagination;
 }
