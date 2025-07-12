@@ -120,9 +120,10 @@ export function ActiveSessions() {
   return (
     <section>
       <div className="mb-4">
-        <div className="relative inline-block">
-          <h2 className="text-2xl font-semibold mr-2">Your Active Sessions</h2>
+        <div className="inline-flex items-start">
+          <h2 className="text-2xl font-semibold mr-1">Your Active Sessions</h2>
           <InfoTooltip
+            position="inline"
             content={
               <>
                 A <strong>Session</strong> is a collection of multiple games,
