@@ -18,6 +18,8 @@ type User struct {
 	StatsPrivacy string         `db:"stats_privacy"`
 	UITheme      sql.NullString `db:"ui_theme"`
 	ColorTheme   sql.NullString `db:"color_theme"`
+	Role         string         `db:"role"`
+	IsBanned     bool           `db:"is_banned"`
 	CreatedAt    time.Time      `db:"created_at"`
 	UpdatedAt    time.Time      `db:"updated_at"`
 	LastLoginAt  sql.NullTime   `db:"last_login_at"`

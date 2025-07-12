@@ -45,4 +45,7 @@ var (
 
 	// Notification
 	ErrNotificationNotFound = errors.New("notification not found")
+
+  // Report
+  ErrReportNotFound = errors.New("report not found")
 )

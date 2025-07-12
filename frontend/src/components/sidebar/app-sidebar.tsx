@@ -4,6 +4,7 @@ import {
   ListIcon,
   Settings,
   HelpCircle,
+  Shield,
   ChartLine,
   Gamepad,
   NotebookTabs,
@@ -22,6 +23,7 @@ import {
   SidebarMenuItem,
 } from "../ui/sidebar";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
 
 const secondaryItems = [
   {
@@ -55,8 +57,10 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
-  const navItems = useMemo(
-    () => [
+  const { user: authenticatedUser } = useAuth();
+
+  const navItems = useMemo(() => {
+    const items = [
       {
         title: "Home",
         url: "/",
@@ -82,9 +86,18 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         url: "/explore",
         icon: ChartLine,
       },
-    ],
-    [user.user_id],
-  );
+    ];
+
+    if (authenticatedUser?.role === "superuser") {
+      items.push({
+        title: "Admin Panel",
+        url: "/admin/reports",
+        icon: Shield,
+      });
+    }
+
+    return items;
+  }, [user.user_id, authenticatedUser?.role]);
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

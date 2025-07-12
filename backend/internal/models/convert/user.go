@@ -44,6 +44,7 @@ func DBUserToAPIUser(dbUser *dbModels.User) (*apiModels.User, error) {
 		AvatarURL:    avatarURL,
 		AvatarSource: avatarSource,
 		StatsPrivacy: dbUser.StatsPrivacy,
+		Role:         dbUser.Role,
 		UITheme:      uiTheme,
 		ColorTheme:   colorTheme,
 		CreatedAt:    dbUser.CreatedAt,

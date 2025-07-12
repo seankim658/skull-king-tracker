@@ -350,6 +350,60 @@ func (uph *UserProfileHandler) HandleGetUserAwardStats(w http.ResponseWriter, r 
 	Respond(w, r, http.StatusOK, apiResponse, "User awards statistics retrieved successfully")
 }
 
+// HandleReportUser allows an authenticated user to report another user.
+// Path: /users/{user_id}/report
+// Method: POST
+func (uph *UserProfileHandler) HandleReportUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), userComponent, "HandleReportUser")
+
+	reporterID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	reportedUserID, ok := PathVar(w, r, "user_id")
+	if !ok {
+		return
+	}
+
+	if reporterID == reportedUserID {
+		ErrorResponse(w, r, http.StatusBadRequest, "You cannot report yourself")
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+	if !RequireFields(w, r, map[string]string{"reason": req.Reason}) {
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to submit report")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	_, opErr = db.CreateReport(ctx, tx, reporterID, reportedUserID, req.Reason)
+	if opErr != nil {
+		logger.Error().Err(opErr).Msg("Failed to create user report")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to submit report")
+		responseSent = true
+		return
+	}
+
+	if !responseSent {
+		Respond(w, r, http.StatusCreated, nil, "Report submitted successfully")
+		responseSent = true
+	}
+}
+
 // Helper to check if a viewer can see a target user's stats
 func isAuthorizedToViewStats(ctx context.Context, targetUserID, viewerUserID string) (bool, error) {
 	if targetUserID == viewerUserID {

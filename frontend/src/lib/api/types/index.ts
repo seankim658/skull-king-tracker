@@ -5,3 +5,5 @@ export * from "./session";
 export * from "./stats";
 export * from "./notification";
 export * from "./sse";
+export * from "./admin";
+export * from "./report";

@@ -53,6 +53,9 @@ const (
 	ColorThemeKey    = "color_theme"
 	AvatarURLKey     = "avatar_url"
 	StatsPrivacyKey  = "stats_privacy"
+	UserRoleKey      = "user_role"
+	IsBannedKey      = "is_banned"
+	BanReasonKey     = "ban_reason"
 
 	// Friendship
 	FriendshipIDKey     = "friendship_id"
@@ -105,4 +108,10 @@ const (
 	RequesterIDKey      = "requester_id"
 	AddresseeIDKey      = "addressee_id"
 	NotificationReadKey = "notification_read_status"
+
+	// Report
+	ReportIDKey     = "report_id"
+	ReporterIDKey   = "reporter_id"
+	ReportedIDKey   = "reported_id"
+	ReportReasonKey = "report_reason"
 )

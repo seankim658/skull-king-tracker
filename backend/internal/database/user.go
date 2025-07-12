@@ -581,3 +581,63 @@ func SearchUsers(ctx context.Context, tx *sql.Tx, searchQuery string, limit int)
 	logger.Info().Int(l.CountKey, len(users)).Msg("User search completed")
 	return users, nil
 }
+
+// Sets a user's is_banned flag to the specified status
+func SetUserBanStatus(ctx context.Context, tx *sql.Tx, userID string, isBanned bool, reason string) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		userComponent,
+		"SetUserBanStatus",
+	).With().Str(l.UserIDKey, userID).Bool(l.IsBannedKey, isBanned).Str(l.BanReasonKey, reason).Logger()
+
+	var banReason sql.NullString
+	if isBanned {
+		banReason = sql.NullString{String: reason, Valid: reason != ""}
+	}
+
+	query := "UPDATE users SET is_banned = $1, ban_reason = $2, updated_at = NOW() WHERE user_id = $3;"
+	result, err := querier.ExecContext(ctx, query, isBanned, banReason, userID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to execute user ban status update")
+		return fmt.Errorf("error updating ban status for user %s: %w", userID, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	logger.Info().Msg("User ban status updated successfully")
+	return nil
+}
+
+// GetAllUserIDs retrieves all user IDs from the database, used for broadcasting notifications
+func GetAllUserIDs(ctx context.Context, tx *sql.Tx) ([]string, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), userComponent, "GetAllUserIDs")
+
+	query := "SELECT user_id FROM users WHERE is_banned = false;"
+	rows, err := querier.QueryContext(ctx, query)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query all user IDs")
+		return nil, fmt.Errorf("error getting all user IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var userIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan user ID row")
+			return nil, fmt.Errorf("error scanning user ID: %w", err)
+		}
+		userIDs = append(userIDs, id)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating user ID rows: %w", err)
+	}
+
+	return userIDs, nil
+}

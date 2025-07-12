@@ -7,6 +7,7 @@ import {
 import "./App.css";
 import { Toaster } from "./components/ui/sonner";
 import { ProtectedRoute } from "./auth/protected-route";
+import { AdminRoute } from "./auth/admin-route";
 
 // Providers
 import { AuthProvider } from "./providers/auth-provider";
@@ -31,6 +32,7 @@ import { GameSetupPage } from "./pages/game-setup-page";
 import { GameScorecardPage } from "./pages/game-scorecard-page";
 import { GamePage } from "./pages/games-page";
 import { SessionPage } from "./pages/sessions-page";
+import { AdminReportsPage } from "./pages/admin-reports-page";
 
 function AppContent() {
   const { isLoadingAuth } = useAuth();
@@ -55,10 +57,8 @@ function AppContent() {
           <Route path="/start-session" element={<StartSessionPage />} />
           <Route path="/users/:userId" element={<ProfilePage />} />
           <Route path="/explore" element={<ExplorePage />} />
-
           <Route path="/games" element={<GamePage />} />
           <Route path="/sessions" element={<SessionPage />} />
-
           <Route
             path="/game/:gameId/add-players"
             element={<AddPlayersPage />}
@@ -68,6 +68,10 @@ function AppContent() {
             path="/game/:gameId/scorecard"
             element={<GameScorecardPage />}
           />
+          {/* Admin Routes */}
+          <Route element={<AdminRoute />}>
+            <Route path="/admin/reports" element={<AdminReportsPage />} />
+          </Route>
         </Route>
       </Route>
 

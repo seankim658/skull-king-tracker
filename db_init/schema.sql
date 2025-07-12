@@ -11,6 +11,7 @@ CREATE TABLE users (
   color_theme VARCHAR(50) DEFAULT 'blue',
   role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'superuser')),
   is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+  ban_reason TEXT,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   last_login_at TIMESTAMPTZ,
