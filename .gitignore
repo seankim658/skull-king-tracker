@@ -6,3 +6,4 @@ other/
 logs/
 .DS_Store
 static/
+sql_scripts/

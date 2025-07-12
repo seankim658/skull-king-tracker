@@ -599,6 +599,15 @@ func (ah *AuthHandler) HandleOAuthCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// If the user is banned, halt the login process
+	if dbUserForSession.IsBanned {
+		handleErr = errors.New("user is banned")
+		logger.Warn().Str(l.UserIDKey, dbUserForSession.UserID).Msg("Banned user attempted to log in")
+		ErrorResponse(w, r, http.StatusForbidden, "This account has been suspended")
+		responseSent = true
+		return
+	}
+
 	// Handle avatar processing if applicable
 	var lastKnownOriginalProviderURL string
 	if idErr == nil && existingIdentity != nil && existingIdentity.ProviderAvatarURL.Valid {

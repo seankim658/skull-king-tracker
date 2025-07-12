@@ -8,6 +8,7 @@ import type {
   UserProfileResponse,
   UserSearchResponse,
   PaginatedFriendsListResponse,
+  ReportUserPayload,
 } from "../types";
 
 export const userAPI = {
@@ -106,4 +107,18 @@ export const userAPI = {
       `/users/${userId}/friends?${params.toString()}`,
     );
   },
+
+  /**
+   * Submits a report against another user.
+   * @param reportedUserId - The ID of the user being reported
+   * @param payload - The reason for the report
+   */
+  reportUser: (
+    reportedUserId: string,
+    payload: ReportUserPayload,
+  ): Promise<ApiResponse<null>> =>
+    client<null>(`/users/${reportedUserId}/report`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

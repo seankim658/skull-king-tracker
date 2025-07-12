@@ -8,9 +8,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { MoreVertical, UserRoundCheck } from "lucide-react";
+import { MoreVertical, UserRoundCheck, Flag } from "lucide-react";
 import { useConfirm } from "@/hooks/use-confirm";
-import { CalendarDays, Users, Edit3 } from "lucide-react";
+import { CalendarDays, Users, Edit3, ShieldBan } from "lucide-react";
 import { friendshipAPI } from "@/lib/api/service/friendship";
 import { useSubmit } from "@/hooks/use-submit";
 import { FriendshipActionButton } from "./friendship-button";
@@ -20,6 +20,7 @@ interface ProfileHeaderProps {
   isOwnProfile: boolean;
   onActionSuccess: () => void;
   onOpenFriendsList: () => void;
+  onReportUser: () => void;
 }
 
 export function ProfileHeader({
@@ -27,6 +28,7 @@ export function ProfileHeader({
   isOwnProfile,
   onActionSuccess,
   onOpenFriendsList,
+  onReportUser,
 }: ProfileHeaderProps) {
   const confirm = useConfirm();
   const displayName = profile.display_name || profile.username;
@@ -73,9 +75,17 @@ export function ProfileHeader({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={onReportUser}
+              >
+                <Flag className="mr-2 h-4 w-4" />
+                Report User
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 className="text-destructive cursor-pointer"
                 onSelect={handleBlock}
               >
+                <ShieldBan className="mr-2 w-4 h-4" />
                 Block User
               </DropdownMenuItem>
             </DropdownMenuContent>

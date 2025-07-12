@@ -227,9 +227,10 @@ export function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-start gap-1">
+                <div className="flex items-center gap-1.5">
                   <Label htmlFor="stats-privacy">Stats Privacy</Label>
                   <InfoTooltip
+                    position="inline"
                     content={
                       <>
                         <p>
@@ -283,7 +284,10 @@ export function SettingsPage() {
 
       <section className="space-y-6">
         <div className="relative inline-flex items-center gap-1">
-          <h2 id="linked-accounts-heading" className="text-xl font-semibold mr-2">
+          <h2
+            id="linked-accounts-heading"
+            className="text-xl font-semibold mr-2"
+          >
             Linked Accounts
           </h2>
           <InfoTooltip

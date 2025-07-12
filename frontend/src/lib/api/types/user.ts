@@ -15,6 +15,8 @@ export interface User {
   stats_privacy: "private" | "friends_only" | "public";
   ui_theme: UITheme | null;
   color_theme: ColorTheme | null;
+  role: "user" | "superuser";
+  is_banned: boolean;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;

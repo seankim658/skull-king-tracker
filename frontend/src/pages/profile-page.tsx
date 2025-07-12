@@ -10,12 +10,14 @@ import { useQuery } from "@tanstack/react-query";
 import { FriendsListModal } from "@/components/profile/friends-list-modal";
 import { useState } from "react";
 import { ProfileAwardsChart } from "@/components/profile/profile-awards-chart";
+import { ReportUserModal } from "@/components/profile/report-user-modal";
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const { user: authenticatedUser, isLoadingAuth } = useAuth();
 
   const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const {
     data: profileData,
@@ -87,6 +89,7 @@ export function ProfilePage() {
         isOwnProfile={isOwnProfile}
         onActionSuccess={fetchProfile}
         onOpenFriendsList={() => setIsFriendsModalOpen(true)}
+        onReportUser={() => setIsReportModalOpen(true)}
       />
       <ProfileStatsSummary
         stats={profileData.stats}
@@ -104,7 +107,16 @@ export function ProfilePage() {
         onClose={() => setIsFriendsModalOpen(false)}
         profile={profileData.profile}
       />
-      {/* TODO Future sections like Game History, Detailed Stats can be added here */}
+
+      <ReportUserModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        reportedUser={{
+          userId: profileData.profile.user_id,
+          displayName:
+            profileData.profile.display_name || profileData.profile.username,
+        }}
+      />
     </div>
   );
 }
