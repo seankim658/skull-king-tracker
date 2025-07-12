@@ -3,6 +3,7 @@ import type {
   UserAwardsStatsResponse,
   ApiResponse,
   SiteSummaryStatsResponse,
+  GlobalLeaderboardResponse,
 } from "../types";
 
 export const statsAPI = {
@@ -21,6 +22,14 @@ export const statsAPI = {
     userId: string,
   ): Promise<ApiResponse<UserAwardsStatsResponse>> =>
     client<UserAwardsStatsResponse>(`/users/${userId}/stats/awards`, {
+      method: "GET",
+    }),
+
+  /**
+   * Fetches the monthly global player leaderboard.
+   */
+  getGlobalLeaderboard: (): Promise<ApiResponse<GlobalLeaderboardResponse>> =>
+    client<GlobalLeaderboardResponse>("/stats/leaderboard", {
       method: "GET",
     }),
 };

@@ -25,10 +25,10 @@ import { Skeleton } from "./skeleton";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
-  sorting: SortingState;
-  setSorting: Dispatch<SetStateAction<SortingState>>;
-  pagination: Pagination;
-  setPage: (page: number) => void;
+  sorting?: SortingState;
+  setSorting?: Dispatch<SetStateAction<SortingState>>;
+  pagination?: Pagination;
+  setPage?: (page: number) => void;
   onRowClick?: (row: Row<TData>) => void;
   isLoading?: boolean;
   loadingRowCount?: number;
@@ -51,7 +51,7 @@ export function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-    state: { sorting },
+    state: { sorting: sorting ?? [] },
     manualPagination: true,
     manualSorting: true,
   });
@@ -127,7 +127,9 @@ export function DataTable<TData, TValue>({
           </div>
         </CardContent>
       </Card>
-      <DataTablePagination pagination={pagination} setPage={setPage} />
+      {pagination && setPage && (
+        <DataTablePagination pagination={pagination} setPage={setPage} />
+      )}
     </div>
   );
 }

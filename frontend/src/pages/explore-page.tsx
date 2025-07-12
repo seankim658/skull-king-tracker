@@ -4,6 +4,7 @@ import { SiteSummaryStats } from "@/components/explore/site-summary-stats";
 import { UserSearch } from "@/components/explore/user-search";
 import { Separator } from "@/components/ui/separator";
 import { PageHeader } from "@/components/ui/page-header";
+import { LeaderboardTable } from "@/components/explore/leaderboard-table";
 
 export function ExplorePage() {
   const navigate = useNavigate();
@@ -29,11 +30,15 @@ export function ExplorePage() {
 
       <Separator />
 
-      {/* TODO : Placeholder for future user table/leaderboard */}
-      <div className="text-center py-10">
-        <h2 className="text-xl font-semibold mb-3">Global Leaderboard</h2>
-        <p className="text-muted-foreground">(Coming Soon)</p>
-      </div>
+      <section>
+        <h2 className="text-2xl font-semibold mb-4 text-center">
+          Monthly Global Leaderboard
+        </h2>
+        <p className="text-center text-muted-foreground mb-6">
+          Top 25 players ranked by games played in the current month.
+        </p>
+        <LeaderboardTable />
+      </section>
     </div>
   );
 }

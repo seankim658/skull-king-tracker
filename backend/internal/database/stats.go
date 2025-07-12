@@ -288,3 +288,82 @@ func GetUserAwardsSummary(ctx context.Context, tx *sql.Tx, userID string) ([]dbM
 	logger.Info().Int(l.CountKey, len(awards)).Msg("User awards summary retrieved successfully")
 	return awards, nil
 }
+
+// Retrieves the top 25 players for the global leaderboard based on games played in the current month
+func GetGlobalLeaderboard(ctx context.Context, tx *sql.Tx) ([]dbModels.GlobalLeaderBoardRow, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		statsComponent,
+		"GetGlobalLeaderboard",
+	)
+
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	query := `
+  WITH monthly_player_stats AS (
+    SELECT
+      gp.user_id,
+      COUNT(g.game_id) AS games_played,
+      SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END) AS wins,
+      SUM(gp.final_score) AS total_points,
+      AVG(gp.final_score) AS average_points,
+      AVG(gp.finishing_position) AS average_finish_pos
+    FROM game_players gp
+    JOIN games g ON gp.game_id = g.game_id
+    WHERE gp.user_id IS NOT NULL
+      AND g.status = 'completed'
+      AND g.created_at >= $1
+    GROUP BY gp.user_id
+  )
+  SELECT
+    RANK() OVER (ORDER BY mps.games_played DESC, mps.wins DESC, mps.total_points DESC) AS rank,
+    u.user_id,
+    COALESCE(u.display_name, u.username) AS display_name,
+    mps.games_played,
+    mps.wins,
+    mps.total_points,
+    mps.average_points,
+    mps.average_finish_pos
+  FROM monthly_player_stats mps
+  JOIN users u ON mps.user_id = u.user_id
+  ORDER BY rank ASC, mps.games_played DESC
+  LIMIT 25;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get global leaderboard stats")
+
+	rows, err := querier.QueryContext(ctx, query, startOfMonth)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query for global leaderboard")
+		return nil, fmt.Errorf("error querying for global leaderboard")
+	}
+	defer rows.Close()
+
+	var leaderboard []dbModels.GlobalLeaderBoardRow
+	for rows.Next() {
+		var row dbModels.GlobalLeaderBoardRow
+		if err := rows.Scan(
+			&row.Rank,
+			&row.UserID,
+			&row.DisplayName,
+			&row.GamesPlayed,
+			&row.Wins,
+			&row.TotalPoints,
+			&row.AveragePoints,
+			&row.AverageFinishPos,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan leaderboard row")
+			return nil, fmt.Errorf("error scanning leaderboard row: %w", err)
+		}
+		leaderboard = append(leaderboard, row)
+	}
+
+	if err = rows.Err(); err != nil {
+		logger.Error().Err(err).Msg("Error iterating over leaderboard rows")
+		return nil, fmt.Errorf("error iterating leaderboard rows: %w", err)
+	}
+
+	logger.Info().Int(l.CountKey, len(leaderboard)).Msg("Global leaderboard retrieved successfully")
+	return leaderboard, nil
+}

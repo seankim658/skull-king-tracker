@@ -138,6 +138,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	// Stats routes
 	statsSubRouter := apiRouter.PathPrefix("/stats").Subrouter()
 	statsSubRouter.HandleFunc("/summary", statsHandler.HandleGetSiteSummaryStats).Methods(http.MethodGet)
+	statsSubRouter.HandleFunc("/leaderboard", statsHandler.HandleGetGlobalLeaderboard).Methods(http.MethodGet)
 
 	// Admin routes
 	adminSubrouter := apiRouter.PathPrefix("/admin").Subrouter()

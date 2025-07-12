@@ -20,3 +20,16 @@ export interface UserAwardStat {
 }
 
 export type UserAwardsStatsResponse = UserAwardStat[];
+
+export interface GlobalLeaderboardItem {
+  rank: number;
+  user_id: string;
+  player_name: string;
+  games_played: number;
+  wins: number;
+  total_points: number;
+  average_points: number;
+  average_finish_pos: number;
+}
+
+export type GlobalLeaderboardResponse = GlobalLeaderboardItem[];
