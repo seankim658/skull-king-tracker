@@ -45,3 +45,14 @@ type UserAwardStat struct {
 	AwardCount    int     `db:"award_count"`
 	PercentilRank float64 `db:"percentile_rank"`
 }
+
+type GlobalLeaderBoardRow struct {
+	Rank             int64
+	UserID           string
+	DisplayName      string
+	GamesPlayed      int
+	Wins             int
+	TotalPoints      int
+	AveragePoints    float64
+	AverageFinishPos float64
+}

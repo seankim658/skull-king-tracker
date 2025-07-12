@@ -25,3 +25,16 @@ type UserAwardStat struct {
 }
 
 type UserAwardsStatsResponse []UserAwardStat
+
+type GlobalLeaderboardItem struct {
+	Rank             int64   `json:"rank"`
+	UserID           string  `json:"user_id"`
+	PlayerName       string  `json:"player_name"`
+	GamesPlayed      int     `json:"games_played"`
+	Wins             int     `json:"wins"`
+	TotalPoints      int     `json:"total_points"`
+	AveragePoints    float64 `json:"average_points"`
+	AverageFinishPos float64 `json:"average_finish_pos"`
+}
+
+type GlobalLeaderboardresponse []GlobalLeaderboardItem
