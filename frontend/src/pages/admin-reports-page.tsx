@@ -12,6 +12,7 @@ import { BanUserModal } from "@/components/admin/ban-user-modal";
 import { SendNotificationModal } from "@/components/admin/send-notification-modal";
 import { errorExtract } from "@/lib/utils";
 import { Terminal, Send } from "lucide-react";
+import { ReportDetailsModal } from "@/components/admin/report-details-modal";
 
 export function AdminReportsPage() {
   const [page, setPage] = useState(1);
@@ -20,6 +21,7 @@ export function AdminReportsPage() {
 
   const [isBanModalOpen, setBanModalOpen] = useState(false);
   const [isNotificationModalOpen, setNotificationModalOpen] = useState(false);
+  const [isDetailModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<UserReport | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
@@ -41,6 +43,11 @@ export function AdminReportsPage() {
     setBanModalOpen(true);
   };
 
+  const handleViewDetails = (report: UserReport) => {
+    setSelectedReport(report);
+    setDetailsModalOpen(true);
+  };
+
   const renderContent = () => {
     if (isError) {
       const errorMsg = errorExtract(error, "An unknown error occurred");
@@ -52,7 +59,10 @@ export function AdminReportsPage() {
         </Alert>
       );
     }
-    const reportColumns = columns({ onBan: handleBanUser });
+    const reportColumns = columns({
+      onBan: handleBanUser,
+      onViewDetails: handleViewDetails,
+    });
 
     return (
       <DataTable
@@ -99,6 +109,11 @@ export function AdminReportsPage() {
       <SendNotificationModal
         isOpen={isNotificationModalOpen}
         onClose={() => setNotificationModalOpen(false)}
+      />
+      <ReportDetailsModal
+        isOpen={isDetailModalOpen}
+        onClose={() => setDetailsModalOpen(false)}
+        report={selectedReport}
       />
     </div>
   );

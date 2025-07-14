@@ -6,10 +6,12 @@ import { ReportActions } from "./report-column-action";
 
 type ReportsColumnsProps = {
   onBan: (report: UserReport) => void;
+  onViewDetails: (report: UserReport) => void;
 };
 
 export const columns = ({
   onBan,
+  onViewDetails,
 }: ReportsColumnsProps): ColumnDef<UserReport>[] => [
   {
     accessorKey: "reporter_name",
@@ -47,6 +49,12 @@ export const columns = ({
   },
   {
     id: "actions",
-    cell: ({ row }) => <ReportActions report={row.original} onBan={onBan} />,
+    cell: ({ row }) => (
+      <ReportActions
+        report={row.original}
+        onBan={onBan}
+        onViewDetails={onViewDetails}
+      />
+    ),
   },
 ];

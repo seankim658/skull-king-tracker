@@ -10,15 +10,17 @@ import {
   DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
-import { MoreHorizontal, Ban, ShieldOff } from "lucide-react";
+import { MoreHorizontal, Ban, ShieldOff, FileText } from "lucide-react";
 import { adminAPI } from "@/lib/api/service/admin";
 
 export function ReportActions({
   report,
   onBan,
+  onViewDetails,
 }: {
   report: UserReport;
   onBan: (report: UserReport) => void;
+  onViewDetails: (report: UserReport) => void;
 }) {
   const confirm = useConfirm();
   const queryClient = useQueryClient();
@@ -50,6 +52,14 @@ export function ReportActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onClick={() => onViewDetails(report)}
+          className="cursor-pointer"
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          View Details
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => onBan(report)}
           className="text-destructive cursor-pointer"
