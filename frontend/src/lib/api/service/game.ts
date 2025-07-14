@@ -211,4 +211,10 @@ export const gameAPI = {
     client<GameSummaryResponse>(`/games/${gameId}/summary`, {
       method: "GET",
     }),
+
+  /**
+   * Fetches all pending games for the current user.
+   */
+  getPendingGames: (): Promise<ApiResponse<ActiveGameResponse[]>> =>
+    client<ActiveGameResponse[]>("/games/pending", { method: "GET" }),
 };

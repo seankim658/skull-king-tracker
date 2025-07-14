@@ -80,6 +80,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	gameSubRouter.Use(mw.AuthRequired)
 	gameSubRouter.HandleFunc("", gameHandler.HandleCreateGame).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/active", gameHandler.HandleGetActiveGames).Methods(http.MethodGet)
+  gameSubRouter.HandleFunc("/pending", gameHandler.HandleGetPendingGames).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/history", gameHandler.HandleGetGameHistory).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/details", gameHandler.HandleGetGameDetails).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleAddPlayerToGame).Methods(http.MethodPost)
