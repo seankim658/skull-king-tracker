@@ -49,7 +49,7 @@ interface NavUserProps {
   user_id: string;
   name: string;
   email: string;
-  avatar: string;
+  avatar: string | undefined;
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {

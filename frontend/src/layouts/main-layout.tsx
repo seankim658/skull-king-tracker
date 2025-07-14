@@ -25,12 +25,13 @@ export function MainLayout() {
   return (
     <SidebarProvider>
       <AppSidebar user={sidebarUserData} variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        {/* Main content area where child routes will render */}
-        <main className="flex-1 overflow-auto">
-          <Outlet />
-        </main>
+      <SidebarInset className="flex flex-col min-w-0">
+        <div className="flex h-screen flex-col overflow-hidden">
+          <SiteHeader />
+          <main className="flex-1 overflow-auto">
+            <Outlet />
+          </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
