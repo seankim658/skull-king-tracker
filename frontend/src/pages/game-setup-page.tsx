@@ -175,6 +175,7 @@ export function GameSetupPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
         queryClient.invalidateQueries({ queryKey: ["gamePlayers", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["pendingGames"] });
       },
     },
   );
@@ -204,6 +205,7 @@ export function GameSetupPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gameDetails", gameId] });
         queryClient.invalidateQueries({ queryKey: ["activeGames"] });
+        queryClient.invalidateQueries({ queryKey: ["pendingGames"] });
         navigate(`/game/${gameId}/scorecard`);
       },
     },
