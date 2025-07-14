@@ -28,8 +28,8 @@ type AuthenticatedUserResponse struct {
 
 // Main response for a user's public profile page
 type UserProfileResponse struct {
-	Profile UserProfile `json:"profile"`
-	Stats   *UserStats  `json:"stats,omitempty"`
+	Profile UserProfile        `json:"profile"`
+	Stats   *UserDetailedStats `json:"stats,omitempty"`
 }
 
 // Array of users returned from a search query

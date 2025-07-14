@@ -132,20 +132,33 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 
 	if canViewStats {
 		logger.Debug().Msg("Viewer has permission to see stats for this profile")
-		dbUserStats, statsErr := db.GetUserBasicStats(ctx, nil, profileUserIDFromPath)
+		dbUserStats, statsErr := db.GetUserDetailedStats(ctx, nil, profileUserIDFromPath)
 		if statsErr != nil {
 			logger.Error().Err(statsErr).Msg("Database error fetching basic stats, stats will be omitted")
 		} else if dbUserStats != nil {
-			var winPercentage float64
+			var winPercentage, hitPercentage, zeroBidSuccessRate float64
+
 			if dbUserStats.TotalGamesPlayed > 0 {
 				winPercentage = math.Round(
 					(float64(dbUserStats.TotalWins)/float64(dbUserStats.TotalGamesPlayed))*10000) / 100
 			}
-			finalResponse.Stats = &apiModels.UserStats{
-				TotalGamesPlayed: dbUserStats.TotalGamesPlayed,
-				TotalWins:        dbUserStats.TotalWins,
-				Top3Finishes:     dbUserStats.Top3Finishes,
-				WinPercentage:    winPercentage,
+			if dbUserStats.TotalRoundsPlayed > 0 {
+				hitPercentage = math.Round((float64(dbUserStats.TotalBidsHit)/float64(dbUserStats.TotalRoundsPlayed))*10000) / 100
+			}
+			if dbUserStats.TotalZeroBidsMade > 0 {
+				zeroBidSuccessRate = math.Round((float64(dbUserStats.SuccessfulZeroBids)/float64(dbUserStats.TotalZeroBidsMade))*10000) / 100
+			}
+
+			finalResponse.Stats = &apiModels.UserDetailedStats{
+				TotalGamesPlayed:         dbUserStats.TotalGamesPlayed,
+				TotalWins:                dbUserStats.TotalWins,
+				WinPercentage:            winPercentage,
+				Top3Finishes:             dbUserStats.Top3Finishes,
+				AverageFinishingPosition: math.Round(dbUserStats.AverageFinishingPosition*100) / 100,
+				TotalPoints:              dbUserStats.TotalPoints,
+				HitPercentage:            hitPercentage,
+				TotalZeroBidsMade:        dbUserStats.TotalZeroBidsMade,
+				ZeroBidSuccessRate:       zeroBidSuccessRate,
 			}
 			logger.Debug().Interface("stats_data_for_api", finalResponse.Stats).Msg("Stats data prepared")
 		}

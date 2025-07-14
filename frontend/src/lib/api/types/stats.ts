@@ -1,8 +1,13 @@
-export interface UserStats {
+export interface UserDetailedStats {
   total_games_played: number;
   total_wins: number;
-  top_3_finishes: number;
   win_percentage: number;
+  top_3_finishes: number;
+  average_finishing_position: number;
+  total_points: number;
+  hit_percentage: number;
+  total_zero_bids_made: number;
+  zero_bid_success_rate: number;
 }
 
 export interface SiteSummaryStatsResponse {

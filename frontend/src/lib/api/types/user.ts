@@ -1,5 +1,5 @@
 import type { UITheme, ColorTheme } from "@/lib/themes";
-import type { UserStats } from "./stats";
+import type { UserDetailedStats } from "./stats";
 import type { Pagination } from "./api";
 
 /**
@@ -82,7 +82,7 @@ export interface UserProfile {
 
 export interface UserProfileResponse {
   profile: UserProfile;
-  stats?: UserStats;
+  stats?: UserDetailedStats;
 }
 
 export interface UserSearchItem {
