@@ -1,6 +1,6 @@
 package models
 
-// Represents a user's calculated statistics for display on a profile
+// Represents a user's basic statistics
 type UserStats struct {
 	TotalGamesPlayed int     `json:"total_games_played"`
 	TotalWins        int     `json:"total_wins"`
@@ -38,3 +38,16 @@ type GlobalLeaderboardItem struct {
 }
 
 type GlobalLeaderboardresponse []GlobalLeaderboardItem
+
+// Represents a user's calculated statistics for display on a profile
+type UserDetailedStats struct {
+	TotalGamesPlayed         int     `json:"total_games_played"`
+	TotalWins                int     `json:"total_wins"`
+	WinPercentage            float64 `json:"win_percentage"`
+	Top3Finishes             int     `json:"top_3_finishes"`
+	AverageFinishingPosition float64 `json:"average_finishing_position"`
+	TotalPoints              int     `json:"total_points"`
+	HitPercentage            float64 `json:"hit_percentage"`
+	TotalZeroBidsMade        int     `json:"total_zero_bids_made"`
+	ZeroBidSuccessRate       float64 `json:"zero_bid_success_rate"`
+}

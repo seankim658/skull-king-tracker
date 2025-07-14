@@ -367,3 +367,59 @@ func GetGlobalLeaderboard(ctx context.Context, tx *sql.Tx) ([]dbModels.GlobalLea
 	logger.Info().Int(l.CountKey, len(leaderboard)).Msg("Global leaderboard retrieved successfully")
 	return leaderboard, nil
 }
+
+// Retrieves a comprehensive set of game statistics for a user's profile page
+func GetUserDetailedStats(ctx context.Context, tx *sql.Tx, userID string) (*dbModels.UserDetailedStats, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		statsComponent,
+		"GetUserDetailedStats",
+	).With().Str(l.UserIDKey, userID).Logger()
+
+	stats := &dbModels.UserDetailedStats{}
+
+	query := `
+  WITH GamePlayerCounts AS (
+    SELECT game_id, COUNT(*) as total_players
+    FROM game_players
+    GROUP BY game_id
+  )
+  SELECT
+    COALESCE(COUNT(DISTINCT g.game_id), 0) as total_games_played,
+    COALESCE(SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END), 0) as total_wins,
+    COALESCE(SUM(CASE WHEN gp.finishing_position <= 3 AND gpc.total_players >= 4 THEN 1 ELSE 0 END), 0) as top_3_finishes,
+    COALESCE(AVG(gp.finishing_position), 0.0) as average_finishing_position,
+    COALESCE(SUM(gp.final_score), 0) as total_points,
+    COALESCE(COUNT(prs.player_round_score_id), 0) as total_rounds_played,
+    COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END), 0) as total_bids_hit,
+    COALESCE(SUM(CASE WHEN prs.bid_amount = 0 THEN 1 ELSE 0 END), 0) as total_zero_bids_made,
+    COALESCE(SUM(CASE WHEN prs.bid_amount = 0 AND prs.tricks_taken = 0 THEN 1 ELSE 0 END), 0) as successful_zero_bids
+  FROM game_players gp
+  JOIN games g ON gp.game_id = g.game_id
+  LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
+  LEFT JOIN rounds r ON g.game_id = r.game_id
+  LEFT JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
+  WHERE gp.user_id = $1 AND g.status = 'completed';
+  `
+
+	err := querier.QueryRowContext(ctx, query, userID).Scan(
+		&stats.TotalGamesPlayed,
+		&stats.TotalWins,
+		&stats.Top3Finishes,
+		&stats.AverageFinishingPosition,
+		&stats.TotalPoints,
+		&stats.TotalRoundsPlayed,
+		&stats.TotalBidsHit,
+		&stats.TotalZeroBidsMade,
+		&stats.SuccessfulZeroBids,
+	)
+
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get user detailed stats")
+		return nil, fmt.Errorf("error getting detailed stats for user %s: %w", userID, err)
+	}
+
+	logger.Info().Interface("detailed_profile_stats", stats).Msg("User detailed stats retrieved successfully")
+	return stats, nil
+}

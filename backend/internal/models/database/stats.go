@@ -56,3 +56,15 @@ type GlobalLeaderBoardRow struct {
 	AveragePoints    float64
 	AverageFinishPos float64
 }
+
+type UserDetailedStats struct {
+	TotalGamesPlayed         int
+	TotalWins                int
+	Top3Finishes             int
+	AverageFinishingPosition float64
+	TotalPoints              int
+	TotalRoundsPlayed        int
+	TotalBidsHit             int
+	TotalZeroBidsMade        int
+	SuccessfulZeroBids       int
+}
