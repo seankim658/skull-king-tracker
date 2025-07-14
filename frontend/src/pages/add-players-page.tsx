@@ -61,6 +61,7 @@ export function AddPlayersPage() {
       actionVerb: "Adding player",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gamePlayers", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["pendingGames"] });
       },
     },
   );
@@ -72,6 +73,7 @@ export function AddPlayersPage() {
       successMessage: "Player removed",
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["gamePlayers", gameId] });
+        queryClient.invalidateQueries({ queryKey: ["pendingGames"] });
       },
     },
   );

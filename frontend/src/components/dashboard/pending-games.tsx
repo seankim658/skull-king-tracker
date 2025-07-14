@@ -1,17 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { gameAPI } from "@/lib/api/service/game";
-import { Card } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
+import { Card } from "../ui/card";
 import { GameCard } from "./game-card";
 import { DashboardSectionHeader } from "./dashboard-section-header";
 
-export function ActiveGames() {
-  const { data: activeGames, isLoading } = useQuery({
-    queryKey: ["activeGames"],
+export function PendingGames() {
+  const { data: pendingGames, isLoading } = useQuery({
+    queryKey: ["pendingGames"],
     queryFn: async () => {
-      const response = await gameAPI.getActiveGames();
+      const response = await gameAPI.getPendingGames();
       if (!response.success || !response.data) {
-        throw new Error(response.message || "Failed to fetch active games");
+        throw new Error(response.message || "Failed to fetch pending games");
       }
       return response.data;
     },
@@ -20,32 +20,35 @@ export function ActiveGames() {
 
   const tooltipContent = (
     <>
-      This section shows all games that are currently in progress.
+      This section shows all games you are participating in that are pending the
+      completion of the setup process.
       <br />
       <br />
-      If you are the <strong>scorekeeper</strong>, you can tap to resume
-      scoring. Otherwise, you can view the live scorecard.
+      If you are the <strong>scorekeeper</strong>, you can tap to resume game
+      setup.
     </>
   );
 
   return (
     <section>
       <DashboardSectionHeader
-        title="Active Games"
+        title="Pending Games"
         tooltipContent={tooltipContent}
       />
       {isLoading ? (
         <div className="flex flex-col gap-4">
           <Skeleton className="h-40 w-full" />
         </div>
-      ) : !activeGames || activeGames.length === 0 ? (
+      ) : !pendingGames || pendingGames.length === 0 ? (
         <Card className="flex items-center justify-center p-12">
-          <p className="text-center text-muted-foreground">No active games.</p>
+          <p className="text-center text-muted-foreground">
+            No games are currently pending setup.
+          </p>
         </Card>
       ) : (
         <div className="grid gap-6">
-          {activeGames.map((game) => (
-            <GameCard key={game.game_id} game={game} type="active" />
+          {pendingGames.map((game) => (
+            <GameCard key={game.game_id} game={game} type="pending" />
           ))}
         </div>
       )}
