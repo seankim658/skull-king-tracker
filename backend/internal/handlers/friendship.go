@@ -424,9 +424,24 @@ func (fh *FriendshipHandler) HandleGetFriends(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	logger = logger.With().Str(l.UserIDKey, userID).Logger()
 
-	dbFriends, err := db.GetFriendsByUserID(ctx, nil, userID)
+	page, pageSize := GetPaginationParams(r)
+	searchQuery := QueryParam(r, "q")
+	logger = logger.With().
+		Str(l.UserIDKey, userID).
+		Str(l.SearchQueryKey, searchQuery).
+		Int(l.PageKey, page).
+		Int(l.PageSizeKey, pageSize).
+		Logger()
+
+	totalCount, err := db.CountFriends(ctx, nil, userID, searchQuery)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count friends")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve friends list")
+		return
+	}
+
+	dbFriends, err := db.GetFriendsByUserID(ctx, nil, userID, searchQuery, page, pageSize)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to get friends from database")
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve your friends list")
@@ -443,5 +458,11 @@ func (fh *FriendshipHandler) HandleGetFriends(w http.ResponseWriter, r *http.Req
 		apiFriends = append(apiFriends, *apiFriend)
 	}
 
-	Respond(w, r, http.StatusOK, apiFriends, "Friends list retrived successfully")
+	pagination := CalculatePagination(int64(totalCount), page, pageSize)
+	reponse := apiModels.PaginatedUserSearchResponse{
+		Users:      apiFriends,
+		Pagination: pagination,
+	}
+
+	Respond(w, r, http.StatusOK, reponse, "Friends list retrived successfully")
 }

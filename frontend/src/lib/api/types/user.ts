@@ -106,3 +106,8 @@ export interface PaginatedFriendsListResponse {
   friends: FriendListItem[];
   pagination: Pagination;
 }
+
+export interface PaginatedUserSearchResponse {
+  users: UserSearchItem[];
+  pagination: Pagination;
+}
