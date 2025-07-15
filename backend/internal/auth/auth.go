@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/discord"
 	"github.com/markbates/goth/providers/google"
 
 	"github.com/seankim658/skullking/internal/config"
@@ -26,10 +27,10 @@ const (
 	UserIDSessionKey = "user_id"
 	// Key used to store the authenticated user's display name within the session data
 	UserNameSessionKey = "user_name"
-  // Key used to store the provider name during an account linking operation
-  LinkingProviderNameSessionKey = "linking_provider_name"
-  // Key used to store the user ID initiating an account linking operation
-  LinkingUserIDSessionKey = "linking_user_id_for_provider"
+	// Key used to store the provider name during an account linking operation
+	LinkingProviderNameSessionKey = "linking_provider_name"
+	// Key used to store the user ID initiating an account linking operation
+	LinkingUserIDSessionKey = "linking_user_id_for_provider"
 )
 
 // Initializes the goth authentication providers, should be called once at applciation startup
@@ -43,13 +44,13 @@ func InitAuth(cfg *config.Config) error {
 	store.Options.Path = "/"      // Cookie is valid for all paths on the domain
 	store.Options.HttpOnly = true // Prevents client-side JavaScript from accessing the cookie
 	store.Options.Secure = cfg.AppEnv == "production"
-  if cfg.AppEnv == "production" {
-    store.Options.Secure = true
-    store.Options.SameSite = http.SameSiteLaxMode
-  } else {
-    store.Options.Secure = false
-    store.Options.SameSite = http.SameSiteLaxMode
-  }
+	if cfg.AppEnv == "production" {
+		store.Options.Secure = true
+		store.Options.SameSite = http.SameSiteLaxMode
+	} else {
+		store.Options.Secure = false
+		store.Options.SameSite = http.SameSiteLaxMode
+	}
 
 	gothic.Store = store
 	logger.Info().
@@ -97,6 +98,25 @@ func InitAuth(cfg *config.Config) error {
 				),
 			)
 		}
+	}
+
+	// Discord Provider
+	discordClientID := cfg.ProviderAuthConfig.DiscordClientID
+	discordClientSecret := cfg.ProviderAuthConfig.DiscordClientSecret
+
+	if discordClientID != "" && discordClientSecret != "" {
+		discordCallbackURL := fmt.Sprintf("%s/api/auth/discord/callback", cfg.AppBaseURL)
+		logger.Info().
+			Str(l.ProviderKey, "discord").
+			Str("callback_url", discordCallbackURL).
+			Msg("Configuring Discord OAuth")
+
+		activeProviders = append(
+			activeProviders,
+			discord.New(discordClientID, discordClientSecret, discordCallbackURL, discord.ScopeIdentify, discord.ScopeEmail),
+		)
+	} else {
+		initErrors = append(initErrors, errors.New("DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET is missing"))
 	}
 
 	if len(initErrors) > 0 {
