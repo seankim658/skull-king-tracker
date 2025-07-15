@@ -238,6 +238,7 @@ CREATE INDEX idx_game_sessions_created_by_user_id ON game_sessions(created_by_us
 CREATE INDEX idx_games_session_id ON games(session_id);
 CREATE INDEX idx_games_created_by_user_id ON games(created_by_user_id);
 CREATE INDEX idx_games_starting_dealer_game_player_id ON games(starting_dealer_game_player_id);
+CREATE INDEX idx_games_created_at ON games(created_at);
 
 CREATE INDEX idx_game_players_game_id ON game_players(game_id);
 CREATE INDEX idx_game_players_user_id ON game_players(user_id);

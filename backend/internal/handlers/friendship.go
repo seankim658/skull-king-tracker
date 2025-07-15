@@ -58,6 +58,20 @@ func (fh *FriendshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *h
 	}
 	logger = logger.With().Str(l.AddresseeIDKey, req.AddresseeID).Logger()
 
+	addresseeUser, err := db.GetUserByID(ctx, nil, req.AddresseeID)
+	if err != nil {
+		if errors.Is(err, db.ErrUserNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "The user you are trying to friend does not exist")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Error verifying user status")
+		}
+		return
+	}
+	if addresseeUser.IsBanned {
+		ErrorResponse(w, r, http.StatusForbidden, "Cannot send a friend request to a banned user")
+		return
+	}
+
 	tx, txOk := StartTx(ctx, w, r, logger, "Failed to send friend request")
 	if !txOk {
 		return
