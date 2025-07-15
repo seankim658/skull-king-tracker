@@ -283,3 +283,27 @@ func validateImageURLBeforeDownload(
 	logger.Info().Str("final_url_after_redirects", finalURLAfterRedirects.String()).Msg("Pre-download validation successful")
 	return finalURLAfterRedirects, nil
 }
+
+// Deletes a local avatar file from the storage path
+func DeleteLocalAvatar(storageBasePath, filename string) error {
+	if filename == "" {
+		return errors.New("filename cannot be empty")
+	}
+
+	cleanFilename := filepath.Base(filename)
+	if cleanFilename != filename {
+		return fmt.Errorf("invalid filename provided: %s", filename)
+	}
+
+	fullPath := filepath.Join(storageBasePath, cleanFilename)
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	if err := os.Remove(fullPath); err != nil {
+		return fmt.Errorf("failed to remove avatar file at %s: %w", fullPath, err)
+	}
+
+	return nil
+}

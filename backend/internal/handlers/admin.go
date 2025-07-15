@@ -3,11 +3,15 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
+	i "github.com/seankim658/skullking/internal/images"
 	l "github.com/seankim658/skullking/internal/logger"
 	apiModels "github.com/seankim658/skullking/internal/models/api"
+	dbModels "github.com/seankim658/skullking/internal/models/database"
 	"github.com/seankim658/skullking/internal/sse"
 )
 
@@ -148,26 +152,55 @@ func (ah *AdminHandler) HandleBanUser(w http.ResponseWriter, r *http.Request) {
 	if !txOk {
 		return
 	}
-	var opErr error
-	var responseSent bool
-	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+	defer tx.Rollback()
 
-	opErr = db.SetUserBanStatus(ctx, tx, userToBanID, true, req.Reason)
-	if opErr != nil {
-		if errors.Is(opErr, db.ErrUserNotFound) {
+	userToBan, err := db.GetUserByID(ctx, tx, userToBanID)
+	if err != nil {
+		if errors.Is(err, db.ErrUserNotFound) {
 			ErrorResponse(w, r, http.StatusNotFound, "User to ban not found")
 		} else {
-			logger.Error().Err(opErr).Str(l.UserIDKey, userToBanID).Msg("Failed to ban user")
+			logger.Error().Err(err).Msg("Failed to fetch user for ban operation")
 			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to ban user")
 		}
-		responseSent = true
 		return
 	}
 
-	if !responseSent {
-		Respond(w, r, http.StatusOK, nil, "User successfully banned")
-		responseSent = true
+	if err := db.SetUserBanStatus(ctx, tx, userToBanID, true, req.Reason); err != nil {
+		logger.Error().Err(err).Str(l.UserIDKey, userToBanID).Msg("Failed to ban user")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to ban user")
+		return
 	}
+
+	var localAvatarFilename string
+	if userToBan.AvatarURL.Valid && strings.HasPrefix(userToBan.AvatarURL.String, i.AvatarWebPrefixPath) {
+		localAvatarFilename = filepath.Base(userToBan.AvatarURL.String)
+		emptyString := ""
+		params := dbModels.UpdateUserParams{
+			AvatarURL:    &emptyString,
+			AvatarSource: &emptyString,
+		}
+		if err := db.UpdateUserProfile(ctx, tx, userToBanID, params); err != nil {
+			logger.Error().Err(err).Msg("Failed to clear avatar fields from DB during ban operation")
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update user record during ban")
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		logger.Error().Err(err).Msg("Failed to commit transaction for user ban")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to finalize user ban")
+		return
+	}
+
+	if localAvatarFilename != "" {
+		if err := i.DeleteLocalAvatar(ah.Cfg.AvatarStoragePath, localAvatarFilename); err != nil {
+			logger.Warn().Err(err).Msg("User banned and DB updated, but failed to delete avatar file from disk")
+		} else {
+			logger.Info().Str(l.FileKey, localAvatarFilename).Msg("Successfully deleted banned user's avatar file")
+		}
+	}
+
+	Respond(w, r, http.StatusOK, nil, "User successfully banned")
 }
 
 // Sets a user's is_banned flag to false
