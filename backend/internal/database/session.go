@@ -394,3 +394,43 @@ func GetSessionDetails(
 	logger.Info().Msg("Successfully fetched all components for session details")
 	return details, nil
 }
+
+// Retrieves the IDs of active sessions that have not been updated since the given threshold
+func GetStaleSessions(ctx context.Context, tx *sql.Tx, threshold time.Time) ([]string, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		sessionComponent,
+		"GetStaleSessions",
+	).With().Time("threshold", threshold).Logger()
+
+	query := `
+  SELECT session_id
+  FROM game_sessions
+  WHERE status = 'active' AND updated_at < $1;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get stale sessions")
+
+	rows, err := querier.QueryContext(ctx, query, threshold)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query stale sessions")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessionIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan stale session ID")
+			return nil, err
+		}
+		sessionIDs = append(sessionIDs, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sessionIDs, nil
+}

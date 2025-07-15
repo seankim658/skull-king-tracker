@@ -1222,3 +1222,128 @@ func GetPendingGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]
 
 	return games, nil
 }
+
+// Counts the number of completed games for a given session
+func CountCompletedGamesInSession(ctx context.Context, tx *sql.Tx, sessionID string) (int, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"CountCompletedGamesInSession",
+	).With().Str(l.SessionIDKey, sessionID).Logger()
+
+	query := `
+  SELECT COUNT(*)
+  FROM games
+  WHERE session_id = $1 AND status = 'completed';
+  `
+	var count int
+	if err := querier.QueryRowContext(ctx, query, sessionID).Scan(&count); err != nil {
+		logger.Error().Err(err).Msg("Failed to count completed games in session")
+		return 0, err
+	}
+	return count, nil
+}
+
+// Updates the status of all active or pending games in a session to abandoned
+func AbandonGamesInSession(ctx context.Context, tx *sql.Tx, sessionID string) (int64, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"AbandonGamesInSession",
+	).With().Str(l.SessionIDKey, sessionID).Logger()
+
+	query := `
+  UPDATE games
+  SET status = 'abandoned', updated_at = NOW()
+  WHERE session_id = $1 AND status in ('active', 'pending');
+  `
+	result, err := querier.ExecContext(ctx, query, sessionID)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to abandon games in session")
+		return 0, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return rowsAffected, nil
+}
+
+// Retrieves the IDs of one-off games that are active or pending
+func GetStaleOneOffGames(ctx context.Context, tx *sql.Tx, threshold time.Time) ([]string, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"GetStaleOneOffGames",
+	).With().Time("threshold", threshold).Logger()
+
+	query := `
+  SELECT game_id
+  FROM games
+  WHERE session_id IS NULL AND status in ('active', 'pending') AND updated_at < $1;
+  `
+	rows, err := querier.QueryContext(ctx, query, threshold)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query stale one-off games")
+		return nil, err
+	}
+	defer rows.Close()
+
+	var gameIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan stale game ID")
+			return nil, err
+		}
+		gameIDs = append(gameIDs, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return gameIDs, nil
+}
+
+// Updates the status of a list of games to abandoned
+func AbandonGames(ctx context.Context, tx *sql.Tx, gameIDs []string) (int64, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		gameComponent,
+		"AbandonGames",
+	)
+
+	if len(gameIDs) == 0 {
+		return 0, nil
+	}
+
+	placeholders := make([]string, len(gameIDs))
+	args := make([]any, len(gameIDs))
+	for i, id := range gameIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+    UPDATE games
+    SET status = 'abandoned', updated_at = NOW()
+    WHERE game_id IN (%s);
+  `, strings.Join(placeholders, ","))
+
+	result, err := querier.ExecContext(ctx, query, args...)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to abandon games")
+		return 0, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return rowsAffected, nil
+}
