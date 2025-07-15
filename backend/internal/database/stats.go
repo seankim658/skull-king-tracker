@@ -69,10 +69,10 @@ func GetSiteWideSummaryStats(ctx context.Context, tx *sql.Tx) (*dbModels.SiteWid
 
 	query := `
   SELECT
-    (SELECT COUNT(*) FROM users) AS total_players,
-    (SELECT COUNT(*) FROM users WHERE created_at >= $1) AS new_users_this_month,
-    (SELECT COUNT(*) FROM game_sessions WHERE created_at >= $1) AS sessions_this_month,
-    (SELECT COUNT(*) FROM games WHERE created_at >= $1) AS games_this_month;
+    (SELECT COUNT(*) FROM users WHERE is_banned = false) AS total_players,
+    (SELECT COUNT(*) FROM users WHERE created_at >= $1 AND is_banned = false) AS new_users_this_month,
+    (SELECT COUNT(*) FROM game_sessions WHERE created_at >= $1 AND status = 'completed') AS sessions_this_month,
+    (SELECT COUNT(*) FROM games WHERE created_at >= $1 AND status = 'completed') AS games_this_month;
   `
 	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get site-wide summary stats")
 
@@ -328,6 +328,7 @@ func GetGlobalLeaderboard(ctx context.Context, tx *sql.Tx) ([]dbModels.GlobalLea
     mps.average_finish_pos
   FROM monthly_player_stats mps
   JOIN users u ON mps.user_id = u.user_id
+  WHERE u.is_banned = false
   ORDER BY rank ASC, mps.games_played DESC
   LIMIT 25;
   `
