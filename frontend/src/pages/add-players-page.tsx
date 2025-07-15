@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { friendshipAPI } from "@/lib/api/service/friendship";
 import { gameAPI } from "@/lib/api/service/game";
-import type { GamePlayerResponse } from "@/lib/api/types";
+import type { GamePlayerResponse, UserSearchItem } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,13 +16,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserAvatar } from "@/components/ui/user-avatar";
-import { PlusCircle, UserPlus, X, Rocket } from "lucide-react";
+import { PlusCircle, UserPlus, X, Rocket, UserMinus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useSubmit } from "@/hooks/use-submit";
 import { useConfirm } from "@/hooks/use-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export function AddPlayersPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -31,17 +36,38 @@ export function AddPlayersPage() {
   const queryClient = useQueryClient();
 
   const [guestName, setGuestName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  const { data: friends, isLoading: isLoadingFriends } = useQuery({
-    queryKey: ["friends"],
-    queryFn: async () => {
-      const response = await friendshipAPI.getFriends();
-      if (!response.success || !response.data) {
-        throw new Error(response.message || "Could not fetch friends list");
+  const {
+    data: friendsData,
+    fetchNextPage,
+    hasNextPage,
+    isLoading: isLoadingFriends,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["friends", debouncedSearchQuery],
+    queryFn: ({ pageParam = 1 }) =>
+      friendshipAPI.getFriends({
+        query: debouncedSearchQuery,
+        page: pageParam,
+        pageSize: 15,
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const pagination = lastPage.data?.pagination;
+      if (!pagination || pagination.current_page >= pagination.total_pages) {
+        return undefined;
       }
-      return response.data;
+      return pagination.current_page + 1;
     },
+    enabled:
+      debouncedSearchQuery.trim().length === 0 ||
+      debouncedSearchQuery.trim().length > 2,
   });
+
+  const friends =
+    friendsData?.pages.flatMap((page) => page.data?.users ?? []) ?? [];
 
   const { data: players, isLoading: isLoadingPlayers } = useQuery({
     queryKey: ["gamePlayers", gameId],
@@ -54,6 +80,21 @@ export function AddPlayersPage() {
     },
     enabled: !!gameId,
   });
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastFriendElementRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (isLoadingFriends || isFetchingNextPage) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasNextPage) {
+          fetchNextPage();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [isLoadingFriends, hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
 
   const { submit: addPlayerSubmit, isLoading: isAddingPlayer } = useSubmit(
     gameAPI.addPlayerToGame,
@@ -108,6 +149,13 @@ export function AddPlayersPage() {
     }
   };
 
+  const handleRemoveFriend = (userIdToRemove: string) => {
+    const playerInGame = players?.find((p) => p.user_id === userIdToRemove);
+    if (playerInGame) {
+      handleRemovePlayer(playerInGame);
+    }
+  };
+
   const handleProceed = () => {
     if ((players?.length ?? 0) < 2) {
       toast.error("A game requires at least 2 players to proceed");
@@ -119,7 +167,6 @@ export function AddPlayersPage() {
   const alreadyAdded = (userId: string) =>
     players?.some((p) => p.user_id === userId);
   const isActionLoading = isAddingPlayer || isRemovingPlayer;
-
   const playerList = players || [];
 
   return (
@@ -179,17 +226,41 @@ export function AddPlayersPage() {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold mb-2">Add a Friend</h3>
+              <div className="relative mb-4">
+                <Input
+                  placeholder="Search friends..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="mb-4"
+                />
+                {searchQuery.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full cursor-pointer"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Clear search</span>
+                  </Button>
+                )}
+              </div>
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                {isLoadingFriends ? (
+                {isLoadingFriends && !isFetchingNextPage ? (
                   <div className="space-y-3">
                     {[...Array(3)].map((_, i) => (
                       <Skeleton key={i} className="h-12 w-full" />
                     ))}
                   </div>
                 ) : (
-                  friends?.map((friend) => (
+                  friends?.map((friend: UserSearchItem, index: number) => (
                     <div
                       key={friend.user_id}
+                      ref={
+                        index === friends.length - 1
+                          ? lastFriendElementRef
+                          : null
+                      }
                       className="flex items-center gap-3"
                     >
                       <UserAvatar
@@ -205,24 +276,41 @@ export function AddPlayersPage() {
                           @{friend.username}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        className="cursor-pointer"
-                        variant="outline"
-                        onClick={() => handleAddFriend(friend.user_id)}
-                        disabled={
-                          alreadyAdded(friend.user_id) || isActionLoading
-                        }
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" /> Add
-                      </Button>
+                      {alreadyAdded(friend.user_id) ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="cursor-pointer"
+                          onClick={() => handleRemoveFriend(friend.user_id)}
+                          disabled={isActionLoading}
+                        >
+                          <UserMinus className="h-4 w-4 mr-2" /> Remove
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="cursor-pointer"
+                          variant="outline"
+                          onClick={() => handleAddFriend(friend.user_id)}
+                          disabled={
+                            alreadyAdded(friend.user_id) || isActionLoading
+                          }
+                        >
+                          <UserPlus className="h-4 w-4 mr-2" /> Add
+                        </Button>
+                      )}
                     </div>
                   ))
+                )}
+                {isFetchingNextPage && (
+                  <p className="text-center text-sm text-muted-foreground py-2">
+                    Loading more...
+                  </p>
                 )}
                 {!isLoadingFriends && friends?.length === 0 && (
                   <p className="text-sm text-center text-muted-foreground py-2">
                     {" "}
-                    You haven't added any friends yet
+                    No friends found.
                   </p>
                 )}
               </div>

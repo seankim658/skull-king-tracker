@@ -46,6 +46,11 @@ type PaginatedFriendsListResponse struct {
 	Pagination Pagination       `json:"pagination"`
 }
 
+type PaginatedUserSearchResponse struct {
+	Users      []UserSearchItem `json:"users"`
+	Pagination Pagination       `json:"pagination"`
+}
+
 // --- Component Structs ---
 
 // Main API model representing a user's details for an authenticated session

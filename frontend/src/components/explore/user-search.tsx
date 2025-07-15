@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/input";
 import { UserAvatar } from "../ui/user-avatar";
 import { SkeletonList } from "../ui/skeleton-list";
 import { userAPI } from "@/lib/api/service/user";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useQuery } from "@tanstack/react-query";
 import type { UserSearchItem } from "@/lib/api/types";
+import { Button } from "../ui/button";
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -52,6 +52,17 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
           onFocus={() => setIsFocused(true)}
           onBlur={() => setTimeout(() => setIsFocused(false), 150)}
         />
+        {query.length > 0 && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full cursor-pointer"
+            onClick={() => setQuery("")}
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Clear search</span>
+          </Button>
+        )}
       </div>
 
       {isFocused &&

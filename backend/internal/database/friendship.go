@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	l "github.com/seankim658/skullking/internal/logger"
 	dbModels "github.com/seankim658/skullking/internal/models/database"
@@ -98,7 +99,7 @@ func RespondToFriendRequest(ctx context.Context, tx *sql.Tx, friendshipID, newSt
 }
 
 // Returns a users friends
-func CountFriends(ctx context.Context, tx *sql.Tx, userID string) (int, error) {
+func CountFriends(ctx context.Context, tx *sql.Tx, userID, searchQuery string) (int, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -106,14 +107,34 @@ func CountFriends(ctx context.Context, tx *sql.Tx, userID string) (int, error) {
 		"CountFriends",
 	).With().Str(l.UserIDKey, userID).Logger()
 
-	query := `
-  SELECT COUNT(*) FROM user_friendships
-  WHERE (requester_id = $1 OR addressee_id = $1) AND status = 'accepted';
+	var whereClauses []string
+	args := []any{userID}
+	argCounter := 2
+
+	baseQuery := `
+  SELECT COUNT(u.user_id)
+  FROM user_friendships f
+  JOIN users u ON CASE
+    WHEN f.requester_id = $1 THEN u.user_id = f.addressee_id
+    ELSE u.user_id = f.requester_id
+  END
+  WHERE (f.requester_id = $1 OR f.addressee_id = $1) AND f.status = 'accepted' AND u.is_banned = false
   `
-	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to count friends")
+
+	if searchQuery != "" {
+		searchTerm := "%" + strings.ToLower(searchQuery) + "%"
+		whereClauses = append(whereClauses, fmt.Sprintf("(u.username ILIKE $%d OR u.display_name ILIKE $%d)", argCounter, argCounter))
+		args = append(args, searchTerm)
+	}
+
+	finalQuery := baseQuery
+	if len(whereClauses) > 0 {
+		finalQuery += " AND " + strings.Join(whereClauses, "")
+	}
+	logger.Debug().Str(l.QueryKey, finalQuery).Msg("Attempting to count friends")
 
 	var count int
-	err := querier.QueryRowContext(ctx, query, userID).Scan(&count)
+	err := querier.QueryRowContext(ctx, finalQuery, args...).Scan(&count)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to count friends")
 		return 0, fmt.Errorf("error counting friends for user %s: %w", userID, err)
@@ -531,7 +552,7 @@ func UnblockUser(ctx context.Context, tx *sql.Tx, unblockerID, unblockedID strin
 }
 
 // Retrieves a list of all accepted friends for a given user
-func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbModels.UserSearchResult, error) {
+func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID, searchQuery string, page, pageSize int) ([]dbModels.UserSearchResult, error) {
 	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
@@ -539,26 +560,38 @@ func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]dbMod
 		"GetFriendsByUserID",
 	).With().Str(l.UserIDKey, userID).Logger()
 
-	query := `
-  SELECT
-    u.user_id,
-    u.username,
-    u.display_name,
-    u.avatar_url
-  FROM user_friendships f
-  JOIN users u ON
-    CASE
-      WHEN f.requester_id = $1 THEN u.user_id = f.addressee_id
-      ELSE u.user_id = f.requester_id
-    END
-  WHERE
-    (f.requester_id = $1 OR f.addressee_id = $1)
-    AND f.status = 'accepted'
-  ORDER BY u.username ASC;
-  `
-	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get friends by user ID")
+	offset := (page - 1) * pageSize
 
-	rows, err := querier.QueryContext(ctx, query, userID)
+	var whereClauses []string
+	args := []any{userID}
+	argCounter := 2
+
+	baseQuery := `
+  SELECT u.user_id, u.username, u.display_name, u.avatar_url
+  FROM user_friendships f
+  JOIN users u ON CASE
+    WHEN f.requester_id = $1 THEN u.user_id = f.addressee_id
+    ELSE u.user_id = f.requester_id
+  END
+  WHERE (f.requester_id = $1 OR f.addressee_id = $1) AND f.status = 'accepted' AND u.is_banned = false
+  `
+
+	if searchQuery != "" {
+		searchTerm := "%" + strings.ToLower(searchQuery) + "%"
+		whereClauses = append(whereClauses, fmt.Sprintf("(u.username ILIKE $%d OR u.display_name ILIKE $%d)", argCounter, argCounter))
+		args = append(args, searchTerm)
+		argCounter++
+	}
+
+	finalQuery := baseQuery
+	if len(whereClauses) > 0 {
+		finalQuery += " AND " + strings.Join(whereClauses, "")
+	}
+	finalQuery += fmt.Sprintf(" ORDER BY u.username ASC LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
+  args = append(args, pageSize, offset)
+	logger.Debug().Str(l.QueryKey, finalQuery).Msg("Attempting to get friends by user ID")
+
+	rows, err := querier.QueryContext(ctx, finalQuery, args...)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to query user's friends")
 		return nil, fmt.Errorf("error querying friends for user %s: %w", userID, err)

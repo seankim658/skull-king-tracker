@@ -1,5 +1,14 @@
 import { client } from "../client";
-import type { UserSearchItem, ApiResponse } from "../types";
+import type {
+  ApiResponse,
+  PaginatedUserSearchResponse,
+} from "../types";
+
+interface GetFriendsParams {
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}
 
 export const friendshipAPI = {
   /**
@@ -65,8 +74,24 @@ export const friendshipAPI = {
   /**
    * Fetches the current user's list of accepted friends.
    */
-  getFriends: (): Promise<ApiResponse<UserSearchItem[]>> =>
-    client<UserSearchItem[]>("/friends", {
-      method: "GET",
-    }),
+  getFriends: (
+    params: GetFriendsParams,
+  ): Promise<ApiResponse<PaginatedUserSearchResponse>> => {
+    const queryParams = new URLSearchParams();
+    if (params.query) {
+      queryParams.append("q", params.query);
+    }
+    if (params.page) {
+      queryParams.append("page", params.page.toString());
+    }
+    if (params.pageSize) {
+      queryParams.append("page_size", params.pageSize.toString());
+    }
+    return client<PaginatedUserSearchResponse>(
+      `/friends?${queryParams.toString()}`,
+      {
+        method: "GET",
+      },
+    );
+  },
 };

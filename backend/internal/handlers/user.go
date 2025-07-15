@@ -69,7 +69,7 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 	}
 
 	// 2. Fetch Friend Count
-	friendCount, fcErr := db.CountFriends(ctx, nil, profileUserIDFromPath)
+	friendCount, fcErr := db.CountFriends(ctx, nil, profileUserIDFromPath, "")
 	if fcErr != nil {
 		logger.Error().Err(fcErr).Msg("Database error counting friends for profile user, proceeding with count 0")
 		friendCount = 0
@@ -238,7 +238,7 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 
 	logger = logger.With().Str(l.ProfileUserIDKey, profileUserID).Str(l.ViewerUserIDKey, viewerUserID).Logger()
 
-	totalCount, err := db.CountFriends(ctx, nil, profileUserID)
+	totalCount, err := db.CountFriends(ctx, nil, profileUserID, "")
 	if err != nil {
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to count friends")
 		return

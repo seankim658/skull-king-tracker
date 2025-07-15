@@ -531,14 +531,14 @@ func SearchUsers(ctx context.Context, tx *sql.Tx, searchQuery string, limit int)
 	query := `
   SELECT user_id, username, display_name, avatar_url
   FROM users
-  WHERE (LOWER(username) ILIKE $1 OR LOWER(display_name) ILIKE $1)
+  WHERE (LOWER(username) ILIKE $1 OR LOWER(display_name) ILIKE $1) AND is_banned = false
   ORDER BY
     CASE
-      WHEN LOWER(username) = LOWER($2) THEN 1     -- Exact username match first
-			WHEN LOWER(display_name) = LOWER($2) THEN 2 -- Exact display name match second
-			WHEN LOWER(username) LIKE $3 THEN 3         -- Starts with username
-			WHEN LOWER(display_name) LIKE $3 THEN 4     -- Starts with display name
-			ELSE 5 -- Contains match
+      WHEN LOWER(username) = LOWER($2) THEN 1
+			WHEN LOWER(display_name) = LOWER($2) THEN 2
+			WHEN LOWER(username) LIKE $3 THEN 3
+			WHEN LOWER(display_name) LIKE $3 THEN 4
+			ELSE 5
 		END,
 		username ASC
 	LIMIT $4;
