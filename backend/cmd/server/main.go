@@ -15,6 +15,7 @@ import (
 	l "github.com/seankim658/skullking/internal/logger"
 	"github.com/seankim658/skullking/internal/router"
 	"github.com/seankim658/skullking/internal/sse"
+	"github.com/seankim658/skullking/internal/tasks"
 )
 
 func main() {
@@ -40,6 +41,8 @@ func main() {
 	}
 
 	sseHub := sse.NewHub()
+
+	tasks.StartCleanupTask(1 * time.Hour)
 
 	log.Info().Msg("Application components initialized")
 
