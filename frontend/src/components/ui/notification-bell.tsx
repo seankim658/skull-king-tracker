@@ -58,7 +58,7 @@ export function NotificationBell() {
       return;
     }
 
-    const eventsUrl = `${import.meta.env.VITE_SSE_BASE_URL}/notifications/events`;
+    const eventsUrl = `${import.meta.env.VITE_SSE_BASE_URL}/api/notifications/events`;
     console.log("Attempting to connect to SSE:", eventsUrl);
 
     const eventSource = new EventSource(eventsUrl, { withCredentials: true });
