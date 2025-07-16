@@ -101,6 +101,7 @@ export function FriendsListModal({
                   onClick={() => handleUserClick(friend.user_id)}
                 >
                   <UserAvatar
+                    userId={friend.user_id}
                     displayName={friend.display_name || friend.username}
                     avatarUrl={friend.avatar_url}
                   />

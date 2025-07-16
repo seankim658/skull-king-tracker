@@ -86,6 +86,7 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
                   >
                     <div className="flex items-center space-x-3">
                       <UserAvatar
+                        userId={user.user_id}
                         displayName={user.avatar_url || user.username}
                         avatarUrl={user.avatar_url}
                       />

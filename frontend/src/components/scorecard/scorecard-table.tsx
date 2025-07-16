@@ -72,6 +72,7 @@ export function ScorecardTable({
                   <div className="flex flex-col items-center gap-2">
                     <div className="relative h-10 w-10">
                       <UserAvatar
+                        userId={player.user_id}
                         displayName={player.display_name}
                         avatarUrl={player.avatar_url}
                         className="h-10 w-10 border-2"

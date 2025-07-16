@@ -78,6 +78,7 @@ function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </Button>
         <UserAvatar
+          userId={player.user_id}
           displayName={player.display_name}
           avatarUrl={player.avatar_url}
         />

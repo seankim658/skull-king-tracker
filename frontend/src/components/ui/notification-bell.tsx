@@ -314,6 +314,7 @@ export function NotificationBell() {
                         className="flex-grow flex items-center gap-3"
                       >
                         <UserAvatar
+                          userId={notif.actor.user_id}
                           displayName={
                             notif.actor.display_name || notif.actor.username
                           }

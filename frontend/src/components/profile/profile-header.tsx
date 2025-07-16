@@ -96,6 +96,7 @@ export function ProfileHeader({
       <div className="flex flex-col gap-4">
         <div className="flex flex-row items-center gap-4">
           <UserAvatar
+            userId={profile.user_id}
             displayName={displayName}
             avatarUrl={profile.avatar_url}
             className="h-20 w-20 text-2xl flex-shrink-0"

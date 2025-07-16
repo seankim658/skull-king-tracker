@@ -103,6 +103,7 @@ export function GameSummaryModal({
               <>
                 <p className="text-2xl">🥈</p>
                 <UserAvatar
+                  userId={topThree[1].user_id}
                   displayName={topThree[1].display_name}
                   avatarUrl={topThree[1].avatar_url}
                   className="h-16 w-16 mx-auto border-2 border-slate-400"
@@ -122,6 +123,7 @@ export function GameSummaryModal({
               <>
                 <p className="text-4xl">🥇</p>
                 <UserAvatar
+                  userId={topThree[0].user_id}
                   displayName={topThree[0].display_name}
                   avatarUrl={topThree[0].avatar_url}
                   className="h-20 w-20 mx-auto border-4 border-amber-400"
@@ -141,6 +143,7 @@ export function GameSummaryModal({
               <>
                 <p className="text-2xl">🥉</p>
                 <UserAvatar
+                  userId={topThree[2].user_id}
                   displayName={topThree[2].display_name}
                   avatarUrl={topThree[2].avatar_url}
                   className="h-16 w-16 mx-auto border-2 border-amber-600"

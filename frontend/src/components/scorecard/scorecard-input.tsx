@@ -168,6 +168,7 @@ export function ScorecardInputDrawer({
 
           <div className="p-2 flex flex-col items-center gap-4">
             <UserAvatar
+              userId={activePlayer.user_id}
               displayName={activePlayer.display_name}
               avatarUrl={activePlayer.avatar_url}
               className="h-16 w-16"

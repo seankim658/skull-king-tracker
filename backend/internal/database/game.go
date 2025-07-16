@@ -723,6 +723,7 @@ func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]d
     SELECT
       g.game_id,
       json_agg(json_build_object(
+        'user_id', gp.user_id,
         'display_name', COALESCE(u.display_name, u.username, gp_guest.display_name),
         'avatar_url', u.avatar_url
       )) AS players

@@ -18,9 +18,11 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 
 interface User {
+  user_id: string;
   name: string;
   email: string;
   avatar: string;
+  updatedAt: string;
 }
 
 interface NavUserProps {
@@ -45,8 +47,10 @@ export function NavUser({ user }: NavUserProps) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
             >
               <UserAvatar
+                userId={user.user_id}
                 displayName={user.name.substring(0, 2)}
                 avatarUrl={user.avatar}
+                updatedAt={user.updatedAt}
                 className="h-8 w-8 rounded-lg"
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
@@ -67,8 +71,10 @@ export function NavUser({ user }: NavUserProps) {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <UserAvatar
+                  userId={user.user_id}
                   displayName={user.name}
                   avatarUrl={user.avatar}
+                  updatedAt={user.updatedAt}
                   className="rounded-lg"
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">

@@ -127,6 +127,7 @@ export interface SubmitTricksPayload {
  * Represents a single player with an active game card for the dashboard.
  */
 export interface ActiveGamePlayer {
+  user_id?: string | null;
   display_name: string;
   avatar_url?: string | null;
 }

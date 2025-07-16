@@ -13,18 +13,26 @@ export function errorExtract(error: any, defaultMsg: string): string {
 
 export function getFullAvatarURL(
   avatarPath: string | null | undefined,
+  updatedAt?: string | null,
 ): string | undefined {
   if (!avatarPath) {
     return undefined;
   }
+  let fullUrl: string;
   if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
-    return avatarPath;
-  }
-  if (!avatarPath.startsWith("/")) {
+    fullUrl = avatarPath;
+  } else if (avatarPath.startsWith("/")) {
+    const baseURL = import.meta.env.VITE_BACKEND_ASSET_BASE_URL || "";
+    fullUrl = `${baseURL}${avatarPath}`;
+  } else {
     return undefined;
   }
-  const baseURL = import.meta.env.VITE_BACKEND_ASSET_BASE_URL || "";
-  return `${baseURL}${avatarPath}`;
+
+  if (updatedAt) {
+    const timestamp = new Date(updatedAt).getTime();
+    return `${fullUrl}?v=${timestamp}`;
+  }
+  return fullUrl;
 }
 
 export function getAvatarFallback(displayName: string): string {

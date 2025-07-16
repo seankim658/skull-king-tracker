@@ -63,6 +63,7 @@ export function GameCard({ game, type }: GameCardProps) {
           {game.players.map((player, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <UserAvatar
+                userId={player.user_id}
                 displayName={player.display_name}
                 avatarUrl={player.avatar_url}
                 className="h-8 w-8 border"

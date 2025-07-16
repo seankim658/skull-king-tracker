@@ -30,7 +30,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	fileServer := http.FileServer(http.Dir(avatarDiskPath))
 
 	cachingFileServer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+		w.Header().Set("Cache-Control", "public, max-age=604800")
 		fileServer.ServeHTTP(w, r)
 	})
 

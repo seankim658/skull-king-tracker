@@ -197,6 +197,7 @@ export function AddPlayersPage() {
                   >
                     <div className="flex items-center gap-3">
                       <UserAvatar
+                        userId={player.user_id}
                         displayName={player.display_name}
                         avatarUrl={player.avatar_url}
                         className="h-9 w-9"
@@ -264,6 +265,7 @@ export function AddPlayersPage() {
                       className="flex items-center gap-3"
                     >
                       <UserAvatar
+                        userId={friend.user_id}
                         displayName={friend.display_name || friend.username}
                         avatarUrl={friend.avatar_url}
                         className="h-9 w-9"
