@@ -32,8 +32,10 @@ type Config struct {
 }
 
 type ProvidersConfig struct {
-	GoogleClientID     string
-	GoogleClientSecret string
+	GoogleClientID      string
+	GoogleClientSecret  string
+	DiscordClientID     string
+	DiscordClientSecret string
 	// TODO : add others
 }
 
@@ -97,6 +99,8 @@ func Load() (*Config, error) {
 
 	googleClientID := getEnv("GOOGLE_CLIENT_ID", "")
 	googleClientSecret := getEnv("GOOGLE_CLIENT_SECRET", "")
+	discordClientID := getEnv("DISCORD_CLIENT_ID", "")
+	discordClientSecret := getEnv("DISCORD_CLIENT_SECRET", "")
 
 	apiPort := getEnv("API_PORT", "8080")
 
@@ -128,8 +132,10 @@ func Load() (*Config, error) {
 		SessionSecretKey:     sessionSecretKey,
 		SessionEncryptionKey: sessionEncryptionKey,
 		ProviderAuthConfig: ProvidersConfig{
-			GoogleClientID:     googleClientID,
-			GoogleClientSecret: googleClientSecret,
+			GoogleClientID:      googleClientID,
+			GoogleClientSecret:  googleClientSecret,
+			DiscordClientID:     discordClientID,
+			DiscordClientSecret: discordClientSecret,
 		},
 		Log: l.LogConfig{
 			AppLogPath:     getEnv("APP_LOG_PATH", "./logs/app.log"),

@@ -20,11 +20,17 @@ export function getFullAvatarURL(
   if (avatarPath.startsWith("http://") || avatarPath.startsWith("https://")) {
     return avatarPath;
   }
+  if (!avatarPath.startsWith("/")) {
+    return undefined;
+  }
   const baseURL = import.meta.env.VITE_BACKEND_ASSET_BASE_URL || "";
   return `${baseURL}${avatarPath}`;
 }
 
 export function getAvatarFallback(displayName: string): string {
+  if (displayName.length <= 3) {
+    return displayName[0];
+  }
   return displayName.substring(0, 2).toUpperCase();
 }
 

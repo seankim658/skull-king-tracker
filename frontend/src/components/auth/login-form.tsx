@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { API_BASE_URL } from "@/lib/api/client";
-import { GoogleProivder } from "@/lib/providers";
+import { AVAILABLE_OAUTH_PROVIDERS } from "@/lib/providers";
 import type { ReactNode } from "react";
 
 interface LoginFormProps {
@@ -22,12 +22,11 @@ export function LoginForm({
   ...props
 }: LoginFormProps) {
   /**
-   * Handles the Google login click by redirecting to the backend's Google OAuth endpoint.
+   * Handles the login click by redirecting to the backend's OAuth endpoint.
    */
-  const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE_URL}/auth/${GoogleProivder.id}/login`;
+  const handleLogin = (providerId: string) => {
+    window.location.href = `${API_BASE_URL}/auth/${providerId}/login`;
   };
-  // TODO : add other oauth providers
 
   return (
     <div
@@ -50,14 +49,17 @@ export function LoginForm({
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4">
-            <Button
-              variant="default"
-              className="w-full cursor-pointer"
-              onClick={handleGoogleLogin}
-            >
-              {GoogleProivder.icon}
-              Login with Google
-            </Button>
+            {AVAILABLE_OAUTH_PROVIDERS.map((provider) => (
+              <Button
+                key={provider.id}
+                variant="default"
+                className="w-full cursor-pointer flex items-center justify-center gap-2"
+                onClick={() => handleLogin(provider.id)}
+              >
+                <div className="h-5 w-5">{provider.icon}</div>
+                Login with {provider.name}
+              </Button>
+            ))}
           </div>
           <div className="mt-6 text-center text-xs text-muted-foreground">
             By clicking continue, you agree to our{" "}

@@ -140,6 +140,13 @@ export function ScorecardInputDrawer({
   const currentTricks = tricks[activePlayer.game_player_id] ?? 0;
   const currentBonus = bonus[activePlayer.game_player_id] ?? 0;
 
+  const bidForTricksPhase =
+    phase === "tricks"
+      ? (currentRound.player_scores.find(
+          (s) => s.game_player_id === activePlayer.game_player_id,
+        )?.bid_amount ?? 0)
+      : 0;
+
   const phaseTitle =
     phase === "bidding" ? "Enter Bids" : "Enter Tricks & Bonuses";
   const phaseDescription =
@@ -235,6 +242,14 @@ export function ScorecardInputDrawer({
               </div>
             ) : (
               <div className="w-full space-y-4">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Player Bid:
+                    <span className="font-bold text-lg text-foreground ml-2">
+                      {bidForTricksPhase}
+                    </span>
+                  </p>
+                </div>
                 <div className="text-center p-2 bg-muted rounded-lg">
                   <p className="text-5xl font-bold tracking-tighter">
                     {currentTricks}
