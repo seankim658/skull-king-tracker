@@ -11,9 +11,7 @@ import {
 } from "@/lib/themes";
 import { ThemeContext } from "@/contexts/theme-context";
 import type { ThemeContextType } from "@/contexts/theme-context";
-import { toast } from "sonner";
 import { userAPI } from "@/lib/api/service/user";
-import { errorExtract } from "@/lib/utils";
 import { useSubmit } from "@/hooks/use-submit";
 
 interface ThemeProviderProps {

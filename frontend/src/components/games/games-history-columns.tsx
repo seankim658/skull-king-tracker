@@ -2,7 +2,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { GameHistoryItem } from "@/lib/api/types";
 import { SortableHeader } from "../ui/data-table-sortable-header";
 import { Asterisk } from "lucide-react";
-import { InfoTooltip } from "../ui/info-tooltip";
 
 export const gameHistoryColumns: ColumnDef<GameHistoryItem>[] = [
   {

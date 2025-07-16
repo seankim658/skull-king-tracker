@@ -18,11 +18,10 @@ import {
   TableRow,
 } from "../ui/table";
 import { UserAvatar } from "../ui/user-avatar";
-import { Terminal, Trophy, Award } from "lucide-react";
+import { Terminal, Award } from "lucide-react";
 import { Separator } from "../ui/separator";
 import type { GameAward } from "@/lib/api/types";
 import { StatCard } from "../ui/stat-card";
-import { InfoTooltip } from "../ui/info-tooltip";
 
 interface GameSummaryModalProps {
   gameId: string | null;
