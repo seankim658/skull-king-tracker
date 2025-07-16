@@ -9,7 +9,7 @@ RUN go mod download
 COPY . .
 
 # Build the application.
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/server ./
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/server ./cmd/server/main.go
 
 # Stage 2: Create the final lightweight image
 FROM alpine:latest
