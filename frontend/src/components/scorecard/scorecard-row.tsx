@@ -30,7 +30,7 @@ export function ScorecardRow({ round, players }: ScorecardRowProps) {
           "bg-primary/5 border-l-4 border-l-primary/80 dark:bg-primary/10",
       )}
     >
-      <TableCell className="font-medium text-center sticky left-0 bg-background z-10">
+      <TableCell className="font-medium text-center bg-background z-10">
         <div className="flex flex-col items-center gap-1">
           <span className="text-xl">{round.round_number}</span>
           {round.is_tie_breaker_round ? (

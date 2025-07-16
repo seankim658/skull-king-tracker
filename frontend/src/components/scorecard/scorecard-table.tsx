@@ -54,7 +54,7 @@ export function ScorecardTable({
       <Table className="min-w-[600px]">
         <TableHeader>
           <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableHead className="w-[80px] font-bold text-center sticky left-0 bg-background z-20">
+            <TableHead className="w-[80px] font-bold text-center bg-background z-20">
               Players
             </TableHead>
             {players.map((player) => {
