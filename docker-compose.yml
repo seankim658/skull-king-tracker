@@ -63,20 +63,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-#  # Frontend service - to be defined later.
-#  frontend:
-#    build:
-#      context: ./frontend
-#      dockerfile: Dockerfile
-#    container_name: skull_king_frontend
-#    ports:
-#      - "${HOST_FRONTEND_PORT:-3000}:80" # Maps host port (e.g., 3000 or from .env) to Nginx container port 80
-#    environment:
-#      # Example: If your React app needs to know the backend API URL
-#      REACT_APP_API_URL: http://localhost:${HOST_BACKEND_PORT:-8080}/api # Or directly to backend service if proxied by Nginx
-#    depends_on:
-#      - backend
-#    restart: unless-stopped
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: skull_king_frontend
+    ports:
+      - "${HOST_FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:
