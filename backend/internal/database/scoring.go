@@ -291,7 +291,7 @@ func saveAwardsToDB(ctx context.Context, tx *sql.Tx, gameID string, awards []api
 
 	stmt, err := querier.PrepareContext(ctx, `
     INSERT INTO game_player_awards (game_id, game_player_id, user_id, award_type, award_value)
-    SELECT $1, gp.game_player_id, $2, $3
+    SELECT $1, gp.game_player_id, gp.user_id, $2, $3
     FROM game_players gp
     LEFT JOIN users u ON gp.user_id = u.user_id
     LEFT JOIN guest_players g ON gp.guest_player_id = g.guest_player_id

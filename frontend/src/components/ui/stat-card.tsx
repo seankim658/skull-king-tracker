@@ -8,6 +8,7 @@ interface StatCardProps {
   icon?: ReactNode;
   description?: string;
   tooltip?: string;
+  tooltipContentClassName?: string;
 }
 
 export function StatCard({
@@ -16,6 +17,7 @@ export function StatCard({
   icon,
   description,
   tooltip,
+  tooltipContentClassName,
 }: StatCardProps) {
   return (
     <Card>
@@ -30,6 +32,7 @@ export function StatCard({
             <InfoTooltip
               content={tooltip}
               wrapperClassName="absolute top-0.5 right-0"
+              contentClassName={tooltipContentClassName}
             />
           )}
         </div>

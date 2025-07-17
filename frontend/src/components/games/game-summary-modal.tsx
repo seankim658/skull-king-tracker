@@ -36,6 +36,7 @@ const AwardCard = ({ award }: { award: GameAward }) => (
     icon={<Award className="h-5 w-5 text-amber-500" />}
     description={award.value}
     tooltip={award.description}
+    tooltipContentClassName="max-w-60"
   />
 );
 
@@ -92,6 +93,10 @@ export function GameSummaryModal({
       .slice()
       .sort((a, b) => b.final_score - a.final_score)
       .slice(0, 3);
+
+    const sortedFinalScores = summaryData.final_scores
+      .slice()
+      .sort((a, b) => b.final_score - a.final_score);
 
     return (
       <div className="space-y-6">
@@ -187,7 +192,7 @@ export function GameSummaryModal({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {summaryData.final_scores.map((player, idx) => (
+              {sortedFinalScores.map((player, idx) => (
                 <TableRow key={player.game_player_id}>
                   <TableCell className="font-medium">{idx + 1}</TableCell>
                   <TableCell>{player.display_name}</TableCell>

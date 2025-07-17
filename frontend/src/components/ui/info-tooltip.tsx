@@ -41,7 +41,9 @@ export function InfoTooltip({
             />
           </div>
         </TooltipTrigger>
-        <TooltipContent className={cn("max-w-xs", contentClassName)}>
+        <TooltipContent
+          className={cn("max-w-xs z-[100]", contentClassName)}
+        >
           <div className="text-wrap">{content}</div>
         </TooltipContent>
       </Tooltip>
