@@ -266,6 +266,21 @@ func (ah *AdminHandler) HandleSendAdminNotification(w http.ResponseWriter, r *ht
 	var responseSent bool
 	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
+	sendAndBroadcast := func(recipientID string, notificationType string) {
+		notificationID, err := db.CreateNotification(ctx, tx, recipientID, adminUserID, notificationType, req.Message, nil)
+		if err != nil {
+			logger.Error().Err(err).Str(l.RecipientIDKey, recipientID).Msg("Failed to create notification for user")
+			return
+		}
+
+		fullNotification, err := db.GetNotificationWithActorByID(ctx, tx, notificationID)
+		if err != nil {
+			logger.Error().Err(err).Str(l.NotificationIDKey, notificationID).Msg("Failed to fetch created notification for SSE broadcast")
+		}
+
+		go broadcastNotificationEvent(ah.SSEHub, fullNotification, logger)
+	}
+
 	if req.IsBroadcast {
 		// Broadcast to all users
 		allUserIDs, err := db.GetAllUserIDs(ctx, tx)
@@ -281,11 +296,7 @@ func (ah *AdminHandler) HandleSendAdminNotification(w http.ResponseWriter, r *ht
 			if recipientID == adminUserID {
 				continue
 			}
-			_, err := db.CreateNotification(ctx, tx, recipientID, adminUserID, "admin_broadcast", req.Message, nil)
-			if err != nil {
-				// Log error but continue trying to notify other users
-				logger.Error().Err(err).Str(l.RecipientIDKey, recipientID).Msg("Failed to create broadcast notification for user")
-			}
+			sendAndBroadcast(recipientID, "admin_broadcast")
 		}
 	} else if len(req.UserIDs) > 0 {
 		// Send to a list of specific users
