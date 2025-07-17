@@ -60,11 +60,12 @@ type User struct {
 	Email        *string   `json:"email,omitempty"`
 	DisplayName  *string   `json:"display_name,omitempty"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
-	StatsPrivacy string    `json:"stats_privacy"`
-	Role         string    `json:"role"`
 	AvatarSource *string   `json:"avatar_source,omitempty"`
+	StatsPrivacy string    `json:"stats_privacy"`
 	UITheme      *string   `json:"ui_theme,omitempty"`
 	ColorTheme   *string   `json:"color_theme,omitempty"`
+	Role         string    `json:"role"`
+	IsBanned     bool      `json:"is_banned"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	LastLoginAt  *string   `json:"last_login_at,omitempty"`
