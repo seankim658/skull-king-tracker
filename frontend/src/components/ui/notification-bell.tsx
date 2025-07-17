@@ -34,6 +34,7 @@ import { SkeletonList } from "./skeleton-list";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useConfirm } from "@/hooks/use-confirm";
+import { API_BASE_URL } from "@/lib/api/client";
 
 export function NotificationBell() {
   const { isAuthenticated, user } = useAuth();
@@ -58,7 +59,7 @@ export function NotificationBell() {
       return;
     }
 
-    const eventsUrl = `${import.meta.env.VITE_SSE_BASE_URL}/api/notifications/events`;
+    const eventsUrl = `${API_BASE_URL}/notifications/events`;
     console.log("Attempting to connect to SSE:", eventsUrl);
 
     const eventSource = new EventSource(eventsUrl, { withCredentials: true });
