@@ -92,7 +92,7 @@ export function AdminReportsPage() {
           title="Admin Panel: User Reports"
           description="Review and act on user-submitted reports."
         />
-        <Button onClick={() => setNotificationModalOpen(true)}>
+        <Button onClick={() => setNotificationModalOpen(true)} className="cursor-pointer">
           <Send className="mr-2 h-4 w-4" />
           Send Notification
         </Button>
