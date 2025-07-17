@@ -274,7 +274,7 @@ func GetUserAwardsSummary(ctx context.Context, tx *sql.Tx, userID string) ([]dbM
 	var awards []dbModels.UserAwardStat
 	for rows.Next() {
 		var award dbModels.UserAwardStat
-		if err := rows.Scan(&award.AwardType, &award.AwardCount); err != nil {
+		if err := rows.Scan(&award.AwardType, &award.AwardCount, &award.PercentilRank); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan award stat row")
 			return nil, fmt.Errorf("error scanning award stat: %w", err)
 		}
