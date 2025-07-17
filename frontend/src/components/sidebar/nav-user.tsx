@@ -48,7 +48,7 @@ export function NavUser({ user }: NavUserProps) {
             >
               <UserAvatar
                 userId={user.user_id}
-                displayName={user.name.substring(0, 2)}
+                displayName={user.name}
                 avatarUrl={user.avatar}
                 updatedAt={user.updatedAt}
                 className="h-8 w-8 rounded-lg"

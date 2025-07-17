@@ -174,7 +174,6 @@ export function GameScorecardPage() {
     return "Game Over";
   };
 
-  // TODO
   return (
     <div className="container mx-auto p-2 sm:p-4 md:p-6">
       <Card>

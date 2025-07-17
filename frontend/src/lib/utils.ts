@@ -36,8 +36,12 @@ export function getFullAvatarURL(
 }
 
 export function getAvatarFallback(displayName: string): string {
-  if (displayName.length <= 3) {
-    return displayName[0];
+  if (!displayName || displayName.trim() === "") {
+    return "?";
+  }
+  const trimmedName = displayName.trim();
+  if (trimmedName.length < 2) {
+    return trimmedName.toUpperCase();
   }
   return displayName.substring(0, 2).toUpperCase();
 }
