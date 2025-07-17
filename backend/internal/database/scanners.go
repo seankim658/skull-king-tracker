@@ -26,6 +26,8 @@ func scanUser(row RowScanner) (*dbModels.User, error) {
 		&user.StatsPrivacy,
 		&user.UITheme,
 		&user.ColorTheme,
+		&user.Role,
+		&user.IsBanned,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastLoginAt,
