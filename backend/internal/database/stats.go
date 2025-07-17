@@ -381,27 +381,49 @@ func GetUserDetailedStats(ctx context.Context, tx *sql.Tx, userID string) (*dbMo
 	stats := &dbModels.UserDetailedStats{}
 
 	query := `
-  WITH GamePlayerCounts AS (
-    SELECT game_id, COUNT(*) as total_players
-    FROM game_players
-    GROUP BY game_id
+  WITH UserGameStats AS (
+    SELECT
+      gp.user_id,
+      COUNT(g.game_id) AS total_games_played,
+      SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END) AS total_wins,
+      SUM(CASE WHEN gp.finishing_position <= 3 AND gpc.total_players >= 4 THEN 1 ELSE 0 END) AS top_3_finishes,
+      AVG(gp.finishing_position) AS average_finishing_position,
+      SUM(gp.final_score) AS total_points
+    FROM game_players gp
+    JOIN games g ON gp.game_id = g.game_id
+    LEFT JOIN (
+      SELECT game_id, COUNT(*) AS total_players FROM game_players GROUP BY game_id
+    ) AS gpc ON g.game_id = gpc.game_id
+    WHERE gp.user_id = $1 AND g.status = 'completed'
+    GROUP BY gp.user_id
+  ),
+  UserRoundStats AS (
+    SELECT
+      gp.user_id,
+      COUNT(prs.player_round_score_id) AS total_rounds_played,
+      SUM(CASE WHEN prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) AS total_bids_hit,
+      SUM(CASE WHEN prs.bid_amount = 0 THEN 1 ELSE 0 END) AS total_zero_bids_made,
+      SUM(CASE WHEN prs.bid_amount = 0 AND prs.tricks_taken = 0 THEN 1 ELSE 0 END) AS successful_zero_bids
+    FROM game_players gp
+    JOIN games g ON gp.game_id = g.game_id
+    JOIN rounds r ON g.game_id = r.game_id
+    JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
+    WHERE gp.user_id = $1 AND g.status = 'completed'
+    GROUP BY gp.user_id
   )
   SELECT
-    COALESCE(COUNT(DISTINCT g.game_id), 0) as total_games_played,
-    COALESCE(SUM(CASE WHEN gp.finishing_position = 1 THEN 1 ELSE 0 END), 0) as total_wins,
-    COALESCE(SUM(CASE WHEN gp.finishing_position <= 3 AND gpc.total_players >= 4 THEN 1 ELSE 0 END), 0) as top_3_finishes,
-    COALESCE(AVG(gp.finishing_position), 0.0) as average_finishing_position,
-    COALESCE(SUM(gp.final_score), 0) as total_points,
-    COALESCE(COUNT(prs.player_round_score_id), 0) as total_rounds_played,
-    COALESCE(SUM(CASE WHEN prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END), 0) as total_bids_hit,
-    COALESCE(SUM(CASE WHEN prs.bid_amount = 0 THEN 1 ELSE 0 END), 0) as total_zero_bids_made,
-    COALESCE(SUM(CASE WHEN prs.bid_amount = 0 AND prs.tricks_taken = 0 THEN 1 ELSE 0 END), 0) as successful_zero_bids
-  FROM game_players gp
-  JOIN games g ON gp.game_id = g.game_id
-  LEFT JOIN GamePlayerCounts gpc ON g.game_id = gpc.game_id
-  LEFT JOIN rounds r ON g.game_id = r.game_id
-  LEFT JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
-  WHERE gp.user_id = $1 AND g.status = 'completed';
+    COALESCE(ugs.total_games_played, 0),
+    COALESCE(ugs.total_wins, 0),
+    COALESCE(ugs.top_3_finishes, 0),
+    COALESCE(ugs.average_finishing_position, 0.0),
+    COALESCE(ugs.total_points, 0),
+    COALESCE(urs.total_rounds_played, 0),
+    COALESCE(urs.total_bids_hit, 0),
+    COALESCE(urs.total_zero_bids_made, 0),
+    COALESCE(urs.successful_zero_bids, 0)
+  FROM (SELECT $1 AS user_id) AS u
+  LEFT JOIN UserGameStats ugs ON u.user_id = ugs.user_id
+  LEFT JOIN UserRoundStats urs ON u.user_id = urs.user_id;
   `
 
 	err := querier.QueryRowContext(ctx, query, userID).Scan(
