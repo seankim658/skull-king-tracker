@@ -17,8 +17,15 @@ export function MainLayout() {
             name: user.display_name || user.username,
             email: user.email ? user.email : "",
             avatar: getFullAvatarURL(user.avatar_url),
+            updatedAt: user.updated_at,
           }
-        : { user_id: "", name: "Loading...", email: "...", avatar: "" },
+        : {
+            user_id: "",
+            name: "Loading...",
+            email: "...",
+            avatar: "",
+            updatedAt: null,
+          },
     [user],
   );
 
