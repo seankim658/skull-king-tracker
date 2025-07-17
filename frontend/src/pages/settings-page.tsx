@@ -272,7 +272,7 @@ export function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isSavingProfile}>
+              <Button type="submit" disabled={isSavingProfile} className="cursor-pointer">
                 {isSavingProfile ? "Saving..." : "Save Profile Changes"}
               </Button>
             </CardFooter>
@@ -350,7 +350,7 @@ export function SettingsPage() {
                           )
                         }
                         disabled={isOnlyAccount || isDisconnecting}
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto cursor-pointer"
                       >
                         Disconnect
                       </Button>
@@ -361,7 +361,7 @@ export function SettingsPage() {
                         onClick={() =>
                           handleConnectProvider(availableProvider.id)
                         }
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto cursor-pointer"
                       >
                         Connect
                       </Button>
