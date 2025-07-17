@@ -15,7 +15,7 @@ export function getFullAvatarURL(
   avatarPath: string | null | undefined,
   updatedAt?: string | null,
 ): string | undefined {
-  if (!avatarPath) {
+  if (!avatarPath || avatarPath.trim() === "") {
     return undefined;
   }
   let fullUrl: string;
@@ -43,7 +43,7 @@ export function getAvatarFallback(displayName: string): string {
   if (trimmedName.length < 2) {
     return trimmedName.toUpperCase();
   }
-  return displayName.substring(0, 2).toUpperCase();
+  return displayName.replace(" ", "_").substring(0, 2).toUpperCase();
 }
 
 export function formatFriendshipStatus(status: FriendshipStatus): string {
