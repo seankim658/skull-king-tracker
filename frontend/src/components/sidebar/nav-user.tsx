@@ -22,7 +22,7 @@ interface User {
   name: string;
   email: string;
   avatar: string;
-  updatedAt: string;
+  updatedAt: string | null;
 }
 
 interface NavUserProps {
