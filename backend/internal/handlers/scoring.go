@@ -237,22 +237,17 @@ func (sh *ScoringHandler) HandleSubmitTricks(w http.ResponseWriter, r *http.Requ
 	if !txOk {
 		return
 	}
-	var opErr error
-	var responseSent bool
-	defer ManageTransaction(tx, &opErr, logger, &responseSent)
 
 	currentRound, err := db.GetCurrentRoundInfo(ctx, tx, gameID)
 	if err != nil {
-		opErr = err
+		tx.Rollback()
 		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve current round information")
-		responseSent = true
 		return
 	}
 
 	if currentRound.Status != "playing" {
-		opErr = fmt.Errorf("cannot submit scores for a round with status '%s'", currentRound.Status)
-		ErrorResponse(w, r, http.StatusConflict, opErr.Error())
-		responseSent = true
+		tx.Rollback()
+		ErrorResponse(w, r, http.StatusConflict, fmt.Sprintf("Cannot submit scores for a round with status '%s'", currentRound.Status))
 		return
 	}
 
@@ -265,19 +260,21 @@ func (sh *ScoringHandler) HandleSubmitTricks(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	opErr = db.SubmitScoresAndUpdateRound(ctx, tx, gameID, currentRound.RoundID, scores)
-	if opErr != nil {
+	if err := db.SubmitScoresAndUpdateRound(ctx, tx, gameID, currentRound.RoundID, scores); err != nil {
+		tx.Rollback()
 		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save scores to the database")
-		responseSent = true
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		logger.Error().Err(err).Msg("Failed to commit transaction for submitting scores")
+		ErrorResponse(w, r, http.StatusInsufficientStorage, "Failed to finalize score submission")
 		return
 	}
 
 	go broadcastScorecardUpdate(sh.SSEHub, gameID, logger)
 
-	if !responseSent {
-		Respond(w, r, http.StatusOK, nil, "Scores submitted successfully")
-		responseSent = true
-	}
+	Respond(w, r, http.StatusOK, nil, "Scores submitted successfully")
 }
 
 // Helper function to broadcast scorecard updates via SSE
