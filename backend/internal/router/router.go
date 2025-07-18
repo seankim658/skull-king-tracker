@@ -65,6 +65,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	friendshipHandler := h.NewFriendshipHandler(cfg, sseHub)
 	notificationHandler := h.NewNotificationHandler(cfg, sseHub)
 	statsHandler := h.NewStatsHandler(cfg)
+	alertHandler := h.NewAlertHandler(cfg)
 	adminHandler := h.NewAdminHandler(cfg, sseHub)
 
 	// Settings routes
@@ -140,6 +141,9 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	statsSubRouter := apiRouter.PathPrefix("/stats").Subrouter()
 	statsSubRouter.HandleFunc("/summary", statsHandler.HandleGetSiteSummaryStats).Methods(http.MethodGet)
 	statsSubRouter.HandleFunc("/leaderboard", statsHandler.HandleGetGlobalLeaderboard).Methods(http.MethodGet)
+
+	// Public alert routes
+	apiRouter.HandleFunc("/alerts/active", alertHandler.HandleGetActiveSiteAlerts).Methods(http.MethodGet)
 
 	// Admin routes
 	adminSubrouter := apiRouter.PathPrefix("/admin").Subrouter()
