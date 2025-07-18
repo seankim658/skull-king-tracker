@@ -184,7 +184,8 @@ func UpdateSessionStatus(
 }
 
 // Retrieves a game session by its ID
-func GetGameSessionByID(ctx context.Context, querier DBTX, sessionID string) (*dbModels.GameSession, error) {
+func GetGameSessionByID(ctx context.Context, tx *sql.Tx, sessionID string) (*dbModels.GameSession, error) {
+	querier := GetQuerier(tx)
 	logger := l.WithComponentAndSource(
 		l.GetLoggerFromContext(ctx),
 		sessionComponent,
@@ -371,7 +372,7 @@ func GetSessionDetails(
 	details := &dbModels.SessionDetailData{}
 
 	// 1. Get core session details
-	session, err := GetGameSessionByID(ctx, querier, sessionID)
+	session, err := GetGameSessionByID(ctx, tx, sessionID)
 	if err != nil {
 		return nil, err
 	}
