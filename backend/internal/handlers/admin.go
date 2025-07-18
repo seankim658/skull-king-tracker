@@ -301,10 +301,7 @@ func (ah *AdminHandler) HandleSendAdminNotification(w http.ResponseWriter, r *ht
 	} else if len(req.UserIDs) > 0 {
 		// Send to a list of specific users
 		for _, recipientID := range req.UserIDs {
-			_, err := db.CreateNotification(ctx, tx, recipientID, adminUserID, "admin_message", req.Message, nil)
-			if err != nil {
-				logger.Error().Err(err).Str(l.RecipientIDKey, recipientID).Msg("Failed to create targeted notification for users")
-			}
+			sendAndBroadcast(recipientID, "admin_messgae")
 		}
 	} else {
 		ErrorResponse(w, r, http.StatusBadRequest, "Request must be a broadcast or include a user_id")
