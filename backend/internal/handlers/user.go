@@ -314,6 +314,13 @@ var awardTypeToTitle = map[string]string{
 	"buccaneer":       "The Buccaneer",
 	"maverick":        "The Maverick",
 	"conservative":    "The Conservative",
+	"gunslinger":      "The Gunslinger",
+	"overboard":       "The Overboard",
+	"wild-card":       "The Wild Card",
+	"closer":          "The Closer",
+	"scoundrel":       "The Scoundrel",
+	"mutineer":        "The Mutineer",
+	"anchor":          "The Anchor",
 }
 
 // Retrieves the awards statistics for a user

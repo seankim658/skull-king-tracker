@@ -248,7 +248,7 @@ func GetUserAwardsSummary(ctx context.Context, tx *sql.Tx, userID string) ([]dbM
       user_id,
       award_type,
       award_count,
-      PERCENT_RANK() OVER (PARTITION BY award_type ORDER BY award_count ASC) as percentile_rank
+      CUME_DIST() OVER (PARTITION BY award_type ORDER BY award_count ASC) as percentile_rank
     FROM
       UserAwardCounts
   )
