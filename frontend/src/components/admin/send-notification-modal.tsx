@@ -115,10 +115,10 @@ export function SendNotificationModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" onClick={onClose} disabled={isLoading} className="cursor-pointer">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitDisabled}>
+          <Button onClick={handleSubmit} disabled={isSubmitDisabled} className="cursor-pointer">
             {isLoading ? "Sending..." : "Send Notification"}
           </Button>
         </DialogFooter>
