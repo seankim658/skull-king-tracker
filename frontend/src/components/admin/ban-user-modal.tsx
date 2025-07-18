@@ -32,6 +32,11 @@ export function BanUserModal({
     successMessage: `User ${userReport?.reported_name} has been banned.`,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminReports"] });
+      if (userReport) {
+        queryClient.invalidateQueries({
+          queryKey: ["userProfile", userReport.reported_user_id],
+        });
+      }
       onClose();
     },
   });

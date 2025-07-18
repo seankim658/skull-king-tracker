@@ -81,6 +81,17 @@ export function ScorecardInputDrawer({
         queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
         queryClient.invalidateQueries({ queryKey: ["activeGames"] });
         queryClient.invalidateQueries({ queryKey: ["gameHistory"] });
+        queryClient.invalidateQueries({ queryKey: ["globalLeaderboard"] });
+        players.forEach((player) => {
+          if (player.user_id) {
+            queryClient.invalidateQueries({
+              queryKey: ["userProfile", player.user_id],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["userAwardsStats", player.user_id],
+            });
+          }
+        });
         onOpenChange(false);
       },
     },

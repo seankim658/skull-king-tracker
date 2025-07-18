@@ -37,7 +37,12 @@ export function FriendshipActionButton({
         queryKey: ["userProfile", authenticatedUser.user_id],
       });
     }
-    queryClient.invalidateQueries({ queryKey: ["friendsList"] });
+    queryClient.invalidateQueries({
+      queryKey: ["friendsList", authenticatedUser?.user_id],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["friendsList", targetUser.userId],
+    });
     onSuccess();
   };
 
