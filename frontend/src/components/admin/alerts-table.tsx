@@ -122,7 +122,7 @@ export function AlertsTable() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleFormSubmit}
-        isLoading={isCreating || isUpdating}
+        isLoading={isCreating || isUpdating || isDeleting}
         alert={editingAlert}
       />
     </div>
