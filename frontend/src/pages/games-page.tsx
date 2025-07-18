@@ -89,7 +89,7 @@ export function GamePage() {
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbPage>{sessionName || "Session Games"}</BreadcrumbPage>
+              <BreadcrumbPage>{sessionName ? `${sessionName} Games` : "Session Games"}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
