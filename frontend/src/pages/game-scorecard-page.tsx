@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useLocation, Link } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -26,11 +26,23 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSubmit } from "@/hooks/use-submit";
 import { AddAsteriskDialog } from "@/components/scorecard/add-asterisk-dialog";
 import { GameSummaryModal } from "@/components/games/game-summary-modal";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export function GameScorecardPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+
+  const { from, label, previousState } = location.state || {};
+  const sessionNameFromState = previousState?.sessionName;
 
   const [isInputDrawerOpen, setIsInputDrawerOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
@@ -176,6 +188,46 @@ export function GameScorecardPage() {
 
   return (
     <div className="container mx-auto p-2 sm:p-4 md:p-6">
+      {sessionNameFromState ? (
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/sessions">Sessions</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/games" state={previousState}>
+                  {sessionNameFromState}
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Scorecard</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      ) : from ? (
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to={from} state={previousState}>
+                  {label}
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Scorecard</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      ) : null}
+
       <Card>
         <ScorecardHeader
           gameId={gameId!}

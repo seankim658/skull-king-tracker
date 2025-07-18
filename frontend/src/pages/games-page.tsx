@@ -65,7 +65,13 @@ export function GamePage() {
         setPage={setPage}
         isLoading={isLoading}
         onRowClick={(row) =>
-          navigate(`/game/${row.original.game_id}/scorecard`)
+          navigate(`/game/${row.original.game_id}/scorecard`, {
+            state: {
+              from: "/games",
+              label: sessionId ? sessionName : "Game History",
+              previousState: location.state,
+            },
+          })
         }
       />
     );
