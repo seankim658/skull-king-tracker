@@ -92,7 +92,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     if (authenticatedUser?.role === "superuser") {
       items.push({
         title: "Admin Panel",
-        url: "/admin/reports",
+        url: "/admin/dashboard",
         icon: Shield,
       });
     }

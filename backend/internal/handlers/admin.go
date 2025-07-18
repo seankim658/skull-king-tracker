@@ -320,11 +320,6 @@ func (ah *AdminHandler) HandleSendAdminNotification(w http.ResponseWriter, r *ht
 // Method: GET
 func (ah *AdminHandler) HandleGetSiteAlerts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := l.WithComponentAndSource(
-		l.GetLoggerFromContext(ctx),
-		adminComponent,
-		"HandleGetSiteAlerts",
-	)
 
 	page, pageSize := GetPaginationParams(r)
 

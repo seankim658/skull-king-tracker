@@ -32,7 +32,7 @@ import { GameSetupPage } from "./pages/game-setup-page";
 import { GameScorecardPage } from "./pages/game-scorecard-page";
 import { GamePage } from "./pages/games-page";
 import { SessionPage } from "./pages/sessions-page";
-import { AdminReportsPage } from "./pages/admin-reports-page";
+import { AdminDashboardPage } from "./pages/admin-dashboard-page";
 
 function AppContent() {
   const { isLoadingAuth } = useAuth();
@@ -70,7 +70,7 @@ function AppContent() {
           />
           {/* Admin Routes */}
           <Route element={<AdminRoute />}>
-            <Route path="/admin/reports" element={<AdminReportsPage />} />
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           </Route>
         </Route>
       </Route>
