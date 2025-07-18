@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, LabelList, XAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis } from "recharts";
 import {
   Card,
   CardContent,
@@ -15,7 +15,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { statsAPI } from "@/lib/api/service/stat";
 import { Skeleton } from "../ui/skeleton";
-import { Separator } from "../ui/separator";
 
 interface ProfileAwardsChartProps {
   userId: string;
@@ -27,6 +26,23 @@ const chartConfig = {
     color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig;
+
+const categoryColors = [
+  "var(--category-color-blue)",
+  "var(--category-color-rose)",
+  "var(--category-color-violet)",
+  "var(--category-color-amber)",
+  "var(--category-color-red)",
+  "var(--category-color-orange)",
+  "var(--category-color-fuchsia)",
+  "var(--category-color-yellow)",
+  "var(--category-color-green)",
+  "var(--category-color-sky)",
+  "var(--category-color-indigo)",
+  "var(--category-color-lime)",
+  "var(--category-color-purple)",
+  "var(--category-color-pink)",
+];
 
 export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
   const {
@@ -77,6 +93,11 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
     );
   }
 
+  const awardDataWithColors = awardsData?.map((award, index) => ({
+    ...award,
+    fill: categoryColors[index % categoryColors.length],
+  }));
+
   return (
     <Card>
       <CardHeader>
@@ -84,25 +105,29 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
         <CardDescription>A summary of all awards won.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-64 w-full">
+        <ChartContainer config={chartConfig} className="h-80 w-full">
           <BarChart
             accessibilityLayer
-            data={awardsData}
-            layout="vertical"
-            margin={{ left: 10, right: 10 }}
+            data={awardDataWithColors}
+            margin={{ top: 20, bottom: 75 }}
           >
-            <CartesianGrid horizontal={false} />
-            <XAxis type="number" dataKey="count" hide />
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="award_title"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={10}
+              angle={-45}
+              textAnchor="end"
+            />
             <ChartTooltip
               cursor={false}
               content={
                 <ChartTooltipContent
                   formatter={(value, _, item) => {
-                    const { award_title, percentile } = item.payload;
+                    const { percentile } = item.payload;
                     return (
-                      <div className="min-w-[120px] space-y-1">
-                        <p className="font-bold">{award_title}</p>
-                        <Separator />
+                      <div className="min-w-[150px] space-y-1.5 p-1">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Count:</span>
                           <span className="font-medium">{value}</span>
@@ -110,7 +135,7 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Rank:</span>
                           <span className="font-medium">
-                            Top {(100 - percentile).toFixed(0)}%
+                            Top {percentile}%
                           </span>
                         </div>
                       </div>
@@ -119,18 +144,13 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
                 />
               }
             />
-            <Bar dataKey="count" fill="var(--color-count)" radius={4}>
+            <Bar dataKey="count" radius={4}>
+              {awardDataWithColors.map((entry) => (
+                <Cell key={entry.award_type} fill={entry.fill} />
+              ))}
               <LabelList
-                dataKey="award_title"
-                position="insideLeft"
-                offset={8}
-                className="fill-background"
-                fontSize={12}
-              />
-              <LabelList
-                dataKey="count"
-                position="right"
-                offset={8}
+                position="top"
+                offset={10}
                 className="fill-foreground"
                 fontSize={12}
               />
