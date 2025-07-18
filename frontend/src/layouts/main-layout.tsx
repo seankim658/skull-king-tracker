@@ -5,6 +5,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { SiteHeader } from "@/components/ui/site-header";
 import { getFullAvatarURL } from "@/lib/utils";
+import { SiteAlertBanner } from "@/components/ui/site-alert-banner";
 
 export function MainLayout() {
   const { user } = useAuth();
@@ -36,6 +37,7 @@ export function MainLayout() {
         <div className="flex h-screen flex-col overflow-hidden">
           <SiteHeader />
           <main className="flex-1 overflow-auto">
+            <SiteAlertBanner />
             <Outlet />
           </main>
         </div>

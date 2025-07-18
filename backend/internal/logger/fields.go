@@ -114,4 +114,8 @@ const (
 	ReporterIDKey   = "reporter_id"
 	ReportedIDKey   = "reported_id"
 	ReportReasonKey = "report_reason"
+
+	// Alert
+	AlertKey   = "alert"
+	AlertIDKey = "alert_id"
 )

@@ -3,24 +3,20 @@ import { useQuery } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
 import { adminAPI, type ReportFilters } from "@/lib/api/service/admin";
 import type { UserReport } from "@/lib/api/types";
-import { PageHeader } from "@/components/ui/page-header";
 import { DataTable } from "@/components/ui/data-table";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { columns } from "@/components/admin/report-columns";
 import { BanUserModal } from "@/components/admin/ban-user-modal";
-import { SendNotificationModal } from "@/components/admin/send-notification-modal";
 import { errorExtract } from "@/lib/utils";
-import { Terminal, Send } from "lucide-react";
+import { Terminal } from "lucide-react";
 import { ReportDetailsModal } from "@/components/admin/report-details-modal";
 
-export function AdminReportsPage() {
+export function ReportsTable() {
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = useState<SortingState>([]);
   const pageSize = 20;
 
   const [isBanModalOpen, setBanModalOpen] = useState(false);
-  const [isNotificationModalOpen, setNotificationModalOpen] = useState(false);
   const [isDetailModalOpen, setDetailsModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<UserReport | null>(null);
 
@@ -48,23 +44,24 @@ export function AdminReportsPage() {
     setDetailsModalOpen(true);
   };
 
-  const renderContent = () => {
-    if (isError) {
-      const errorMsg = errorExtract(error, "An unknown error occurred");
-      return (
-        <Alert variant="destructive">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>Error Loading Reports</AlertTitle>
-          <AlertDescription>{errorMsg}</AlertDescription>
-        </Alert>
-      );
-    }
-    const reportColumns = columns({
-      onBan: handleBanUser,
-      onViewDetails: handleViewDetails,
-    });
-
+  if (isError) {
+    const errorMsg = errorExtract(error, "An unknown error occurred");
     return (
+      <Alert variant="destructive">
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Error Loading Reports</AlertTitle>
+        <AlertDescription>{errorMsg}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const reportColumns = columns({
+    onBan: handleBanUser,
+    onViewDetails: handleViewDetails,
+  });
+
+  return (
+    <>
       <DataTable
         columns={reportColumns}
         data={data?.data?.reports ?? []}
@@ -82,39 +79,16 @@ export function AdminReportsPage() {
         isLoading={isLoading}
         loadingRowCount={pageSize}
       />
-    );
-  };
-
-  return (
-    <div className="container mx-auto p-4 md:p-6 space-y-8">
-      <div className="flex justify-between items-center">
-        <PageHeader
-          title="Admin Panel: User Reports"
-          description="Review and act on user-submitted reports."
-        />
-        <Button onClick={() => setNotificationModalOpen(true)} className="cursor-pointer">
-          <Send className="mr-2 h-4 w-4" />
-          Send Notification
-        </Button>
-      </div>
-
-      {renderContent()}
-
-      {/* Modals */}
       <BanUserModal
         isOpen={isBanModalOpen}
         onClose={() => setBanModalOpen(false)}
         userReport={selectedReport}
-      />
-      <SendNotificationModal
-        isOpen={isNotificationModalOpen}
-        onClose={() => setNotificationModalOpen(false)}
       />
       <ReportDetailsModal
         isOpen={isDetailModalOpen}
         onClose={() => setDetailsModalOpen(false)}
         report={selectedReport}
       />
-    </div>
+    </>
   );
 }

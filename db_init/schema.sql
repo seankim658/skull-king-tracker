@@ -175,6 +175,20 @@ CREATE TABLE user_reports (
   CONSTRAINT chk_different_users_report CHECK (reporter_user_id <> reported_user_id)
 );
 
+-- Site Alerts Table
+CREATE TABLE site_alerts (
+  alert_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  body TEXT NOT NULL,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_start_before_end CHECK (start_time < end_time)
+);
+
 -- Functions to update 'updated_at' timestamps
 CREATE OR REPLACE FUNCTION trigger_set_timestamp()
 RETURNS TRIGGER AS $$
@@ -225,6 +239,11 @@ BEFORE UPDATE ON user_reports
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();
 
+CREATE TRIGGER set_timestamp_site_alerts
+BEFORE UPDATE ON site_alerts
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();
+
 -- Indexes
 CREATE INDEX idx_user_provider_identities_user_id ON user_provider_identities(user_id);
 CREATE INDEX idx_user_provider_identities_provider_lookup ON user_provider_identities(provider_name, provider_user_id);
@@ -262,3 +281,6 @@ CREATE INDEX idx_user_notifications_is_read ON user_notifications(recipient_user
 CREATE INDEX idx_user_notifications_actor_user_id ON user_notifications(actor_user_id);
 
 CREATE INDEX idx_user_reports_status ON user_reports(status);
+
+CREATE INDEX idx_site_alerts_active_times ON site_alerts(is_active, start_time, end_time);
+CREATE INDEX idx_site_alerts_created_by ON site_alerts(created_by_user_id);
