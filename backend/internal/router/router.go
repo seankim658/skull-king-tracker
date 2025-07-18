@@ -80,7 +80,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	gameSubRouter.Use(mw.AuthRequired)
 	gameSubRouter.HandleFunc("", gameHandler.HandleCreateGame).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/active", gameHandler.HandleGetActiveGames).Methods(http.MethodGet)
-  gameSubRouter.HandleFunc("/pending", gameHandler.HandleGetPendingGames).Methods(http.MethodGet)
+	gameSubRouter.HandleFunc("/pending", gameHandler.HandleGetPendingGames).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/history", gameHandler.HandleGetGameHistory).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/details", gameHandler.HandleGetGameDetails).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/players", gameHandler.HandleAddPlayerToGame).Methods(http.MethodPost)
@@ -150,6 +150,10 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	adminSubrouter.HandleFunc("/reports", adminHandler.HandleGetReports).Methods(http.MethodGet)
 	adminSubrouter.HandleFunc("/reports/{report_id}", adminHandler.HandleUpdateReportStatus).Methods(http.MethodPut)
 	adminSubrouter.HandleFunc("/notifications", adminHandler.HandleSendAdminNotification).Methods(http.MethodPost)
+	adminSubrouter.HandleFunc("/alerts", adminHandler.HandleGetSiteAlerts).Methods(http.MethodGet)
+	adminSubrouter.HandleFunc("/alerts", adminHandler.HandleCreateSiteAlert).Methods(http.MethodPost)
+	adminSubrouter.HandleFunc("/alerts/{alert_id}", adminHandler.HandleUpdateSiteAlert).Methods(http.MethodPut)
+	adminSubrouter.HandleFunc("/alerts/{alert_id}", adminHandler.HandleDeleteSiteAlert).Methods(http.MethodDelete)
 
 	return mainRouter
 }

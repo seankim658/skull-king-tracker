@@ -48,4 +48,7 @@ var (
 
   // Report
   ErrReportNotFound = errors.New("report not found")
+
+  // Alert
+  ErrAlertNotFound = errors.New("alert not found")
 )

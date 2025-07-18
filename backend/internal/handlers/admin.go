@@ -314,3 +314,208 @@ func (ah *AdminHandler) HandleSendAdminNotification(w http.ResponseWriter, r *ht
 		responseSent = true
 	}
 }
+
+// Retrieves a paginated list of all site alerts for the admin panel
+// Path: /admin/alerts
+// Method: GET
+func (ah *AdminHandler) HandleGetSiteAlerts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		adminComponent,
+		"HandleGetSiteAlerts",
+	)
+
+	page, pageSize := GetPaginationParams(r)
+
+	totalCount, err := db.CountSiteAlerts(ctx, nil)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to count site alerts")
+		return
+	}
+
+	dbAlerts, err := db.GetPaginatedSiteAlerts(ctx, nil, page, pageSize)
+	if err != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve site alerts")
+		return
+	}
+
+	apiAlerts := make([]apiModels.SiteAlertResponse, len(dbAlerts))
+	for i, a := range dbAlerts {
+		apiAlerts[i] = apiModels.SiteAlertResponse{
+			AlertID:     a.AlertID,
+			Title:       a.Title,
+			Body:        a.Body,
+			StartTime:   a.StartTime,
+			EndTime:     a.EndTime,
+			IsActive:    a.IsActive,
+			CreatorName: a.CreatorName,
+			CreatedAt:   a.CreatedAt,
+			UpdatedAt:   a.UpdatedAt,
+		}
+	}
+
+	pagination := CalculatePagination(totalCount, page, pageSize)
+	response := apiModels.PaginatedAlertsResponse{
+		Alerts:     apiAlerts,
+		Pagination: pagination,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Site alerts retrieved successfully")
+}
+
+// Creates a new site-wide alert
+// Path: /admin/alerts
+// Method: POST
+func (ah *AdminHandler) HandleCreateSiteAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		adminComponent,
+		"HandleCreateSiteAlert",
+	)
+
+	adminUserID, ok := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !ok {
+		return
+	}
+
+	var req apiModels.SiteAlertRequest
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+
+	if req.StartTime.After(req.EndTime) {
+		ErrorResponse(w, r, http.StatusBadRequest, "Start time must be before end time")
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to create site alert")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	alert := dbModels.SiteAlert{
+		Title:           req.Title,
+		Body:            req.Body,
+		StartTime:       req.StartTime,
+		EndTime:         req.EndTime,
+		IsActive:        req.IsActive,
+		CreatedByUserID: adminUserID,
+	}
+
+	_, opErr = db.CreateSiteAlert(ctx, tx, alert)
+	if opErr != nil {
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to create site alert")
+		responseSent = true
+		return
+	}
+
+	if !responseSent {
+		Respond(w, r, http.StatusCreated, nil, "Site alert created successfully")
+		responseSent = true
+	}
+}
+
+// Handles updating an existing alert
+// Path: /admin/alerts/{alert_id}
+// Method: PUT
+func (ah *AdminHandler) HandleUpdateSiteAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		adminComponent,
+		"HandleUpdateSiteAlert",
+	)
+
+	alertID, ok := PathVar(w, r, "alert_id")
+	if !ok {
+		return
+	}
+
+	var req apiModels.SiteAlertRequest
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+
+	if req.StartTime.After(req.EndTime) {
+		ErrorResponse(w, r, http.StatusBadRequest, "Start time must be before end time")
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to update site alert")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	alert := dbModels.SiteAlert{
+		Title:     req.Title,
+		Body:      req.Body,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+		IsActive:  req.IsActive,
+	}
+
+	opErr = db.UpdateSiteAlert(ctx, tx, alertID, alert)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrAlertNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Alert not found")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to update site alert")
+		}
+		responseSent = true
+		return
+	}
+
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Site alert updated successfully")
+		responseSent = true
+	}
+}
+
+// Handles deleting a site-wide alert
+// Path: /admin/alerts/{alert_id}
+// Method: DELETE
+func (ah *AdminHandler) HandleDeleteSiteAlert(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		adminComponent,
+		"HandleDeleteSiteAlert",
+	)
+
+	alertID, ok := PathVar(w, r, "alert_id")
+	if !ok {
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to delete site alert")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	opErr = db.DeleteSiteAlert(ctx, tx, alertID)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrAlertNotFound) {
+			ErrorResponse(w, r, http.StatusNotFound, "Alert not found")
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to delete site alert")
+		}
+		responseSent = true
+		return
+	}
+
+	if !responseSent {
+		Respond(w, r, http.StatusNoContent, nil, "Site alert deleted successfully")
+		responseSent = true
+	}
+}
