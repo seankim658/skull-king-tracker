@@ -33,7 +33,22 @@ export const DiscordProvider: AvailableProvider = {
   ),
 };
 
+export const AppleProvider: AvailableProvider = {
+  id: "apple",
+  name: "Apple",
+  icon: (
+    <svg
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+    >
+      <path d="M14.53,2.59A6.5,6.5,0,0,0,11,4.1,6.25,6.25,0,0,0,7.63,8.61a6.3,6.3,0,0,0,1.2,4.45,7.7,7.7,0,0,0,3.31,2.42,1,1,0,0,1,.41.83v.1a5.3,5.3,0,0,0-1.87,1.26,5,5,0,0,0-1.3,3,1,1,0,0,0,1,1H15.6a1,1,0,0,0,1-1,4.72,4.72,0,0,0-1.21-3,5.33,5.33,0,0,0-1.82-1.27v-.1a1,1,0,0,1,.42-.83,8.12,8.12,0,0,0,3.2-2.31,6.5,6.5,0,0,0,1.4-4.54A6.1,6.1,0,0,0,14.53,2.59Z M12,3a1,1,0,0,1,1,1,1,1,0,0,1-2,0,1,1,0,0,1,1-1Z" />
+    </svg>
+  ),
+};
+
 export const AVAILABLE_OAUTH_PROVIDERS: AvailableProvider[] = [
   GoogleProivder,
+  AppleProvider,
   DiscordProvider,
 ];
