@@ -1,14 +1,18 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/gob"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
+	"github.com/markbates/goth/providers/apple"
 	"github.com/markbates/goth/providers/discord"
 	"github.com/markbates/goth/providers/google"
 
@@ -46,7 +50,7 @@ func InitAuth(cfg *config.Config) error {
 	store.Options.Secure = cfg.AppEnv == "production"
 	if cfg.AppEnv == "production" {
 		store.Options.Secure = true
-		store.Options.SameSite = http.SameSiteLaxMode
+		store.Options.SameSite = http.SameSiteNoneMode
 	} else {
 		store.Options.Secure = false
 		store.Options.SameSite = http.SameSiteLaxMode
@@ -84,7 +88,7 @@ func InitAuth(cfg *config.Config) error {
 
 			logger.Info().
 				Str(l.ProviderKey, "google").
-				Str("callback_url", googleCallbackURL).
+				Str(l.CallbackUrlKey, googleCallbackURL).
 				Msg("Configuring Google OAuth")
 
 			activeProviders = append(
@@ -108,7 +112,7 @@ func InitAuth(cfg *config.Config) error {
 		discordCallbackURL := fmt.Sprintf("%s/api/auth/discord/callback", cfg.AppBaseURL)
 		logger.Info().
 			Str(l.ProviderKey, "discord").
-			Str("callback_url", discordCallbackURL).
+			Str(l.CallbackUrlKey, discordCallbackURL).
 			Msg("Configuring Discord OAuth")
 
 		activeProviders = append(
@@ -117,6 +121,38 @@ func InitAuth(cfg *config.Config) error {
 		)
 	} else {
 		initErrors = append(initErrors, errors.New("DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET is missing"))
+	}
+
+	// Apple Provider
+	appleKeyID := cfg.ProviderAuthConfig.AppleKeyID
+	appleTeamID := cfg.ProviderAuthConfig.AppleTeamID
+	appleClientID := cfg.ProviderAuthConfig.AppleClientID
+	applePrivateKeyB64 := cfg.ProviderAuthConfig.ApplePrivateKey
+
+	if appleKeyID != "" && appleTeamID != "" && appleClientID != "" && applePrivateKeyB64 != "" {
+		privateKeyBytes, err := base64.StdEncoding.DecodeString(applePrivateKeyB64)
+		if err != nil {
+			initErrors = append(initErrors, fmt.Errorf("APPLE_PRIVATE_KEY could not be base64 decoded: %w", err))
+			logger.Error().Err(err).Msg("Failed to Base64 decode the Apple Private Key.")
+		} else {
+			logger.Info().Msg("Successfully Base64 decoded Apple private key.")
+			appleCallbackURL := fmt.Sprintf("%s/api/auth/apple/callback", cfg.AppBaseURL)
+			logger.Info().
+				Str(l.ProviderKey, "apple").
+				Str(l.CallbackUrlKey, appleCallbackURL).
+				Msg("Configuring Apple Oauth")
+
+			clientSecret, err := generateAppleClientSecret(string(privateKeyBytes), appleTeamID, appleClientID, appleKeyID)
+			if err != nil {
+				initErrors = append(initErrors, fmt.Errorf("failed to generate Apple client secret: %w", err))
+				logger.Error().Err(err).Msg("Failed to generate the Apple Client Secret JWT.")
+			} else {
+				logger.Info().Msg("Successfully generated Apple Client Secret JWT.")
+				activeProviders = append(activeProviders, apple.New(appleClientID, clientSecret, appleCallbackURL, nil, "name", "email"))
+			}
+		}
+	} else {
+		logger.Warn().Msg("Apple OAuth provider not configured; some credentials missing")
 	}
 
 	if len(initErrors) > 0 {
@@ -134,4 +170,26 @@ func InitAuth(cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+// Creates the JWT required by Apple for the client secret
+func generateAppleClientSecret(privateKey, teamID, clientID, keyID string) (string, error) {
+	claims := &jwt.RegisteredClaims{
+		Issuer:    teamID,
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 30)),
+		Audience:  jwt.ClaimStrings{"https://appleid.apple.com"},
+		Subject:   clientID,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token.Header["kid"] = keyID
+
+	parsedPrivateKey, err := jwt.ParseECPrivateKeyFromPEM([]byte(privateKey))
+	if err != nil {
+		l.AppLog.Error().Err(err).Msg("wt.ParseECPrivateKeyFromPEM failed. The decoded private key content is likely malformed.")
+		return "", fmt.Errorf("failed to parse ECDSA private key: %w", err)
+	}
+
+	return token.SignedString(parsedPrivateKey)
 }

@@ -51,7 +51,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	authHandler := h.NewAuthHandler(cfg)
 	authSubRouter := apiRouter.PathPrefix("/auth").Subrouter()
 	authSubRouter.HandleFunc("/{provider}/login", authHandler.HandleOAuthLogin).Methods(http.MethodGet)
-	authSubRouter.HandleFunc("/{provider}/callback", authHandler.HandleOAuthCallback).Methods(http.MethodGet)
+	authSubRouter.HandleFunc("/{provider}/callback", authHandler.HandleOAuthCallback).Methods(http.MethodGet, http.MethodPost)
 	authSubRouter.HandleFunc("/initiate-link/{provider}", authHandler.HandleInitiateLink).Methods(http.MethodGet)
 	authSubRouter.HandleFunc("/logout", authHandler.HandleLogout).Methods(http.MethodGet, http.MethodPost)
 	authSubRouter.HandleFunc("/me", authHandler.HandleGetCurrentUser).Methods(http.MethodGet)

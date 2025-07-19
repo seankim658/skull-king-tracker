@@ -36,7 +36,10 @@ type ProvidersConfig struct {
 	GoogleClientSecret  string
 	DiscordClientID     string
 	DiscordClientSecret string
-	// TODO : add others
+	AppleKeyID          string
+	AppleTeamID         string
+	AppleClientID       string
+	ApplePrivateKey     string
 }
 
 // Load configuration from environment variables and .env files.
@@ -101,6 +104,10 @@ func Load() (*Config, error) {
 	googleClientSecret := getEnv("GOOGLE_CLIENT_SECRET", "")
 	discordClientID := getEnv("DISCORD_CLIENT_ID", "")
 	discordClientSecret := getEnv("DISCORD_CLIENT_SECRET", "")
+	appleKeyID := getEnv("APPLE_KEY_ID", "")
+	appleTeamID := getEnv("APPLE_TEAM_ID", "")
+	appleClientID := getEnv("APPLE_CLIENT_ID", "")
+	applePrivateKeyB64 := getEnv("APPLE_PRIVATE_KEY_BASE64", "")
 
 	apiPort := getEnv("API_PORT", "8080")
 
@@ -136,6 +143,10 @@ func Load() (*Config, error) {
 			GoogleClientSecret:  googleClientSecret,
 			DiscordClientID:     discordClientID,
 			DiscordClientSecret: discordClientSecret,
+			AppleKeyID:          appleKeyID,
+			AppleTeamID:         appleTeamID,
+			AppleClientID:       appleClientID,
+			ApplePrivateKey:     applePrivateKeyB64,
 		},
 		Log: l.LogConfig{
 			AppLogPath:     getEnv("APP_LOG_PATH", "./logs/app.log"),
