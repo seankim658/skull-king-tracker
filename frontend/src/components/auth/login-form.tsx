@@ -53,11 +53,15 @@ export function LoginForm({
               <Button
                 key={provider.id}
                 variant="default"
-                className="w-full cursor-pointer flex items-center justify-center gap-2"
+                className="w-full cursor-pointer"
                 onClick={() => handleLogin(provider.id)}
               >
-                <div className="h-5 w-5">{provider.icon}</div>
-                Login with {provider.name}
+                <div className="flex items-center justify-center gap-2 w-full">
+                  <div className="h-5 w-5 flex items-center justify-center flex-shrink-0">
+                    {provider.icon}
+                  </div>
+                  <span>Login with {provider.name}</span>
+                </div>
               </Button>
             ))}
           </div>
