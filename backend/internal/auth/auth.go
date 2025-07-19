@@ -50,7 +50,7 @@ func InitAuth(cfg *config.Config) error {
 	store.Options.Secure = cfg.AppEnv == "production"
 	if cfg.AppEnv == "production" {
 		store.Options.Secure = true
-		store.Options.SameSite = http.SameSiteLaxMode
+		store.Options.SameSite = http.SameSiteNoneMode
 	} else {
 		store.Options.Secure = false
 		store.Options.SameSite = http.SameSiteLaxMode
