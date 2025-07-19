@@ -106,7 +106,7 @@ func Load() (*Config, error) {
 	discordClientSecret := getEnv("DISCORD_CLIENT_SECRET", "")
 	appleKeyID := getEnv("APPLE_KEY_ID", "")
 	appleTeamID := getEnv("APPLE_TEAM_ID", "")
-	appleClientID := getEnv("APPLE_CLIENT", "")
+	appleClientID := getEnv("APPLE_CLIENT_ID", "")
 	applePrivateKeyB64 := getEnv("APPLE_PRIVATE_KEY_BASE64", "")
 
 	apiPort := getEnv("API_PORT", "8080")
