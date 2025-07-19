@@ -133,7 +133,9 @@ func InitAuth(cfg *config.Config) error {
 		privateKeyBytes, err := base64.StdEncoding.DecodeString(applePrivateKeyB64)
 		if err != nil {
 			initErrors = append(initErrors, fmt.Errorf("APPLE_PRIVATE_KEY could not be base64 decoded: %w", err))
+			logger.Error().Err(err).Msg("Failed to Base64 decode the Apple Private Key.")
 		} else {
+			logger.Info().Msg("Successfully Base64 decoded Apple private key.")
 			appleCallbackURL := fmt.Sprintf("%s/api/auth/apple/callback", cfg.AppBaseURL)
 			logger.Info().
 				Str(l.ProviderKey, "apple").
@@ -143,7 +145,9 @@ func InitAuth(cfg *config.Config) error {
 			clientSecret, err := generateAppleClientSecret(string(privateKeyBytes), appleTeamID, appleClientID, appleKeyID)
 			if err != nil {
 				initErrors = append(initErrors, fmt.Errorf("failed to generate Apple client secret: %w", err))
+				logger.Error().Err(err).Msg("Failed to generate the Apple Client Secret JWT.")
 			} else {
+				logger.Info().Msg("Successfully generated Apple Client Secret JWT.")
 				activeProviders = append(activeProviders, apple.New(appleClientID, clientSecret, appleCallbackURL, nil, "name", "email"))
 			}
 		}
@@ -183,6 +187,7 @@ func generateAppleClientSecret(privateKey, teamID, clientID, keyID string) (stri
 
 	parsedPrivateKey, err := jwt.ParseECPrivateKeyFromPEM([]byte(privateKey))
 	if err != nil {
+		l.AppLog.Error().Err(err).Msg("wt.ParseECPrivateKeyFromPEM failed. The decoded private key content is likely malformed.")
 		return "", fmt.Errorf("failed to parse ECDSA private key: %w", err)
 	}
 
