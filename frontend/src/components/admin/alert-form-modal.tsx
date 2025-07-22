@@ -134,10 +134,19 @@ export function AlertFormModal({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={isLoading}
+            className="cursor-pointer"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading || !isFormValid}>
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading || !isFormValid}
+            className="cursor-pointer"
+          >
             {isLoading ? "Saving..." : "Save Alert"}
           </Button>
         </DialogFooter>
