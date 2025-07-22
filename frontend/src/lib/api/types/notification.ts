@@ -3,6 +3,7 @@ export interface NotificationActor {
   username: string;
   display_name?: string | null;
   avatar_url?: string | null;
+  updated_at?: string | null;
 }
 
 export interface Notification {

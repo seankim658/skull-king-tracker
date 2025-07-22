@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	dbModels "github.com/seankim658/skullking/internal/models/database"
 )
@@ -118,6 +120,10 @@ func BuildGamePlayerResponses(dbPlayers []dbModels.GamePlayerDetails) []apiModel
 		}
 		if p.AvatarURL.Valid {
 			apiPlayer.AvatarURL = &p.AvatarURL.String
+		}
+		if p.UpdatedAt.Valid {
+			formattedTime := p.UpdatedAt.Time.Format(time.RFC3339)
+			apiPlayer.UpdatedAt = &formattedTime
 		}
 		apiPlayers[i] = apiPlayer
 	}

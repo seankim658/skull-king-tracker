@@ -12,6 +12,7 @@ type NotificationActor struct {
 	Username    string  `json:"username"`
 	DisplayName *string `json:"display_name,omitempty"`
 	AvatarURL   *string `json:"avatar_url,omitempty"`
+	UpdatedAt   *string `json:"updated_at,omitempty"`
 }
 
 // Represents a single notification sent to the client

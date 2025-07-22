@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"time"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
@@ -97,6 +98,7 @@ func (uph *UserProfileHandler) HandleGetUserProfile(w http.ResponseWriter, r *ht
 		Username:         apiProfileUserPart.Username,
 		DisplayName:      apiProfileUserPart.DisplayName,
 		AvatarURL:        apiProfileUserPart.AvatarURL,
+		UpdatedAt:        apiProfileUserPart.UpdatedAt,
 		StatsPrivacy:     profileDBUser.StatsPrivacy,
 		CreatedAt:        apiProfileUserPart.CreatedAt,
 		FriendCount:      friendCount,
@@ -252,12 +254,16 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 
 	apiFriends := make([]apiModels.FriendListItem, 0, len(dbFriends))
 	for _, f := range dbFriends {
-		var displayName, avatarURL *string
+		var displayName, avatarURL, updatedAt *string
 		if f.DisplayName.Valid {
 			displayName = &f.DisplayName.String
 		}
 		if f.AvatarURL.Valid {
 			avatarURL = &f.AvatarURL.String
+		}
+		if f.UpdatedAt.Valid {
+			formattedTime := f.UpdatedAt.Time.Format(time.RFC3339)
+			updatedAt = &formattedTime
 		}
 
 		var status apiModels.FriendshipStatus
@@ -293,6 +299,7 @@ func (uph *UserProfileHandler) HandleGetFriendsList(w http.ResponseWriter, r *ht
 			Username:         f.Username,
 			DisplayName:      displayName,
 			AvatarURL:        avatarURL,
+			UpdatedAt:        updatedAt,
 			FriendshipStatus: status,
 		})
 	}

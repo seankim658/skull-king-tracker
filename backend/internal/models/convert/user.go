@@ -88,11 +88,17 @@ func DBUserSearchResultToAPISearchItem(dbUser *dbModels.UserSearchResult) (*apiM
 	if dbUser.AvatarURL.Valid {
 		avatarURL = &dbUser.AvatarURL.String
 	}
+	var updatedAt *string
+	if dbUser.UpdatedAt.Valid {
+		formattedTime := dbUser.UpdatedAt.Time.Format(time.RFC3339)
+		updatedAt = &formattedTime
+	}
 
 	return &apiModels.UserSearchItem{
 		UserID:      dbUser.UserID,
 		Username:    dbUser.Username,
 		DisplayName: displayName,
 		AvatarURL:   avatarURL,
+		UpdatedAt:   updatedAt,
 	}, nil
 }

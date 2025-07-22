@@ -66,6 +66,7 @@ export function GameCard({ game, type }: GameCardProps) {
                 userId={player.user_id}
                 displayName={player.display_name}
                 avatarUrl={player.avatar_url}
+                updatedAt={player.updated_at}
                 className="h-8 w-8 border"
               />
               <span className="text-sm font-medium">{player.display_name}</span>

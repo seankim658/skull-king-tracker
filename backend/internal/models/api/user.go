@@ -78,6 +78,7 @@ type UserProfile struct {
 	DisplayName       *string          `json:"display_name,omitempty"`
 	AvatarURL         *string          `json:"avatar_url,omitempty"`
 	StatsPrivacy      string           `json:"stats_privacy"`
+	UpdatedAt         time.Time        `json:"updated_at"`
 	CreatedAt         time.Time        `json:"created_at"`
 	FriendCount       int              `json:"friend_count"`
 	MutualFriendCount *int             `json:"mutual_friend_count,omitempty"`
@@ -98,6 +99,7 @@ type UserSearchItem struct {
 	Username    string  `json:"username"`
 	DisplayName *string `json:"display_name,omitempty"`
 	AvatarURL   *string `json:"avatar_url,omitempty"`
+	UpdatedAt   *string `json:"updated_at,omitempty"`
 }
 
 // Represents a single user in another user's friends list
@@ -106,5 +108,6 @@ type FriendListItem struct {
 	Username         string           `json:"username"`
 	DisplayName      *string          `json:"display_name,omitempty"`
 	AvatarURL        *string          `json:"avatar_url,omitempty"`
+	UpdatedAt        *string          `json:"updated_at,omitempty"`
 	FriendshipStatus FriendshipStatus `json:"friendship_status_with_viewer"`
 }

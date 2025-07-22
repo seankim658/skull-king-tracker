@@ -99,6 +99,7 @@ export function ProfileHeader({
             userId={profile.user_id}
             displayName={displayName}
             avatarUrl={profile.avatar_url}
+            updatedAt={profile.updated_at}
             className="h-20 w-20 text-2xl flex-shrink-0"
           />
           <div className="flex-grow text-left">

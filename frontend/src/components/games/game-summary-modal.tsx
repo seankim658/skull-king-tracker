@@ -111,6 +111,7 @@ export function GameSummaryModal({
                   userId={topThree[1].user_id}
                   displayName={topThree[1].display_name}
                   avatarUrl={topThree[1].avatar_url}
+                  updatedAt={topThree[1].updated_at}
                   className="h-16 w-16 mx-auto border-2 border-slate-400"
                 />
                 <p className="font-semibold mt-1 truncate">
@@ -131,6 +132,7 @@ export function GameSummaryModal({
                   userId={topThree[0].user_id}
                   displayName={topThree[0].display_name}
                   avatarUrl={topThree[0].avatar_url}
+                  updatedAt={topThree[0].updated_at}
                   className="h-20 w-20 mx-auto border-4 border-amber-400"
                 />
                 <p className="text-lg font-bold mt-1 truncate">
@@ -151,6 +153,7 @@ export function GameSummaryModal({
                   userId={topThree[2].user_id}
                   displayName={topThree[2].display_name}
                   avatarUrl={topThree[2].avatar_url}
+                  updatedAt={topThree[2].updated_at}
                   className="h-16 w-16 mx-auto border-2 border-amber-600"
                 />
                 <p className="font-semibold mt-1 truncate">

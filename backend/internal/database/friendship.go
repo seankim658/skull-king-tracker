@@ -567,7 +567,7 @@ func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID, searchQuery str
 	argCounter := 2
 
 	baseQuery := `
-  SELECT u.user_id, u.username, u.display_name, u.avatar_url
+  SELECT u.user_id, u.username, u.display_name, u.avatar_url, u.updated_at
   FROM user_friendships f
   JOIN users u ON CASE
     WHEN f.requester_id = $1 THEN u.user_id = f.addressee_id
@@ -588,7 +588,7 @@ func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID, searchQuery str
 		finalQuery += " AND " + strings.Join(whereClauses, "")
 	}
 	finalQuery += fmt.Sprintf(" ORDER BY u.username ASC LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
-  args = append(args, pageSize, offset)
+	args = append(args, pageSize, offset)
 	logger.Debug().Str(l.QueryKey, finalQuery).Msg("Attempting to get friends by user ID")
 
 	rows, err := querier.QueryContext(ctx, finalQuery, args...)
@@ -606,6 +606,7 @@ func GetFriendsByUserID(ctx context.Context, tx *sql.Tx, userID, searchQuery str
 			&friend.Username,
 			&friend.DisplayName,
 			&friend.AvatarURL,
+			&friend.UpdatedAt,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan friend row")
 			return nil, fmt.Errorf("error scanning friend data for user %s: %w", userID, err)
@@ -699,6 +700,7 @@ func GetFriendshipWithViewerStatus(
     u.username,
     u.display_name,
     u.avatar_url,
+    u.updated_at,
     COALESCE(vf.status, 'not_friends') AS friendship_status_with_viewer,
     vf.requester_id
   FROM profile_friends pf
@@ -726,6 +728,7 @@ func GetFriendshipWithViewerStatus(
 			&friend.Username,
 			&friend.DisplayName,
 			&friend.AvatarURL,
+			&friend.UpdatedAt,
 			&friend.FriendshipStatus,
 			&friend.RequesterID,
 		); err != nil {

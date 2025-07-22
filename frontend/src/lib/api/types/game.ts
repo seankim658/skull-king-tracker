@@ -40,6 +40,7 @@ export interface GamePlayerResponse {
   display_name: string;
   username?: string;
   avatar_url?: string;
+  updated_at?: string | null;
   seating_order: number;
   final_score: number;
 }
@@ -130,6 +131,7 @@ export interface ActiveGamePlayer {
   user_id?: string | null;
   display_name: string;
   avatar_url?: string | null;
+  updated_at?: string | null;
 }
 
 /**

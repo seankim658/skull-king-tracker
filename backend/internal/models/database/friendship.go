@@ -40,6 +40,7 @@ type FriendshipWithViewerStatus struct {
 	Username         string         `db:"username"`
 	DisplayName      sql.NullString `db:"display_name"`
 	AvatarURL        sql.NullString `db:"avatar_url"`
+	UpdatedAt        sql.NullTime   `db:"updated_at"`
 	FriendshipStatus string         `db:"friendship_status_with_viewer"`
 	RequesterID      sql.NullString `db:"requester_id"`
 }

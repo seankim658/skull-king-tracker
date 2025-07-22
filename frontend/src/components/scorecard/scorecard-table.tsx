@@ -75,6 +75,7 @@ export function ScorecardTable({
                         userId={player.user_id}
                         displayName={player.display_name}
                         avatarUrl={player.avatar_url}
+                        updatedAt={player.updated_at}
                         className="h-10 w-10 border-2"
                       />
                       {playerAsterisks.map((asterisk, index) => (

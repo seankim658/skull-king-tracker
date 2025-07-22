@@ -82,7 +82,8 @@ func GetNotificationByUserID(ctx context.Context,
     un.message, un.is_read, un.link, un.created_at, un.friendship_id,
     u.username AS actor_username,
     u.display_name AS actor_display_name,
-    u.avatar_url AS actor_avatar_url
+    u.avatar_url AS actor_avatar_url,
+    u.updated_at AS actor_updated_at
   FROM user_notifications un
   JOIN users u ON un.actor_user_id = u.user_id
   WHERE un.recipient_user_id = $1
@@ -102,7 +103,7 @@ func GetNotificationByUserID(ctx context.Context,
 		if err := rows.Scan(
 			&n.NotificationID, &n.RecipientUserID, &n.Type, &n.ActorUserID,
 			&n.Message, &n.IsRead, &n.Link, &n.CreatedAt, &n.FriendshipID,
-			&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL,
+			&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL, &n.ActorUpdatedAt,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan notification row")
 			return nil, fmt.Errorf("error scanning notification for user %s: %w", userID, err)
@@ -215,7 +216,8 @@ func GetNotificationWithActorByID(
     un.message, un.is_read, un.link, un.created_at, un.friendship_id,
     u.username AS actor_username,
     u.display_name AS actor_display_name,
-    u.avatar_url AS actor_avatar_url
+    u.avatar_url AS actor_avatar_url,
+    u.updated_at AS actor_updated_at
   FROM user_notifications un
   JOIN users u ON un.actor_user_id = u.user_id
   WHERE un.notification_id = $1;
@@ -226,7 +228,7 @@ func GetNotificationWithActorByID(
 	err := querier.QueryRowContext(ctx, query, notificationID).Scan(
 		&n.NotificationID, &n.RecipientUserID, &n.Type, &n.ActorUserID,
 		&n.Message, &n.IsRead, &n.Link, &n.CreatedAt, &n.FriendshipID,
-		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL,
+		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL, &n.ActorUpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -262,7 +264,8 @@ func GetNotificationByUsersAndType(
     un.message, un.is_read, un.link, un.created_at, un.friendship_id,
     u.username AS actor_username,
     u.display_name AS actor_display_name,
-    u.avatar_url AS actor_avatar_url
+    u.avatar_url AS actor_avatar_url,
+    u.updated_at AS actor_updated_at
   FROM user_notifications un
   JOIN users u ON un.actor_user_id = u.user_id
   WHERE un.recipient_user_id = $1 AND un.actor_user_id = $2 AND un.type = $3;
@@ -272,7 +275,7 @@ func GetNotificationByUsersAndType(
 	err := querier.QueryRowContext(ctx, query, recipientID, actorID, notificationType).Scan(
 		&n.NotificationID, &n.RecipientUserID, &n.Type, &n.ActorUserID,
 		&n.Message, &n.IsRead, &n.Link, &n.CreatedAt, &n.FriendshipID,
-		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL,
+		&n.ActorUsername, &n.ActorDisplayName, &n.ActorAvatarURL, &n.ActorUpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
