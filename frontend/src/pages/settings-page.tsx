@@ -77,6 +77,12 @@ export function SettingsPage() {
           queryClient.invalidateQueries({
             queryKey: ["userProfile", user.user_id],
           });
+          queryClient.invalidateQueries({ queryKey: ["activeGames"] });
+          queryClient.invalidateQueries({ queryKey: ["pendingGames"] });
+          queryClient.invalidateQueries({ queryKey: ["gameHistory"] });
+          queryClient.invalidateQueries({ queryKey: ["globalLeaderboard"] });
+          queryClient.invalidateQueries({ queryKey: ["friendsList"] });
+          queryClient.invalidateQueries({ queryKey: ["scorecard"] });
         }
         checkAuthStatus();
       },
@@ -272,7 +278,11 @@ export function SettingsPage() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isSavingProfile} className="cursor-pointer">
+              <Button
+                type="submit"
+                disabled={isSavingProfile}
+                className="cursor-pointer"
+              >
                 {isSavingProfile ? "Saving..." : "Save Profile Changes"}
               </Button>
             </CardFooter>

@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"time"
 
 	apiModels "github.com/seankim658/skullking/internal/models/api"
 	dbModels "github.com/seankim658/skullking/internal/models/database"
@@ -11,7 +12,7 @@ func DBNotificationsToAPIResponse(dbNotifications []dbModels.NotificationWithAct
 	apiNotifications := make([]apiModels.Notification, 0, len(dbNotifications))
 
 	for _, dbNotif := range dbNotifications {
-		var actorDisplayName, actorAvatarURL, friendshipID *string
+		var actorDisplayName, actorAvatarURL, friendshipID, actorUpdatedAt *string
 		if dbNotif.ActorDisplayName.Valid {
 			actorDisplayName = &dbNotif.ActorDisplayName.String
 		}
@@ -20,6 +21,10 @@ func DBNotificationsToAPIResponse(dbNotifications []dbModels.NotificationWithAct
 		}
 		if dbNotif.FriendshipID.Valid {
 			friendshipID = &dbNotif.FriendshipID.String
+		}
+		if dbNotif.ActorUpdatedAt.Valid {
+			formattedTime := dbNotif.ActorUpdatedAt.Time.Format(time.RFC3339)
+			actorUpdatedAt = &formattedTime
 		}
 
 		apiNotif := apiModels.Notification{
@@ -34,6 +39,7 @@ func DBNotificationsToAPIResponse(dbNotifications []dbModels.NotificationWithAct
 				Username:    dbNotif.ActorUsername,
 				DisplayName: actorDisplayName,
 				AvatarURL:   actorAvatarURL,
+				UpdatedAt:   actorUpdatedAt,
 			},
 		}
 		apiNotifications = append(apiNotifications, apiNotif)
@@ -45,7 +51,7 @@ func DBNotificationWithActorToAPI(dbNotif *dbModels.NotificationWithActor) (*api
 	if dbNotif == nil {
 		return nil, errors.New("cannot convert nil db notification to api notification")
 	}
-	var actorDisplayName, actorAvatarURL, friendshipID *string
+	var actorDisplayName, actorAvatarURL, friendshipID, actorUpdatedAt *string
 	if dbNotif.ActorDisplayName.Valid {
 		actorDisplayName = &dbNotif.ActorDisplayName.String
 	}
@@ -54,6 +60,10 @@ func DBNotificationWithActorToAPI(dbNotif *dbModels.NotificationWithActor) (*api
 	}
 	if dbNotif.FriendshipID.Valid {
 		friendshipID = &dbNotif.FriendshipID.String
+	}
+	if dbNotif.ActorUpdatedAt.Valid {
+		formattedTime := dbNotif.ActorUpdatedAt.Time.Format(time.RFC3339)
+		actorUpdatedAt = &formattedTime
 	}
 	apiNotif := &apiModels.Notification{
 		NotificationID: dbNotif.NotificationID,
@@ -67,6 +77,7 @@ func DBNotificationWithActorToAPI(dbNotif *dbModels.NotificationWithActor) (*api
 			Username:    dbNotif.ActorUsername,
 			DisplayName: actorDisplayName,
 			AvatarURL:   actorAvatarURL,
+			UpdatedAt:   actorUpdatedAt,
 		},
 	}
 	return apiNotif, nil

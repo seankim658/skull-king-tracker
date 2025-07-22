@@ -341,6 +341,7 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
     COALESCE(u.display_name, u.username, g.display_name) AS display_name,
     u.username,
     u.avatar_url,
+    u.updated_at,
     gp.seating_order,
     gp.final_score
   FROM game_players gp
@@ -369,6 +370,7 @@ func GetPlayersByGameID(ctx context.Context, tx *sql.Tx, gameID string) ([]dbMod
 			&p.DisplayName,
 			&p.Username,
 			&p.AvatarURL,
+			&p.UpdatedAt,
 			&p.SeatingOrder,
 			&p.FinalScore,
 		); err != nil {
@@ -725,7 +727,8 @@ func GetActiveGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]d
       json_agg(json_build_object(
         'user_id', gp.user_id,
         'display_name', COALESCE(u.display_name, u.username, gp_guest.display_name),
-        'avatar_url', u.avatar_url
+        'avatar_url', u.avatar_url,
+        'updated_at', u.updated_at
       )) AS players
     FROM games g
     JOIN game_players gp ON g.game_id = gp.game_id
@@ -1161,7 +1164,8 @@ func GetPendingGamesByUserID(ctx context.Context, tx *sql.Tx, userID string) ([]
       g.game_id,
       json_agg(json_build_object(
         'display_name', COALESCE(u.display_name, u.username, gp_guest.display_name),
-        'avatar_url', u.avatar_url
+        'avatar_url', u.avatar_url,
+        'updated_at', u.updated_at
       )) AS players
     FROM games g
     JOIN game_players gp ON g.game_id = gp.game_id

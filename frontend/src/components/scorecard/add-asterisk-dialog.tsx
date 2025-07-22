@@ -107,12 +107,18 @@ export function AddAsteriskDialog({
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={onClose} disabled={isLoading}>
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={isLoading}
+              className="cursor-pointer"
+            >
               Cancel
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={isLoading || selectedReason === ""}
+              className="cursor-pointer"
             >
               {isLoading ? "Adding..." : "Add Asterisk"}
             </Button>

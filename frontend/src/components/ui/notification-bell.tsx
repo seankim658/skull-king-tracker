@@ -320,6 +320,7 @@ export function NotificationBell() {
                             notif.actor.display_name || notif.actor.username
                           }
                           avatarUrl={notif.actor.avatar_url}
+                          updatedAt={notif.actor.updated_at}
                           className="h-9 w-9"
                         />
                         <div className="flex-1">

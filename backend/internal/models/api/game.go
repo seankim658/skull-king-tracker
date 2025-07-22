@@ -112,6 +112,7 @@ type GamePlayerResponse struct {
 	DisplayName   string  `json:"display_name"`
 	Username      *string `json:"username,omitempty"`
 	AvatarURL     *string `json:"avatar_url,omitempty"`
+	UpdatedAt     *string `json:"updated_at,omitempty"`
 	SeatingOrder  int     `json:"seating_order"`
 	FinalScore    int     `json:"final_score"`
 }
@@ -138,6 +139,7 @@ type PlayerRoundData struct {
 type ActiveGamePlayer struct {
 	DisplayName string  `json:"display_name"`
 	AvatarURL   *string `json:"avatar_url,omitempty"`
+	UpdatedAt   *string `json:"updated_at,omitempty"`
 }
 
 // Represents an asterisk given to a player in a game

@@ -33,6 +33,7 @@ type UserSearchResult struct {
 	Username    string         `db:"username"`
 	DisplayName sql.NullString `db:"display_name"`
 	AvatarURL   sql.NullString `db:"avatar_url"`
+	UpdatedAt   sql.NullTime   `db:"updated_at"`
 }
 
 // --- Data Transfer Structs ---

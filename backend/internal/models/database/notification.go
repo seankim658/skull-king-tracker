@@ -24,4 +24,5 @@ type NotificationWithActor struct {
 	ActorUsername    string         `db:"actor_username"`
 	ActorDisplayName sql.NullString `db:"actor_display_name"`
 	ActorAvatarURL   sql.NullString `db:"actor_avatar_rul"`
+	ActorUpdatedAt   sql.NullTime   `db:"actor_updated_at"`
 }

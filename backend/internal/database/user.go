@@ -529,7 +529,7 @@ func SearchUsers(ctx context.Context, tx *sql.Tx, searchQuery string, limit int)
 	searchTerm := "%" + strings.ToLower(searchQuery) + "%"
 
 	query := `
-  SELECT user_id, username, display_name, avatar_url
+  SELECT user_id, username, display_name, avatar_url, updated_at
   FROM users
   WHERE (LOWER(username) ILIKE $1 OR LOWER(display_name) ILIKE $1) AND is_banned = false
   ORDER BY
@@ -566,6 +566,7 @@ func SearchUsers(ctx context.Context, tx *sql.Tx, searchQuery string, limit int)
 			&u.Username,
 			&u.DisplayName,
 			&u.AvatarURL,
+			&u.UpdatedAt,
 		); err != nil {
 			logger.Error().Err(err).Msg("Failed to scan user search result row")
 			return nil, fmt.Errorf("error scanning user search result: %w", err)

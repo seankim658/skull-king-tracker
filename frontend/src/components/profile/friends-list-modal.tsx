@@ -104,6 +104,7 @@ export function FriendsListModal({
                     userId={friend.user_id}
                     displayName={friend.display_name || friend.username}
                     avatarUrl={friend.avatar_url}
+                    updatedAt={friend.updated_at}
                   />
                   <div className="text-left">
                     <p className="text-sm font-medium leading-none hover:underline cursor-pointer">

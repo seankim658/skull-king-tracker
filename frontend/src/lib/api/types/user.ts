@@ -73,6 +73,7 @@ export interface UserProfile {
   username: string;
   display_name: string;
   avatar_url: string | null;
+  updated_at: string;
   stats_privacy: "private" | "friends_only" | "public";
   created_at: string;
   friend_count: number;
@@ -90,6 +91,7 @@ export interface UserSearchItem {
   username: string;
   display_name?: string | null;
   avatar_url?: string | null;
+  updated_at?: string | null;
 }
 
 export type UserSearchResponse = UserSearchItem[];
@@ -99,6 +101,7 @@ export interface FriendListItem {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  updated_at?: string | null;
   friendship_status_with_viewer: FriendshipStatus;
 }
 

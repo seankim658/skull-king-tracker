@@ -89,6 +89,7 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
                         userId={user.user_id}
                         displayName={user.avatar_url || user.username}
                         avatarUrl={user.avatar_url}
+                        updatedAt={user.updated_at}
                       />
                       <div>
                         <p className="text-sm font-medium leading-none">
