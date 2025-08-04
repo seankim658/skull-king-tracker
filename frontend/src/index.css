@@ -236,7 +236,7 @@ body {
 @layer base {
   html,
   body {
-    @apply h-full overflow-y-hidden;
+    @apply h-full;
   }
 
   * {

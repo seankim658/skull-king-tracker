@@ -34,7 +34,7 @@ export function MainLayout() {
     <SidebarProvider>
       <AppSidebar user={sidebarUserData} variant="inset" />
       <SidebarInset className="flex flex-col min-w-0">
-        <div className="flex h-screen flex-col overflow-hidden">
+        <div className="flex h-screen flex-col">
           <SiteHeader />
           <main className="flex-1 overflow-auto">
             <SiteAlertBanner />
