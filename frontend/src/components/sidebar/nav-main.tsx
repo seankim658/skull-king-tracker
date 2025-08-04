@@ -24,11 +24,15 @@ interface NavMainProps {
 }
 
 export function NavMain({ items, uploadButton = false }: NavMainProps) {
-  const { setOpen } = useSidebar();
+  const { setOpen, setOpenMobile, isMobile } = useSidebar();
   const navigate = useNavigate();
 
   const handleLinkClick = () => {
-    setOpen(false);
+    if (isMobile) {
+      setOpenMobile(false);
+    } else {
+      setOpen(false);
+    }
   };
 
   const { submit: createOneOffGame, isLoading: isCreatingGame } = useSubmit(

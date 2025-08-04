@@ -24,10 +24,14 @@ export function NavSecondary({
   className,
   ...props
 }: NavSecondaryProps) {
-  const { setOpen } = useSidebar();
+  const { setOpen, setOpenMobile, isMobile } = useSidebar();
 
   const handleLinkClick = () => {
-    setOpen(false);
+    if (isMobile) {
+      setOpenMobile(false);
+    } else {
+      setOpen(false);
+    }
   };
 
   return (
