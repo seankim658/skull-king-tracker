@@ -24,13 +24,11 @@ interface NavMainProps {
 }
 
 export function NavMain({ items, uploadButton = false }: NavMainProps) {
-  const { setOpen, isMobile } = useSidebar();
+  const { setOpen } = useSidebar();
   const navigate = useNavigate();
 
   const handleLinkClick = () => {
-    if (isMobile) {
-      setOpen(false);
-    }
+    setOpen(false);
   };
 
   const { submit: createOneOffGame, isLoading: isCreatingGame } = useSubmit(
@@ -64,7 +62,7 @@ export function NavMain({ items, uploadButton = false }: NavMainProps) {
                 )}
                 asChild
               >
-                <Link to="/start-session">
+                <Link to="/start-session" onClick={handleLinkClick}>
                   <NotebookPen />
                   <span>Start Session</span>
                 </Link>

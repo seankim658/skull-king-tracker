@@ -21,6 +21,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "../ui/sidebar";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
@@ -59,6 +60,11 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const { user: authenticatedUser } = useAuth();
+  const { setOpen } = useSidebar();
+
+  const handleLinkClick = () => {
+    setOpen(false);
+  };
 
   const navItems = useMemo(() => {
     const items = [
@@ -109,7 +115,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <Link to="/">
+              <Link to="/" onClick={handleLinkClick}>
                 <span className="text-base font-semibold">
                   Skull King Tracker
                 </span>
