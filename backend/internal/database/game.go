@@ -889,10 +889,10 @@ func GetUserGameHistory(
         gp.user_id,
         SUM(CASE WHEN prs.bid_amount > 0 AND prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) as rounds_hit,
         SUM(CASE WHEN prs.bid_amount = 0 THEN prs.round_score ELSE 0 END) as zero_differential
-      FROM games g
-      JOIN game_players gp ON g.game_id = gp.game_id
-      JOIN rounds r ON g.game_id = r.game_id
-      JOIN player_round_scores prs ON r.round_id = prs.round_id AND gp.game_player_id = prs.game_player_id
+      FROM player_round_scores prs
+      JOIN rounds r ON prs.round_id = r.round_id
+      JOIN game_players gp ON prs.game_player_id = gp.game_player_id
+      JOIN games g ON r.game_id = g.game_id
       WHERE gp.user_id = $1 AND g.status = 'completed'
       GROUP BY g.game_id, gp.user_id
     ),
