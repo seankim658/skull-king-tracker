@@ -8,8 +8,8 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from "@dnd-kit/core";
-import type { DragEndEvent } from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
@@ -60,6 +60,7 @@ function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    touchAction: "none",
   };
 
   return (
