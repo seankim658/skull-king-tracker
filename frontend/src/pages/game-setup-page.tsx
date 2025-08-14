@@ -60,7 +60,7 @@ function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    touchAction: "none",
+    touchAction: "manipulation",
   };
 
   return (
