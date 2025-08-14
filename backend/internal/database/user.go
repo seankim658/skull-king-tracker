@@ -119,8 +119,8 @@ func GetUserByEmail(ctx context.Context, tx *sql.Tx, email string) (*dbModels.Us
 
 	query := `
   SELECT
-    user_id, username, email, display_name, avatar_url, avatar_source, 
-    stats_privacy, ui_theme, color_theme, created_at, updated_at, last_login_at
+    user_id, username, email, display_name, avatar_url, avatar_source, stats_privacy, 
+    ui_theme, color_theme, role, is_banned, created_at, updated_at, last_login_at
   FROM users
   WHERE email = $1;
   `
