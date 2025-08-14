@@ -5,10 +5,11 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from "@dnd-kit/core";
-import type { DragEndEvent } from "@dnd-kit/core";
 import {
   arrayMove,
   SortableContext,
@@ -53,12 +54,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: player.game_player_id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: player.game_player_id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    zIndex: isDragging ? 1000 : undefined,
   };
 
   return (
@@ -66,17 +74,17 @@ function SortablePlayerItem({ player }: { player: GamePlayerResponse }) {
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className="flex items-center justify-between bg-muted p-3 rounded-md"
+      className={`flex items-center justify-between bg-muted p-3 rounded-md ${isDragging ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-4">
-        <Button
+        <div
           {...listeners}
-          variant="ghost"
-          size="icon"
-          className="cursor-grab p-1"
+          {...attributes}
+          className="cursor-grab touch-none p-2 -m-2 flex items-center justify-center"
+          style={{ touchAction: "none" }}
         >
           <GripVertical className="h-5 w-5 text-muted-foreground" />
-        </Button>
+        </div>
         <UserAvatar
           userId={player.user_id}
           displayName={player.display_name}
@@ -213,7 +221,17 @@ export function GameSetupPage() {
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 8,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
@@ -364,7 +382,7 @@ export function GameSetupPage() {
               <div className="relative inline-flex items-center gap-1 mb-2">
                 <Label
                   htmlFor="dealer-select"
-                  className="text-lg font-semibold"
+                  className="text-lg font-semibold mr-2"
                 >
                   Starting Dealer
                 </Label>
