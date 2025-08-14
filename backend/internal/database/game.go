@@ -887,7 +887,7 @@ func GetUserGameHistory(
       SELECT
         g.game_id,
         gp.user_id,
-        SUM(CASE WHEN prs.bid_amount > 0 AND prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) as rounds_hit,
+        SUM(CASE WHEN prs.bid_amount = prs.tricks_taken THEN 1 ELSE 0 END) as rounds_hit,
         SUM(CASE WHEN prs.bid_amount = 0 THEN prs.round_score ELSE 0 END) as zero_differential
       FROM player_round_scores prs
       JOIN rounds r ON prs.round_id = r.round_id
