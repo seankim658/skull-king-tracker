@@ -382,7 +382,7 @@ export function GameSetupPage() {
               <div className="relative inline-flex items-center gap-1 mb-2">
                 <Label
                   htmlFor="dealer-select"
-                  className="text-lg font-semibold"
+                  className="text-lg font-semibold mr-2"
                 >
                   Starting Dealer
                 </Label>
