@@ -95,6 +95,8 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	gameSubRouter.HandleFunc("/{game_id}/summary", gameHandler.HandleGetGameSummary).Methods(http.MethodGet)
 	gameSubRouter.HandleFunc("/{game_id}/rounds/{round_number:[0-9]+}/bids", scoringHandler.HandleSubmitBids).Methods(http.MethodPost)
 	gameSubRouter.HandleFunc("/{game_id}/rounds/{round_number:[0-9]+}/tricks", scoringHandler.HandleSubmitTricks).Methods(http.MethodPost)
+	gameSubRouter.HandleFunc("/{game_id}/rounds/{round_number:[0-9]+}/bids", scoringHandler.HandleUpdateBids).Methods(http.MethodPut)
+	gameSubRouter.HandleFunc("/{game_id}/rounds/{round_number:[0-9]+}/tricks", scoringHandler.HandleUpdateTricks).Methods(http.MethodPut)
 
 	// Session routes
 	sessionSubRouter := apiRouter.PathPrefix("/sessions").Subrouter()

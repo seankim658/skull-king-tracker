@@ -18,15 +18,19 @@ import type {
   SubmitTricksPayload,
 } from "@/lib/api/types";
 import { RotateCcw } from "lucide-react";
+import { Badge } from "../ui/badge";
 import { useSubmit } from "@/hooks/use-submit";
 import { gameAPI } from "@/lib/api/service/game";
 import { useQueryClient } from "@tanstack/react-query";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface ScorecardInputDrawerProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   currentRound: RoundScorecard;
   players: GamePlayerResponse[];
+  editMode: "bids" | "tricks" | null;
+  roundToEdit?: RoundScorecard | null;
 }
 
 type InputPhase = "bidding" | "tricks";
@@ -54,70 +58,109 @@ export function ScorecardInputDrawer({
   onOpenChange,
   currentRound,
   players,
+  editMode,
+  roundToEdit,
 }: ScorecardInputDrawerProps) {
   const { gameId } = useParams<{ gameId: string }>();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [bids, setBids] = useState<Record<string, number>>({});
   const [tricks, setTricks] = useState<Record<string, number>>({});
   const [bonus, setBonus] = useState<Record<string, number>>({});
 
+  const onMutationSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
+    queryClient.invalidateQueries({ queryKey: ["activeGames"] });
+    queryClient.invalidateQueries({ queryKey: ["gameHistory"] });
+    queryClient.invalidateQueries({ queryKey: ["globalLeaderboard"] });
+    players.forEach((player) => {
+      if (player.user_id) {
+        queryClient.invalidateQueries({
+          queryKey: ["userProfile", player.user_id],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["userAwardsStats", player.user_id],
+        });
+      }
+    });
+    onOpenChange(false);
+  };
+
   const { submit: submitBids, isLoading: isSubmittingBids } = useSubmit(
     gameAPI.submitBids,
-    {
-      actionVerb: "Submitting bids",
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
-        onOpenChange(false);
-      },
-    },
+    { actionVerb: "Submitting bids", onSuccess: onMutationSuccess },
   );
-
+  const { submit: updateBids, isLoading: isUpdatingBids } = useSubmit(
+    gameAPI.updateBids,
+    { actionVerb: "Updating bids", onSuccess: onMutationSuccess },
+  );
   const { submit: submitTricks, isLoading: isSubmittingTricks } = useSubmit(
     gameAPI.submitTricks,
-    {
-      actionVerb: "Submitting scores",
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["scorecard", gameId] });
-        queryClient.invalidateQueries({ queryKey: ["activeGames"] });
-        queryClient.invalidateQueries({ queryKey: ["gameHistory"] });
-        queryClient.invalidateQueries({ queryKey: ["globalLeaderboard"] });
-        players.forEach((player) => {
-          if (player.user_id) {
-            queryClient.invalidateQueries({
-              queryKey: ["userProfile", player.user_id],
-            });
-            queryClient.invalidateQueries({
-              queryKey: ["userAwardsStats", player.user_id],
-            });
-          }
-        });
-        onOpenChange(false);
-      },
-    },
+    { actionVerb: "Submitting scores", onSuccess: onMutationSuccess },
+  );
+  const { submit: updateTricks, isLoading: isUpdatingTricks } = useSubmit(
+    gameAPI.updateTricks,
+    { actionVerb: "Updating scores", onSuccess: onMutationSuccess },
   );
 
-  const isLoading = isSubmittingBids || isSubmittingTricks;
+  const isLoading =
+    isSubmittingBids ||
+    isUpdatingBids ||
+    isSubmittingTricks ||
+    isUpdatingTricks;
 
+  const roundForDisplay = editMode === "tricks" ? roundToEdit : currentRound;
   const phase: InputPhase =
-    currentRound.status === "bidding" ? "bidding" : "tricks";
+    editMode === "bids"
+      ? "bidding"
+      : editMode === "tricks"
+        ? "tricks"
+        : currentRound.status === "bidding"
+          ? "bidding"
+          : "tricks";
   const activePlayer = players[currentPlayerIndex];
 
   useEffect(() => {
     if (isOpen) {
       setCurrentPlayerIndex(0);
-      setBids({});
-      setTricks({});
-      setBonus({});
+      // Pre-populate state if in edit mode
+      if (editMode === "bids" && currentRound) {
+        const initialBids = currentRound.player_scores.reduce(
+          (acc, score) => {
+            acc[score.game_player_id] = score.bid_amount ?? 0;
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+        setBids(initialBids);
+      } else if (editMode === "tricks" && roundToEdit) {
+        const initialTricks = roundToEdit.player_scores.reduce(
+          (acc, score) => {
+            acc[score.game_player_id] = score.tricks_taken ?? 0;
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+        const initialBonus = roundToEdit.player_scores.reduce(
+          (acc, score) => {
+            acc[score.game_player_id] = score.bonus_points ?? 0;
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+        setTricks(initialTricks);
+        setBonus(initialBonus);
+      } else {
+        // Reset for new entry
+        setBids({});
+        setTricks({});
+        setBonus({});
+      }
     }
-  }, [isOpen, currentRound.round_number]);
+  }, [isOpen, editMode, currentRound, roundToEdit]);
 
-  const handleNext = () => {
-    if (currentPlayerIndex < players.length - 1) {
-      setCurrentPlayerIndex(currentPlayerIndex + 1);
-      return;
-    }
-
+  const submitData = () => {
     if (phase === "bidding") {
       const payload: SubmitBidsPayload = {
         bids: players.map((p) => ({
@@ -125,7 +168,11 @@ export function ScorecardInputDrawer({
           bid_amount: bids[p.game_player_id] ?? 0,
         })),
       };
-      submitBids(gameId!, currentRound.round_number, payload);
+      if (editMode === "bids") {
+        updateBids(gameId!, currentRound.round_number, payload);
+      } else {
+        submitBids(gameId!, currentRound.round_number, payload);
+      }
     } else {
       const payload: SubmitTricksPayload = {
         tricks: players.map((p) => ({
@@ -134,7 +181,63 @@ export function ScorecardInputDrawer({
           bonus_points: bonus[p.game_player_id] ?? 0,
         })),
       };
-      submitTricks(gameId!, currentRound.round_number, payload);
+      if (editMode === "tricks" && roundToEdit) {
+        updateTricks(gameId!, roundToEdit.round_number, payload);
+      } else {
+        submitTricks(gameId!, currentRound.round_number, payload);
+      }
+    }
+  };
+
+  const handleFinalRoundConfirmation = async () => {
+    const summaryContent = (
+      <div>
+        <p className="mb-4">
+          You are submitting scores for the final round. This action cannot be
+          undone. Please confirm the scores are correct.
+        </p>
+        <div className="space-y-2 rounded-md border p-2">
+          {players.map((player) => (
+            <div
+              key={player.game_player_id}
+              className="flex justify-between text-sm"
+            >
+              <span className="font-medium">{player.display_name}:</span>
+              <span>
+                {tricks[player.game_player_id] ?? 0} Tricks,{" "}
+                {bonus[player.game_player_id] ?? 0} Bonus
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+    const isConfirmed = await confirm({
+      title: "Confirm Final Round Scores?",
+      description: summaryContent,
+      confirmText: "Submit Final Scores",
+      cancelText: "Go Back",
+    });
+
+    if (isConfirmed) {
+      submitData();
+    }
+  };
+
+  const handleNext = () => {
+    if (currentPlayerIndex < players.length - 1) {
+      setCurrentPlayerIndex(currentPlayerIndex + 1);
+      return;
+    }
+
+    const isFinalRoundSubmission =
+      roundForDisplay?.round_number === 10 && phase === "tricks" && !editMode;
+
+    if (isFinalRoundSubmission) {
+      handleFinalRoundConfirmation();
+    } else {
+      submitData();
     }
   };
 
@@ -144,7 +247,7 @@ export function ScorecardInputDrawer({
     }
   };
 
-  if (!activePlayer) return null;
+  if (!activePlayer || !roundForDisplay) return null;
 
   const isLastPlayer = currentPlayerIndex === players.length - 1;
   const currentBid = bids[activePlayer.game_player_id] ?? 0;
@@ -158,23 +261,24 @@ export function ScorecardInputDrawer({
         )?.bid_amount ?? 0)
       : 0;
 
-  const phaseTitle =
-    phase === "bidding" ? "Enter Bids" : "Enter Tricks & Bonuses";
-  const phaseDescription =
-    phase === "bidding" ? "Input bids for " : "Input results for ";
-  const phaseSubmit = phase === "bidding" ? "Submit Bids" : "Submit Scores";
+  const phaseTitle = editMode
+    ? `Edit ${phase === "bidding" ? "Bids" : "Tricks"}`
+    : `Enter ${phase === "bidding" ? "Bids" : "Tricks & Bonuses"}`;
+  const phaseDescription = `Input for ${activePlayer.display_name}`;
+  const phaseSubmit = editMode ? "Save Changes" : "Submit";
 
   return (
     <Drawer open={isOpen} onOpenChange={onOpenChange}>
       <DrawerContent>
         <div className="mx-auto w-full max-w-sm">
           <DrawerHeader className="text-center">
-            <DrawerTitle>
-              Round {currentRound.round_number} - {phaseTitle}
-            </DrawerTitle>
-            <DrawerDescription>
-              {`${phaseDescription}${activePlayer.display_name}`}
-            </DrawerDescription>
+            <div className="flex items-center justify-center gap-2">
+              {editMode && <Badge>Editing</Badge>}
+              <DrawerTitle>
+                Round {roundForDisplay.round_number} - {phaseTitle}
+              </DrawerTitle>
+            </div>
+            <DrawerDescription>{phaseDescription}</DrawerDescription>
           </DrawerHeader>
 
           <div className="p-2 flex flex-col items-center gap-4">
@@ -394,7 +498,7 @@ export function ScorecardInputDrawer({
             )}
           </div>
 
-          <DrawerFooter>
+          <DrawerFooter className="pb-10">
             <Button
               variant="outline"
               onClick={handlePrevious}

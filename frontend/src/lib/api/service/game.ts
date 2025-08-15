@@ -133,6 +133,22 @@ export const gameAPI = {
     }),
 
   /**
+   * Updates the bids for all players for a specific round.
+   * @param gameId - The ID of the game
+   * @param roundNumber - The round number for which bids are being updated
+   * @param payload - The new bid data for all players
+   */
+  updateBids: (
+    gameId: string,
+    roundNumber: number,
+    payload: SubmitBidsPayload,
+  ): Promise<ApiResponse<null>> =>
+    client<null>(`/games/${gameId}/rounds/${roundNumber}/bids`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  /**
    * Submits the tricks taken by all players for a specific round.
    * @param gameId - The ID of the game
    * @param roundNumber - The round number for which tricks are being submitted
@@ -145,6 +161,22 @@ export const gameAPI = {
   ): Promise<ApiResponse<null>> =>
     client<null>(`/games/${gameId}/rounds/${roundNumber}/tricks`, {
       method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  /**
+   * Updates the tricks taken by all players for a specific round.
+   * @param gameId - The ID of the game
+   * @param roundNumber - The round number for which tricks are being updated
+   * @param payload - The new trick data for all players
+   */
+  updateTricks: (
+    gameId: string,
+    roundNumber: number,
+    payload: SubmitTricksPayload,
+  ): Promise<ApiResponse<null>> =>
+    client<null>(`/games/${gameId}/rounds/${roundNumber}/tricks`, {
+      method: "PUT",
       body: JSON.stringify(payload),
     }),
 

@@ -320,3 +320,200 @@ func saveAwardsToDB(ctx context.Context, tx *sql.Tx, gameID string, awards []api
 	logger.Info().Int(l.CountKey, awardsSaved).Msg("Finished saving game awards")
 	return nil
 }
+
+// Updates bids when the scorekeeper is editing bids
+func UpdateBidsForRound(ctx context.Context, tx *sql.Tx, roundID string, bids []dbModels.PlayerBidData) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), scoringComponent, "UpdateBidsForRound").With().Str(l.RoundIDKey, roundID).Logger()
+
+	var currenStatus string
+	err := querier.QueryRowContext(ctx, "SELECT status FROM rounds WHERE round_id = $1;", roundID).Scan(&currenStatus)
+	if err != nil {
+		return fmt.Errorf("failed to get current round status: %w", err)
+	}
+
+	if currenStatus != "playing" {
+		return ErrCannotEditBids
+	}
+
+	stmt, err := querier.PrepareContext(ctx, `
+    UPDATE player_round_scores
+    SET bid_amount = $1, updated_at = NOW()
+    WHERE round_id = $2 AND game_player_id = $3;
+  `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare bid update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, bid := range bids {
+		if _, err := stmt.ExecContext(ctx, bid.BidAmount, roundID, bid.GamePlayerID); err != nil {
+			return fmt.Errorf("failed to update bid for player %s: %w", bid.GamePlayerID, err)
+		}
+	}
+
+	logger.Info().Msg("Successfully updated bids")
+	return nil
+}
+
+// Updates tricks and bonus points when the scorekeeper is editing tricks
+func UpdateTricksForRound(ctx context.Context, tx *sql.Tx, gameID, roundToEditID string, newScores []dbModels.PlayerScoreData) error {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		scoringComponent,
+		"UpdateTricksForRound",
+	).With().Str(l.RoundIDKey, roundToEditID).Logger()
+
+	// Validation
+	editedRound, err := getRoundByID(ctx, querier, roundToEditID)
+	if err != nil {
+		return fmt.Errorf("could not fetch round to edit: %w", err)
+	}
+
+	latestRound, err := GetCurrentRoundInfo(ctx, tx, gameID)
+	if err != nil {
+		return fmt.Errorf("could not fetch latest round for validation: %w", err)
+	}
+
+	// You can only edit tricks for round N if the current round is N+1 and is in the 'bidding' state.
+	// This prevents editing a completed game's final round or any other historical round.
+	isValidForEdit := latestRound.Status == "bidding" && latestRound.RoundNumber-1 == editedRound.RoundNumber
+
+	if !isValidForEdit {
+		return ErrCannotEditHistoricalRound
+	}
+
+	// Reversal
+	oldScores, err := GetPlayerRoundScores(ctx, tx, roundToEditID)
+	if err != nil {
+		return fmt.Errorf("could not get old scores for reversal: %w", err)
+	}
+
+	for _, oldScore := range oldScores {
+		if _, err := querier.ExecContext(ctx,
+			"UPDATE game_players SET final_score = final_score - $1 WHERE game_player_id = $2;",
+			oldScore.RoundScore, oldScore.GamePlayerID,
+		); err != nil {
+			return fmt.Errorf("failed to reverse score for player %s: %w", oldScore.GamePlayerID, err)
+		}
+	}
+	logger.Debug().Msg("Successfully reversed scores from player totals")
+
+	// Recalculate and Update
+	bids, err := getBidsForRound(ctx, querier, roundToEditID)
+	if err != nil {
+		return err
+	}
+
+	for _, scoreData := range newScores {
+		bidAmount, ok := bids[scoreData.GamePlayerID]
+		if !ok {
+			return fmt.Errorf("missing bid for player %s", scoreData.GamePlayerID)
+		}
+
+		effectiveRoundNumber := editedRound.RoundNumber
+		if editedRound.IsTiebreakerRound {
+			effectiveRoundNumber = 10
+		}
+		newRoundScore := rules.CalculatePlayerRoundScore(effectiveRoundNumber, bidAmount, scoreData.TricksTaken) + scoreData.BonusPoints
+
+		// Update player_round_scores
+		_, err = querier.ExecContext(ctx, `
+  			UPDATE player_round_scores
+  			SET tricks_taken = $1, bonus_points_applied = $2, round_score = $3, updated_at = NOW()
+  			WHERE round_id = $4 AND game_player_id = $5;
+  		`, scoreData.TricksTaken, scoreData.BonusPoints, newRoundScore, roundToEditID, scoreData.GamePlayerID)
+		if err != nil {
+			return fmt.Errorf("failed to update player_round_scores for player %s: %w", scoreData.GamePlayerID, err)
+		}
+
+		// Update game_players final_score
+		_, err = querier.ExecContext(ctx, "UPDATE game_players SET final_score = final_score + $1 WHERE game_player_id = $2;", newRoundScore, scoreData.GamePlayerID)
+		if err != nil {
+			return fmt.Errorf("failed to update final_score for player %s: %w", scoreData.GamePlayerID, err)
+		}
+	}
+	logger.Debug().Msg("Successfully applied new scores to player totals and round scores")
+
+	logger.Info().Msg("Successfully updated tricks and recalculated scores")
+	return nil
+}
+
+func getRoundByID(ctx context.Context, querier DBTX, roundID string) (*dbModels.Round, error) {
+	var r dbModels.Round
+	err := querier.QueryRowContext(ctx, `
+    SELECT round_id, game_id, round_number, dealer_game_player_id, status, is_tiebreaker_round, created_at, updated_at
+    FROM rounds WHERE round_id = $1;
+  `, roundID).Scan(
+		&r.RoundID, &r.GameID, &r.RoundNumber, &r.DealerGamePlayerID, &r.Status, &r.IsTiebreakerRound, &r.CreatedAt, &r.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func GetPlayerRoundScores(ctx context.Context, querier DBTX, roundID string) ([]dbModels.PlayerRoundScoreDetails, error) {
+	rows, err := querier.QueryContext(ctx, `
+    SELECT player_round_score_id, round_id, game_player_id, bid_amount, tricks_taken, round_score, bonus_points_applied
+    FROM player_round_scores WHERE round_id = $1;
+  `, roundID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var scores []dbModels.PlayerRoundScoreDetails
+	for rows.Next() {
+		var s dbModels.PlayerRoundScoreDetails
+		if err := rows.Scan(
+			&s.PlayerRoundScoreID, &s.RoundID, &s.GamePlayerID, &s.BidAmount,
+			&s.TricksTaken, &s.RoundScore, &s.BonusPointsApplied,
+		); err != nil {
+			return nil, err
+		}
+		scores = append(scores, s)
+	}
+	return scores, rows.Err()
+}
+
+func getBidsForRound(ctx context.Context, querier DBTX, roundID string) (map[string]int, error) {
+	rows, err := querier.QueryContext(ctx, "SELECT game_player_id, bid_amount FROM player_round_scores WHERE round_id = $1;", roundID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bids: %w", err)
+	}
+	defer rows.Close()
+
+	bids := make(map[string]int)
+	for rows.Next() {
+		var playerID string
+		var bid sql.NullInt32
+		if err := rows.Scan(&playerID, &bid); err != nil {
+			return nil, fmt.Errorf("failed to scan bid row: %w", err)
+		}
+		if !bid.Valid {
+			return nil, fmt.Errorf("player %s is missing a bid", playerID)
+		}
+		bids[playerID] = int(bid.Int32)
+	}
+	return bids, rows.Err()
+}
+
+func GetRoundByGameAndNumber(ctx context.Context, tx *sql.Tx, gameID string, roundNumber int) (*dbModels.Round, error) {
+	querier := GetQuerier(tx)
+	var r dbModels.Round
+	err := querier.QueryRowContext(ctx, `
+          SELECT round_id, game_id, round_number, dealer_game_player_id, status, is_tiebreaker_round, created_at, updated_at
+          FROM rounds WHERE game_id = $1 AND round_number = $2;
+      `, gameID, roundNumber).Scan(
+		&r.RoundID, &r.GameID, &r.RoundNumber, &r.DealerGamePlayerID, &r.Status, &r.IsTiebreakerRound, &r.CreatedAt, &r.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("round %d not found for game %s", roundNumber, gameID)
+		}
+		return nil, err
+	}
+	return &r, nil
+}
