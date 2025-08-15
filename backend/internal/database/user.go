@@ -642,3 +642,65 @@ func GetAllUserIDs(ctx context.Context, tx *sql.Tx) ([]string, error) {
 
 	return userIDs, nil
 }
+
+// Counts all users for admin view
+func CountUsers(ctx context.Context, tx *sql.Tx) (int64, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), userComponent, "CountUsers")
+
+	query := "SELECT COUNT(*) FROM users;"
+	var totalCount int64
+	err := querier.QueryRowContext(ctx, query).Scan(&totalCount)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count users")
+		return 0, fmt.Errorf("error counting users: %w", err)
+	}
+	return totalCount, nil
+}
+
+// Retrieves a paginated list of all users for the admin panel
+func GetPaginatedUsers(ctx context.Context, tx *sql.Tx, page, pageSize int) ([]dbModels.AdminUserView, error) {
+	querier := GetQuerier(tx)
+	logger := l.WithComponentAndSource(
+		l.GetLoggerFromContext(ctx),
+		userComponent,
+		"GetPaginatedUsers",
+	).With().Int(l.PageKey, page).Int(l.PageSizeKey, pageSize).Logger()
+
+	offset := (page - 1) * pageSize
+
+	query := `
+  SELECT
+    user_id, username, email, display_name, avatar_url, avatar_source, stats_privacy,
+    role, is_banned, ban_reason, created_at, updated_at, last_login_at
+  FROM users
+  ORDER BY created_at DESC
+  LIMIT $1 OFFSET $2;
+  `
+	logger.Debug().Str(l.QueryKey, query).Msg("Attempting to get paginated users")
+
+	rows, err := querier.QueryContext(ctx, query, pageSize, offset)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to query for paginated users")
+		return nil, fmt.Errorf("error querying for paginated users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []dbModels.AdminUserView
+	for rows.Next() {
+		var u dbModels.AdminUserView
+		if err := rows.Scan(
+			&u.UserID, &u.Username, &u.Email, &u.DisplayName, &u.AvatarURL, &u.AvatarSource,
+			&u.StatsPrivacy, &u.Role, &u.IsBanned, &u.BanReason, &u.CreatedAt, &u.UpdatedAt, &u.LastLoginAt,
+		); err != nil {
+			logger.Error().Err(err).Msg("Failed to scan user row for admin view")
+			return nil, fmt.Errorf("error scanning user row for admin view: %w", err)
+		}
+		users = append(users, u)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over user rows for admin view: %w", err)
+	}
+
+	return users, nil
+}

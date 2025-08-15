@@ -1,47 +1,32 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
-import { adminAPI, type ReportFilters } from "@/lib/api/service/admin";
-import type { UserReport } from "@/lib/api/types";
+import { adminAPI } from "@/lib/api/service/admin";
+import type { AdminUserView } from "@/lib/api/types";
 import { DataTable } from "@/components/ui/data-table";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { columns } from "@/components/admin/report-columns";
+import { columns } from "@/components/admin/user-columns";
 import { BanUserModal } from "@/components/admin/ban-user-modal";
 import { errorExtract } from "@/lib/utils";
 import { Terminal } from "lucide-react";
-import { ReportDetailsModal } from "@/components/admin/report-details-modal";
 
-export function ReportsTable() {
+export function UsersTable() {
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = useState<SortingState>([]);
   const pageSize = 20;
 
   const [isBanModalOpen, setBanModalOpen] = useState(false);
-  const [isDetailModalOpen, setDetailsModalOpen] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<UserReport | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUserView | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["adminReports", page, pageSize, sorting],
-    queryFn: () => {
-      const filters: ReportFilters = {
-        page,
-        pageSize,
-        status: "pending",
-        sorting,
-      };
-      return adminAPI.getReports(filters);
-    },
+    queryKey: ["adminUsers", page, pageSize, sorting],
+    queryFn: () => adminAPI.getUsers({ page, pageSize }),
     placeholderData: (previousData) => previousData,
   });
 
-  const handleBanUser = (report: UserReport) => {
-    setSelectedReport(report);
+  const handleBanUser = (user: AdminUserView) => {
+    setSelectedUser(user);
     setBanModalOpen(true);
-  };
-
-  const handleViewDetails = (report: UserReport) => {
-    setSelectedReport(report);
-    setDetailsModalOpen(true);
   };
 
   if (isError) {
@@ -49,29 +34,28 @@ export function ReportsTable() {
     return (
       <Alert variant="destructive">
         <Terminal className="h-4 w-4" />
-        <AlertTitle>Error Loading Reports</AlertTitle>
+        <AlertTitle>Error Loading Users</AlertTitle>
         <AlertDescription>{errorMsg}</AlertDescription>
       </Alert>
     );
   }
 
-  const reportColumns = columns({
+  const userColumns = columns({
     onBan: handleBanUser,
-    onViewDetails: handleViewDetails,
   });
 
-  const userToBan = selectedReport
+  const userToBan = selectedUser
     ? {
-        userId: selectedReport.reported_user_id,
-        displayName: selectedReport.reported_name,
+        userId: selectedUser.user_id,
+        displayName: selectedUser.display_name || selectedUser.username,
       }
     : null;
 
   return (
     <>
       <DataTable
-        columns={reportColumns}
-        data={data?.data?.reports ?? []}
+        columns={userColumns}
+        data={data?.data?.users ?? []}
         sorting={sorting}
         setSorting={setSorting}
         pagination={
@@ -90,11 +74,6 @@ export function ReportsTable() {
         isOpen={isBanModalOpen}
         onClose={() => setBanModalOpen(false)}
         userToBan={userToBan}
-      />
-      <ReportDetailsModal
-        isOpen={isDetailModalOpen}
-        onClose={() => setDetailsModalOpen(false)}
-        report={selectedReport}
       />
     </>
   );

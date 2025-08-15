@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useSubmit } from "@/hooks/use-submit";
 import { adminAPI } from "@/lib/api/service/admin";
-import type { UserReport } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,24 +16,25 @@ import { useQueryClient } from "@tanstack/react-query";
 interface BanUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  userReport: UserReport | null;
+  userToBan: { userId: string; displayName: string } | null;
 }
 
 export function BanUserModal({
   isOpen,
   onClose,
-  userReport,
+  userToBan,
 }: BanUserModalProps) {
   const [reason, setReason] = useState("");
   const queryClient = useQueryClient();
   const { submit: banUser, isLoading } = useSubmit(adminAPI.banUser, {
     actionVerb: "Banning user",
-    successMessage: `User ${userReport?.reported_name} has been banned.`,
+    successMessage: `User ${userToBan?.displayName} has been banned.`,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminReports"] });
-      if (userReport) {
+      queryClient.invalidateQueries({ queryKey: ["adminUsers"] });
+      if (userToBan) {
         queryClient.invalidateQueries({
-          queryKey: ["userProfile", userReport.reported_user_id],
+          queryKey: ["userProfile", userToBan.userId],
         });
       }
       onClose();
@@ -42,8 +42,8 @@ export function BanUserModal({
   });
 
   const handleSubmit = () => {
-    if (userReport && reason.trim()) {
-      banUser(userReport.reported_user_id, { reason });
+    if (userToBan && reason.trim()) {
+      banUser(userToBan.userId, { reason });
     }
   };
 
@@ -51,7 +51,7 @@ export function BanUserModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Ban {userReport?.reported_name}</DialogTitle>
+          <DialogTitle>Ban {userToBan?.displayName}</DialogTitle>
         </DialogHeader>
         <div className="py-4">
           <Label htmlFor="ban-reason">Reason for Ban</Label>
