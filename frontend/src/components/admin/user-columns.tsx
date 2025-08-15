@@ -12,6 +12,11 @@ export const columns = ({
   onBan,
 }: UserColumnsProps): ColumnDef<AdminUserView>[] => [
   {
+    id: "index",
+    header: "#",
+    cell: ({ row }) => <span>{row.index + 1}</span>,
+  },
+  {
     accessorKey: "display_name",
     header: "User",
     cell: ({ row }) => {

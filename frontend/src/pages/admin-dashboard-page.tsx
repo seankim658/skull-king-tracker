@@ -27,7 +27,7 @@ export function AdminDashboardPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="reports">
+      <Tabs defaultValue="users">
         <TabsList>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="reports">User Reports</TabsTrigger>
