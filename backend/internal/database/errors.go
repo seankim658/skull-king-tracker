@@ -31,7 +31,9 @@ var (
 	ErrGameNotEnoughPlayers  = errors.New("cannot start a game with fewer than 2 player")
 
 	// Round
-	ErrNoRoundsFound = errors.New("no rounds found for this game")
+	ErrNoRoundsFound             = errors.New("no rounds found for this game")
+	ErrCannotEditBids            = errors.New("bids can only be edited when the round is in the 'playing' state")
+	ErrCannotEditHistoricalRound = errors.New("tricks can only be edited for the most recently completed round")
 
 	// Session
 	ErrSessionNotFound = errors.New("game session not found")
@@ -46,9 +48,9 @@ var (
 	// Notification
 	ErrNotificationNotFound = errors.New("notification not found")
 
-  // Report
-  ErrReportNotFound = errors.New("report not found")
+	// Report
+	ErrReportNotFound = errors.New("report not found")
 
-  // Alert
-  ErrAlertNotFound = errors.New("alert not found")
+	// Alert
+	ErrAlertNotFound = errors.New("alert not found")
 )

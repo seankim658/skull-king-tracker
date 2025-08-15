@@ -9,13 +9,14 @@ import {
   AlertDialogTitle,
 } from "./alert-dialog";
 import { Button } from "./button";
+import type { ReactNode } from "react";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  description: string;
+  description: ReactNode;
   confirmText?: string;
   cancelText?: string;
 }
@@ -36,7 +37,13 @@ export function ConfirmDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          {typeof description === "string" ? (
+            <AlertDialogDescription>{description}</AlertDialogDescription>
+          ) : (
+            <div className="text-sm text-muted-foreground pt-2">
+              {description}
+            </div>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel asChild>

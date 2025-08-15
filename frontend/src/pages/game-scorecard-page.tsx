@@ -16,8 +16,8 @@ import type {
   SSEEvent,
 } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
-import { PenLine, Terminal, Trophy } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Pencil, PenLine, Terminal, Trophy } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { gameAPI } from "@/lib/api/service/game";
@@ -46,6 +46,7 @@ export function GameScorecardPage() {
 
   const [isInputDrawerOpen, setIsInputDrawerOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState<"bids" | "tricks" | null>(null);
 
   const [isAsteriskDialogOpen, setIsAsteriskDialogOpen] = useState(false);
   const [selectedPlayerForAsterisk, setSelectedPlayerForAsterisk] =
@@ -129,6 +130,40 @@ export function GameScorecardPage() {
     };
   }, [gameId, queryClient, user]);
 
+  const currentRound = useMemo(
+    () =>
+      scorecardData?.rounds.find(
+        (r) => r.status === "bidding" || r.status === "playing",
+      ),
+    [scorecardData],
+  );
+
+  const canEditBids = currentRound?.status === "playing";
+  const canEditTricks =
+    currentRound?.status === "bidding" && currentRound.round_number > 1;
+  const isEditable = canEditBids || canEditTricks;
+
+  const roundToEdit = useMemo(() => {
+    if (!canEditTricks || !currentRound || !scorecardData) return null;
+    return scorecardData.rounds.find(
+      (r) => r.round_number === currentRound.round_number - 1,
+    );
+  }, [canEditTricks, currentRound, scorecardData]);
+
+  const handleEditClick = () => {
+    if (canEditBids) {
+      setEditMode("bids");
+    } else if (canEditTricks) {
+      setEditMode("tricks");
+    }
+    setIsInputDrawerOpen(true);
+  };
+
+  const handleMainActionClick = () => {
+    setEditMode(null);
+    setIsInputDrawerOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4 md:p-6">
@@ -164,9 +199,6 @@ export function GameScorecardPage() {
 
   const isScorekeeper =
     user?.user_id === scorecardData.current_scorekeeper_user_id;
-  const currentRound = scorecardData.rounds.find(
-    (r) => r.status === "bidding" || r.status === "playing",
-  );
 
   const playersForInput =
     currentRound?.is_tie_breaker_round && scorecardData.overtime_player_ids
@@ -245,20 +277,7 @@ export function GameScorecardPage() {
         </CardContent>
 
         <CardFooter className="flex-wrap justify-between pt-4 gap-2">
-          {isScorekeeper &&
-            scorecardData.game_status === "active" &&
-            currentRound && (
-              <Button
-                size="lg"
-                className="w-full sm:w-auto cursor-pointer"
-                onClick={() => setIsInputDrawerOpen(true)}
-              >
-                <PenLine className="h-4 w-4 mr-2" />
-                {getButtonText()}
-              </Button>
-            )}
-
-          {scorecardData.game_status === "completed" && (
+          {scorecardData.game_status === "completed" ? (
             <Button
               size="lg"
               className="w-full sm:w-auto cursor-pointer bg-amber-500 hover:bg-amber-600"
@@ -267,7 +286,32 @@ export function GameScorecardPage() {
               <Trophy className="h-4 w-4 mr-2" />
               View Game Summary
             </Button>
-          )}
+          ) : isScorekeeper && currentRound ? (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                size="icon"
+                variant="outline"
+                className="cursor-pointer"
+                disabled={!isEditable}
+                onClick={handleEditClick}
+                title={
+                  isEditable
+                    ? "Edit last action"
+                    : "No action available to edit"
+                }
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                className="flex-grow cursor-pointer"
+                onClick={handleMainActionClick}
+              >
+                <PenLine className="h-4 w-4 mr-2" />
+                {getButtonText()}
+              </Button>
+            </div>
+          ) : null}
         </CardFooter>
       </Card>
 
@@ -277,6 +321,8 @@ export function GameScorecardPage() {
           onOpenChange={setIsInputDrawerOpen}
           currentRound={currentRound}
           players={playersForInput}
+          editMode={editMode}
+          roundToEdit={roundToEdit}
         />
       )}
 

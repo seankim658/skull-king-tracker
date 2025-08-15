@@ -277,6 +277,141 @@ func (sh *ScoringHandler) HandleSubmitTricks(w http.ResponseWriter, r *http.Requ
 	Respond(w, r, http.StatusOK, nil, "Scores submitted successfully")
 }
 
+func (sh *ScoringHandler) HandleUpdateBids(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), scoringComponent, "HandleUpdateBids")
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	_, ok = PathVarInt(w, r, "round_number")
+	if !ok {
+		return
+	}
+
+	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !authOk {
+		return
+	}
+
+	if _, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger); !authorized {
+		return
+	}
+
+	var req apiModels.SubmitBidsRequest
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to update bids")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	currentRound, err := db.GetCurrentRoundInfo(ctx, tx, gameID)
+	if err != nil {
+		opErr = err
+		ErrorResponse(w, r, http.StatusInternalServerError, "Could not retrieve current round to update bids")
+		responseSent = true
+		return
+	}
+
+	dbBids := make([]dbModels.PlayerBidData, len(req.Bids))
+	for i, apiBid := range req.Bids {
+		dbBids[i] = dbModels.PlayerBidData{GamePlayerID: apiBid.GamePlayerID, BidAmount: apiBid.BidAmount}
+	}
+
+	opErr = db.UpdateBidsForRound(ctx, tx, currentRound.RoundID, dbBids)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrCannotEditBids) {
+			ErrorResponse(w, r, http.StatusConflict, opErr.Error())
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save updated bids")
+		}
+		responseSent = true
+		return
+	}
+
+	go broadcastScorecardUpdate(sh.SSEHub, gameID, logger)
+
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Bids updated successfully")
+		responseSent = true
+	}
+}
+
+func (sh *ScoringHandler) HandleUpdateTricks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), scoringComponent, "HandleUpdateTricks")
+
+	gameID, ok := PathVar(w, r, "game_id")
+	if !ok {
+		return
+	}
+	roundNumber, ok := PathVarInt(w, r, "round_number")
+	if !ok {
+		return
+	}
+
+	userID, authOk := GetAuthenticatedUserIDFromSession(w, r, logger)
+	if !authOk {
+		return
+	}
+
+	if _, authorized := CheckGameAccessAndScorekeeper(ctx, w, r, gameID, userID, logger); !authorized {
+		return
+	}
+
+	var req apiModels.SubmitTricksRequest
+	if !ParseJSON(w, r, &req) {
+		return
+	}
+
+	tx, txOk := StartTx(ctx, w, r, logger, "Failed to update tricks")
+	if !txOk {
+		return
+	}
+	var opErr error
+	var responseSent bool
+	defer ManageTransaction(tx, &opErr, logger, &responseSent)
+
+	// Fetch the specific round being edited by its number
+	roundToEdit, err := db.GetRoundByGameAndNumber(ctx, tx, gameID, roundNumber)
+	if err != nil {
+		opErr = err
+		ErrorResponse(w, r, http.StatusNotFound, fmt.Sprintf("Round %d not found for this game", roundNumber))
+		responseSent = true
+		return
+	}
+
+	dbScores := make([]dbModels.PlayerScoreData, len(req.Tricks))
+	for i, apiTrick := range req.Tricks {
+		dbScores[i] = dbModels.PlayerScoreData{GamePlayerID: apiTrick.GamePlayerID, TricksTaken: apiTrick.TricksTaken, BonusPoints: apiTrick.BonusPoints}
+	}
+
+	opErr = db.UpdateTricksForRound(ctx, tx, gameID, roundToEdit.RoundID, dbScores)
+	if opErr != nil {
+		if errors.Is(opErr, db.ErrCannotEditHistoricalRound) {
+			ErrorResponse(w, r, http.StatusConflict, opErr.Error())
+		} else {
+			ErrorResponse(w, r, http.StatusInternalServerError, "Failed to save updated tricks")
+		}
+		responseSent = true
+		return
+	}
+
+	go broadcastScorecardUpdate(sh.SSEHub, gameID, logger)
+
+	if !responseSent {
+		Respond(w, r, http.StatusOK, nil, "Tricks updated successfully")
+		responseSent = true
+	}
+}
+
 // Helper function to broadcast scorecard updates via SSE
 func broadcastScorecardUpdate(sseHub *sse.Hub, gameID string, logger zerolog.Logger) {
 	broadcastCtx := l.NewContextWithLogger(context.Background(), logger)
