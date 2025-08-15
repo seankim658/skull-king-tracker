@@ -219,7 +219,7 @@ export function SettingsPage() {
                   />
                   <Input
                     id="avatarUrl"
-                    type="url"
+                    type="text"
                     value={avatarUrl}
                     onChange={(e) => setAvatarUrl(e.target.value)}
                     placeholder="https://example.com/avatar.png"
