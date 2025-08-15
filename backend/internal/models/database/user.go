@@ -36,6 +36,23 @@ type UserSearchResult struct {
 	UpdatedAt   sql.NullTime   `db:"updated_at"`
 }
 
+// Composite struct for the admin user view
+type AdminUserView struct {
+	UserID       string         `db:"user_id"`
+	Username     string         `db:"username"`
+	Email        sql.NullString `db:"email"`
+	DisplayName  sql.NullString `db:"display_name"`
+	AvatarURL    sql.NullString `db:"avatar_url"`
+	AvatarSource sql.NullString `db:"avatar_source"`
+	StatsPrivacy string         `db:"stats_privacy"`
+	Role         string         `db:"role"`
+	IsBanned     bool           `db:"is_banned"`
+	BanReason    sql.NullString `db:"ban_reason"`
+	CreatedAt    time.Time      `db:"created_at"`
+	UpdatedAt    time.Time      `db:"updated_at"`
+	LastLoginAt  sql.NullTime   `db:"last_login_at"`
+}
+
 // --- Data Transfer Structs ---
 
 // Defines the set of parameters that can be used to update a user settings

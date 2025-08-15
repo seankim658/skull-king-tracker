@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	cf "github.com/seankim658/skullking/internal/config"
 	db "github.com/seankim658/skullking/internal/database"
@@ -513,4 +514,76 @@ func (ah *AdminHandler) HandleDeleteSiteAlert(w http.ResponseWriter, r *http.Req
 		Respond(w, r, http.StatusNoContent, nil, "Site alert deleted successfully")
 		responseSent = true
 	}
+}
+
+// Retrieves a paginated list of all users
+// Path: /admin/users
+// Method: GET
+func (ah *AdminHandler) HandleGetUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := l.WithComponentAndSource(l.GetLoggerFromContext(ctx), adminComponent, "HandleGetUsers")
+
+	page, pageSize := GetPaginationParams(r)
+
+	totalCount, err := db.CountUsers(ctx, nil)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to count users")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to count users")
+		return
+	}
+
+	dbUsers, err := db.GetPaginatedUsers(ctx, nil, page, pageSize)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to retrieve users")
+		ErrorResponse(w, r, http.StatusInternalServerError, "Failed to retrieve users")
+		return
+	}
+
+	apiUsers := make([]apiModels.AdminUserViewResponse, len(dbUsers))
+	for i, u := range dbUsers {
+		var email, displayName, avatarUrl, avatarSource, banReason, lastLoginAt *string
+		if u.Email.Valid {
+			email = &u.Email.String
+		}
+		if u.DisplayName.Valid {
+			displayName = &u.DisplayName.String
+		}
+		if u.AvatarURL.Valid {
+			avatarUrl = &u.AvatarURL.String
+		}
+		if u.AvatarSource.Valid {
+			avatarSource = &u.AvatarSource.String
+		}
+		if u.BanReason.Valid {
+			banReason = &u.BanReason.String
+		}
+		if u.LastLoginAt.Valid {
+			formattedTime := u.LastLoginAt.Time.Format(time.RFC3339)
+			lastLoginAt = &formattedTime
+		}
+
+		apiUsers[i] = apiModels.AdminUserViewResponse{
+			UserID:       u.UserID,
+			Username:     u.Username,
+			Email:        email,
+			DisplayName:  displayName,
+			AvatarURL:    avatarUrl,
+			AvatarSource: avatarSource,
+			StatsPrivacy: u.StatsPrivacy,
+			Role:         u.Role,
+			IsBanned:     u.IsBanned,
+			BanReason:    banReason,
+			CreatedAt:    u.CreatedAt,
+			UpdatedAt:    u.UpdatedAt,
+			LastLoginAt:  lastLoginAt,
+		}
+	}
+
+	pagination := CalculatePagination(totalCount, page, pageSize)
+	response := apiModels.PaginatedUsersResponse{
+		Users:      apiUsers,
+		Pagination: pagination,
+	}
+
+	Respond(w, r, http.StatusOK, response, "Users retrieved successfully")
 }

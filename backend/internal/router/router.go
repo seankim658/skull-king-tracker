@@ -152,6 +152,7 @@ func New(cfg *cf.Config, sseHub *sse.Hub) http.Handler {
 	adminSubrouter.Use(mw.AuthRequired)
 	adminSubrouter.Use(mw.SuperuserRequired)
 	adminSubrouter.HandleFunc("/users/{user_id}/ban", adminHandler.HandleBanUser).Methods(http.MethodPost)
+	adminSubrouter.HandleFunc("/users", adminHandler.HandleGetUsers).Methods(http.MethodGet)
 	adminSubrouter.HandleFunc("/users/{user_id}/unban", adminHandler.HandleUnbanUser).Methods(http.MethodPost)
 	adminSubrouter.HandleFunc("/reports", adminHandler.HandleGetReports).Methods(http.MethodGet)
 	adminSubrouter.HandleFunc("/reports/{report_id}", adminHandler.HandleUpdateReportStatus).Methods(http.MethodPut)

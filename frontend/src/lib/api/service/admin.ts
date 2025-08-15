@@ -5,6 +5,7 @@ import type {
   UpdateReportStatusPayload,
   SendNotificationPayload,
   BanUserRequest,
+  PaginatedAdminUsersResponse,
 } from "../types";
 import type { SortingState } from "@tanstack/react-table";
 
@@ -13,6 +14,11 @@ export interface ReportFilters {
   pageSize: number;
   status?: string;
   sorting: SortingState;
+}
+
+export interface UserFilters {
+  page: number;
+  pageSize: number;
 }
 
 export const adminAPI = {
@@ -81,4 +87,20 @@ export const adminAPI = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  /**
+   * Fetches all users for the admin panel.
+   */
+  getUsers: ({
+    page,
+    pageSize,
+  }: UserFilters): Promise<ApiResponse<PaginatedAdminUsersResponse>> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      page_size: pageSize.toString(),
+    });
+    return client<PaginatedAdminUsersResponse>(
+      `/admin/users?${params.toString()}`,
+    );
+  },
 };

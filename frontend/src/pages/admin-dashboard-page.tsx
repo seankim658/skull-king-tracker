@@ -6,6 +6,7 @@ import { AlertsTable } from "@/components/admin/alerts-table";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 import { SendNotificationModal } from "@/components/admin/send-notification-modal";
+import { UsersTable } from "@/components/admin/users-table";
 
 export function AdminDashboardPage() {
   const [isNotificationModalOpen, setNotificationModalOpen] = useState(false);
@@ -26,11 +27,15 @@ export function AdminDashboardPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="reports">
+      <Tabs defaultValue="users">
         <TabsList>
+          <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="reports">User Reports</TabsTrigger>
           <TabsTrigger value="alerts">Site Alerts</TabsTrigger>
         </TabsList>
+        <TabsContent value="users" className="mt-4">
+          <UsersTable />
+        </TabsContent>
         <TabsContent value="reports" className="mt-4">
           <ReportsTable />
         </TabsContent>
