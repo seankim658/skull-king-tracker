@@ -9,6 +9,7 @@ import {
   Gamepad,
   NotebookTabs,
   Lightbulb,
+  Trophy,
 } from "lucide-react";
 import { NavUser } from "./nav-user";
 import { NavMain } from "./nav-main";
@@ -31,6 +32,11 @@ const secondaryItems = [
     title: "Settings",
     url: "/settings",
     icon: Settings,
+  },
+  {
+    title: "Award Rules",
+    url: "/awards",
+    icon: Trophy,
   },
   {
     title: "Report Bug",

@@ -33,6 +33,7 @@ import { GameScorecardPage } from "./pages/game-scorecard-page";
 import { GamePage } from "./pages/games-page";
 import { SessionPage } from "./pages/sessions-page";
 import { AdminDashboardPage } from "./pages/admin-dashboard-page";
+import { AwardsDefinitionsPage } from "./pages/awards-definition-page";
 
 function AppContent() {
   const { isLoadingAuth } = useAuth();
@@ -59,6 +60,7 @@ function AppContent() {
           <Route path="/explore" element={<ExplorePage />} />
           <Route path="/games" element={<GamePage />} />
           <Route path="/sessions" element={<SessionPage />} />
+          <Route path="/awards" element={<AwardsDefinitionsPage />} />
           <Route
             path="/game/:gameId/add-players"
             element={<AddPlayersPage />}
