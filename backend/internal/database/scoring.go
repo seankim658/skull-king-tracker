@@ -370,26 +370,21 @@ func UpdateTricksForRound(ctx context.Context, tx *sql.Tx, gameID, roundToEditID
 	if err != nil {
 		return fmt.Errorf("could not fetch round to edit: %w", err)
 	}
-
 	latestRound, err := GetCurrentRoundInfo(ctx, tx, gameID)
 	if err != nil {
 		return fmt.Errorf("could not fetch latest round for validation: %w", err)
 	}
-
-	// You can only edit tricks for round N if the current round is N+1 and is in the 'bidding' state.
-	// This prevents editing a completed game's final round or any other historical round.
 	isValidForEdit := latestRound.Status == "bidding" && latestRound.RoundNumber-1 == editedRound.RoundNumber
-
 	if !isValidForEdit {
 		return ErrCannotEditHistoricalRound
 	}
 
-	// Reversal
+	// Recalculation logic
+	// Get all original scores for the round to reverse them from the total
 	oldScores, err := GetPlayerRoundScores(ctx, tx, roundToEditID)
 	if err != nil {
 		return fmt.Errorf("could not get old scores for reversal: %w", err)
 	}
-
 	for _, oldScore := range oldScores {
 		if _, err := querier.ExecContext(ctx,
 			"UPDATE game_players SET final_score = final_score - $1 WHERE game_player_id = $2;",
@@ -400,43 +395,68 @@ func UpdateTricksForRound(ctx context.Context, tx *sql.Tx, gameID, roundToEditID
 	}
 	logger.Debug().Msg("Successfully reversed scores from player totals")
 
-	// Recalculate and Update
-	bids, err := getBidsForRound(ctx, querier, roundToEditID)
-	if err != nil {
-		return err
+	// Create a map of the new tricks and bonus points from the request payload
+	newScoresMap := make(map[string]dbModels.PlayerScoreData)
+	for _, ns := range newScores {
+		newScoresMap[ns.GamePlayerID] = ns
 	}
 
-	for _, scoreData := range newScores {
-		bidAmount, ok := bids[scoreData.GamePlayerID]
+	// Get all original bids for the round
+	bids, err := getBidsForRound(ctx, querier, roundToEditID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve bids for score reclaculation: %w", err)
+	}
+
+	// Recalculate each player score and update
+	updatePlayerScoreStmt, err := querier.PrepareContext(ctx, `
+    UPDATE player_round_scores
+    SET tricks_taken = $1, bonus_points_applied = $2, round_score = $3, updated_at = NOW()
+    WHERE round_id = $4 AND game_player_id = $5;
+  `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare player_round_scores update statement: %w", err)
+	}
+	defer updatePlayerScoreStmt.Close()
+
+	updateFinalScoreStmt, err := querier.PrepareContext(ctx, `
+    UPDATE game_players SET final_score = final_score + $1 WHERE game_player_id = $2;
+  `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare game_players final_score update statement: %w", err)
+	}
+	defer updateFinalScoreStmt.Close()
+
+	for _, oldScore := range oldScores {
+		playerID := oldScore.GamePlayerID
+		bidAmount, ok := bids[playerID]
 		if !ok {
-			return fmt.Errorf("missing bid for player %s", scoreData.GamePlayerID)
+			return fmt.Errorf("consistency error: bid not found for player %s during trick update", playerID)
+		}
+
+		newTricks := int(oldScore.TricksTaken.Int32)
+		newBonus := oldScore.BonusPointsApplied
+		if updatedData, exists := newScoresMap[playerID]; exists {
+			newTricks = updatedData.TricksTaken
+			newBonus = updatedData.BonusPoints
 		}
 
 		effectiveRoundNumber := editedRound.RoundNumber
 		if editedRound.IsTiebreakerRound {
 			effectiveRoundNumber = 10
 		}
-		newRoundScore := rules.CalculatePlayerRoundScore(effectiveRoundNumber, bidAmount, scoreData.TricksTaken) + scoreData.BonusPoints
+		newRoundScore := rules.CalculatePlayerRoundScore(effectiveRoundNumber, bidAmount, newTricks) + newBonus
 
-		// Update player_round_scores
-		_, err = querier.ExecContext(ctx, `
-  			UPDATE player_round_scores
-  			SET tricks_taken = $1, bonus_points_applied = $2, round_score = $3, updated_at = NOW()
-  			WHERE round_id = $4 AND game_player_id = $5;
-  		`, scoreData.TricksTaken, scoreData.BonusPoints, newRoundScore, roundToEditID, scoreData.GamePlayerID)
-		if err != nil {
-			return fmt.Errorf("failed to update player_round_scores for player %s: %w", scoreData.GamePlayerID, err)
+		if _, err := updatePlayerScoreStmt.ExecContext(ctx, newTricks, newBonus, newRoundScore, roundToEditID, playerID); err != nil {
+			return fmt.Errorf("failed to update player_round_scores for player %s: %w", playerID, err)
 		}
 
-		// Update game_players final_score
-		_, err = querier.ExecContext(ctx, "UPDATE game_players SET final_score = final_score + $1 WHERE game_player_id = $2;", newRoundScore, scoreData.GamePlayerID)
-		if err != nil {
-			return fmt.Errorf("failed to update final_score for player %s: %w", scoreData.GamePlayerID, err)
+		if _, err := updateFinalScoreStmt.ExecContext(ctx, newRoundScore, playerID); err != nil {
+			return fmt.Errorf("failed to update final_score for player %s: %w", playerID, err)
 		}
 	}
-	logger.Debug().Msg("Successfully applied new scores to player totals and round scores")
+	logger.Debug().Msg("Successfully recalculated and applied new scores for all players in the edited round.")
 
-	logger.Info().Msg("Successfully updated tricks and recalculated scores")
+	logger.Info().Msg("Successfully updated tricks and recalculated scores for the round.")
 	return nil
 }
 
