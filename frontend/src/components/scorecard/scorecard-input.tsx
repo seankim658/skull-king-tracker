@@ -254,9 +254,10 @@ export function ScorecardInputDrawer({
   const currentTricks = tricks[activePlayer.game_player_id] ?? 0;
   const currentBonus = bonus[activePlayer.game_player_id] ?? 0;
 
+  const roundForBids = editMode === "tricks" ? roundToEdit : currentRound;
   const bidForTricksPhase =
-    phase === "tricks"
-      ? (currentRound.player_scores.find(
+    phase === "tricks" && roundForBids
+      ? (roundForBids.player_scores.find(
           (s) => s.game_player_id === activePlayer.game_player_id,
         )?.bid_amount ?? 0)
       : 0;
