@@ -3,6 +3,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "../ui/card";
@@ -15,6 +16,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { statsAPI } from "@/lib/api/service/stat";
 import { Skeleton } from "../ui/skeleton";
+import { useNavigate, useLocation, Link } from "react-router-dom";
+import { Button } from "../ui/button";
 
 interface ProfileAwardsChartProps {
   userId: string;
@@ -45,6 +48,7 @@ const categoryColors = [
 ];
 
 export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
+  const navigate = useNavigate();
   const {
     data: awardsData,
     isLoading,
@@ -134,9 +138,7 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Rank:</span>
-                          <span className="font-medium">
-                            Top {percentile}%
-                          </span>
+                          <span className="font-medium">Top {percentile}%</span>
                         </div>
                       </div>
                     );
@@ -158,6 +160,11 @@ export function ProfileAwardsChart({ userId }: ProfileAwardsChartProps) {
           </BarChart>
         </ChartContainer>
       </CardContent>
+      <CardFooter>
+        <Button variant="outline">
+          <Link to="/awards">Award Definitions</Link>
+        </Button>
+      </CardFooter>
     </Card>
   );
 }
